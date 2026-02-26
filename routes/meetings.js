@@ -478,7 +478,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     // Try Transcribe/Whisper
     if (item.transcribeKey) {
       try {
-        const stream = getFile(item.transcribeKey);
+        const stream = await getFile(item.transcribeKey);
         const chunks = [];
         for await (const chunk of stream) {
           chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
@@ -498,7 +498,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
 
     if (item.whisperKey) {
       try {
-        const stream = getFile(item.whisperKey);
+        const stream = await getFile(item.whisperKey);
         const chunks = [];
         for await (const chunk of stream) {
           chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
@@ -513,7 +513,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     // FunASR (with speaker labels)
     if (item.funasrKey) {
       try {
-        const stream = getFile(item.funasrKey);
+        const stream = await getFile(item.funasrKey);
         const chunks = [];
         for await (const chunk of stream) {
           chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
