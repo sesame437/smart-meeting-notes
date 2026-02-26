@@ -1052,11 +1052,11 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   opacity: 0;
   transition: opacity 0.15s ease;
 }
-/* Show when parent row is hovered */
-tr:hover .row-actions,
-.decision-item:hover .row-actions,
-.glossary-row:hover .row-actions,
-.meeting-card:hover .row-actions {
+/* Show when parent row is hovered — covers all actual DOM containers */
+tr:hover > td .row-actions,
+li:hover > .inline-item-actions .row-actions,
+.card ul li:hover .row-actions,
+.meeting-card-item:hover .row-actions {
   opacity: 1;
 }
 
@@ -1068,11 +1068,11 @@ tr:hover .row-actions,
   padding: 4px 6px;
   border-radius: 4px;
   line-height: 1;
-  color: rgba(255,255,255,0.35);
+  color: var(--aws-secondary);
   transition: color 0.15s ease, background 0.15s ease;
 }
 .row-actions .btn:hover {
-  background: rgba(255,255,255,0.08) !important;
+  background: rgba(0,0,0,0.05) !important;
 }
 .row-actions .btn.btn-outline:hover,
 .row-actions .btn:not(.btn-danger):hover {
@@ -1080,6 +1080,7 @@ tr:hover .row-actions,
 }
 .row-actions .btn.btn-danger:hover {
   color: #e05252;
+  background: rgba(224,82,82,0.08) !important;
 }
 .row-actions .btn:active {
   transform: scale(0.92);
@@ -1102,9 +1103,9 @@ tr:hover .row-actions,
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  background: #1a2332;
+  background: var(--aws-dark);
   border: 1px solid rgba(255,255,255,0.15);
-  color: #d0d7e2;
+  color: #fff;
   font-size: 11px;
   white-space: nowrap;
   padding: 3px 8px;
@@ -1131,10 +1132,13 @@ tr:hover .row-actions,
   line-height: 1.5;
 }
 
-/* card-title 右侧操作按钮组 */
+/* card-title: only space-between when it has action buttons */
 .card-title {
   display: flex;
   align-items: center;
+}
+.card-title:has(.card-title-actions),
+.card-title:has(.section-edit-btn) {
   justify-content: space-between;
 }
 .card-title-actions {
