@@ -987,3 +987,29 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .glossary-info-icon:hover .glossary-tooltip {
   display: block;
 }
+
+/* ===== Section Inline Edit ===== */
+.section-edit-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--aws-border);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.section-edit-btn:hover {
+  background: rgba(255, 153, 0, 0.1);
+  border-color: var(--aws-orange);
+}
+.inline-item-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.inline-item-actions .btn {
+  padding: 2px 6px;
+  font-size: 11px;
+}

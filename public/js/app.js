@@ -13,7 +13,7 @@ const API = {
       if (res.status === 204) return null;
       return res.json();
     } catch (err) {
-      Toast.error(err.message || "Network error");
+      Toast.error(err.message || "网络错误");
       throw err;
     }
   },
@@ -21,6 +21,7 @@ const API = {
   get(url)          { return this.request(url); },
   post(url, data)   { return this.request(url, { method: "POST", body: JSON.stringify(data) }); },
   put(url, data)    { return this.request(url, { method: "PUT", body: JSON.stringify(data) }); },
+  patch(url, data)  { return this.request(url, { method: "PATCH", body: JSON.stringify(data) }); },
   del(url)          { return this.request(url, { method: "DELETE" }); },
 };
 
@@ -162,9 +163,9 @@ async function fetchMeetings() {
   // Only show loading on first load (when allMeetings is empty)
   if (allMeetings.length === 0) {
     if (list) {
-      list.innerHTML = '<div class="loading">Loading...</div>';
+      list.innerHTML = '<div class="loading">加载中...</div>';
     } else {
-      tbody.innerHTML = '<tr><td colspan="4" class="loading">Loading...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="loading">加载中...</td></tr>';
     }
   }
 
@@ -182,19 +183,19 @@ async function fetchMeetings() {
     }
   } catch (_) {
     if (list) {
-      list.innerHTML = '<div class="empty-state">Failed to load meetings</div>';
+      list.innerHTML = '<div class="empty-state">加载会议失败</div>';
     } else {
-      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Failed to load meetings</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">加载会议失败</td></tr>';
     }
   }
 }
 
 function statusBadge(status) {
   const labels = {
-    pending: "Pending", created: "Created",
-    transcribed: "Transcribed", transcribing: "Transcribing",
-    reported: "Reported", processing: "Processing",
-    completed: "Completed", failed: "Failed"
+    pending: "等待中", created: "已创建",
+    transcribed: "已转录", transcribing: "转录中",
+    reported: "已生成", processing: "处理中",
+    completed: "已完成", failed: "失败"
   };
   const label = labels[status] || status;
   return `<span class="badge badge-${status}">${label}</span>`;
@@ -239,7 +240,7 @@ function meetingCard(m) {
     <div>${statusBadge(status)}${stageText ? `<div style="font-size:12px;color:#879596;margin-top:4px;">${stageText}</div>` : ""}${errorMsg}</div>
     <div class="item-actions">
       <button class="btn btn-outline btn-sm" data-action="start-card-edit" data-id="${escapeAttr(id)}" data-title="${escapeAttr(m.title || m.meetingId)}" data-type="${escapeAttr(mType)}" title="编辑"><i class="fa fa-pencil"></i></button>
-      <a href="meeting.html?id=${encodeURIComponent(id)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> View</a>
+      <a href="meeting.html?id=${encodeURIComponent(id)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> 查看</a>
       ${retryBtn}
       <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(id)}"><i class="fa fa-trash"></i></button>
     </div>
@@ -307,7 +308,7 @@ function meetingRow(m) {
     <td>${statusBadge(status)}</td>
     <td>
       <div class="btn-group">
-        <a href="meeting.html?id=${encodeURIComponent(m.meetingId)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> View</a>
+        <a href="meeting.html?id=${encodeURIComponent(m.meetingId)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> 查看</a>
         <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-trash"></i></button>
       </div>
     </td>
@@ -324,10 +325,10 @@ async function retryMeeting(id) {
 }
 
 async function deleteMeeting(id) {
-  if (!confirm("Are you sure you want to delete this meeting?")) return;
+  if (!confirm("确认删除该会议？")) return;
   try {
     await API.del(`/api/meetings/${id}`);
-    Toast.success("Meeting deleted");
+    Toast.success("会议已删除");
     fetchMeetings();
   } catch (_) { /* error already shown by API */ }
 }
@@ -373,7 +374,7 @@ async function uploadFile(file) {
   const ext = file.name.split(".").pop().toLowerCase();
   console.log("[upload] file:", file.name, "type:", file.type, "ext:", file.name.split(".").pop());
   if (!validTypes.includes(file.type) && !["mp4", "mp3", "m4a", "ogg", "oga", "ogv"].includes(ext)) {
-    Toast.error("Please upload MP4, MP3 or OGG files only.");
+    Toast.error("请上传 MP4、MP3 或 OGG 格式文件");
     return;
   }
 
@@ -383,7 +384,7 @@ async function uploadFile(file) {
 
   progress.classList.add("show");
   bar.style.width = "0%";
-  text.textContent = "Uploading...";
+  text.textContent = "上传中...";
 
   const formData = new FormData();
   formData.append("file", file);
@@ -409,7 +410,7 @@ async function uploadFile(file) {
       if (e.lengthComputable) {
         const pct = Math.round((e.loaded / e.total) * 100);
         bar.style.width = pct + "%";
-        text.textContent = `Uploading... ${pct}%`;
+        text.textContent = `上传中... ${pct}%`;
       }
     });
 
@@ -427,14 +428,14 @@ async function uploadFile(file) {
     });
 
     bar.style.width = "100%";
-    text.textContent = "Upload complete!";
-    Toast.success("File uploaded. Transcription has started.");
+    text.textContent = "上传完成！";
+    Toast.success("文件已上传，转录已开始");
     setTimeout(() => {
       progress.classList.remove("show");
       fetchMeetings();
     }, 1500);
   } catch (err) {
-    text.textContent = "Upload failed";
+    text.textContent = "上传失败";
     Toast.error(err.message);
     setTimeout(() => progress.classList.remove("show"), 3000);
   }
@@ -446,7 +447,7 @@ async function fetchMeeting(id) {
   if (!content) return;
   // Only show loading spinner on first load
   if (!content.dataset.loaded) {
-    content.innerHTML = '<div class="loading">Loading...</div>';
+    content.innerHTML = '<div class="loading">加载中...</div>';
   }
   try {
     const m = await API.get(`/api/meetings/${id}`);
@@ -454,7 +455,7 @@ async function fetchMeeting(id) {
     renderMeetingDetail(m);
   } catch (_) {
     if (!content.dataset.loaded) {
-      content.innerHTML = '<div class="empty-state">Failed to load meeting details.</div>';
+      content.innerHTML = '<div class="empty-state">加载会议详情失败</div>';
     }
   }
 }
@@ -483,7 +484,7 @@ function renderMeetingDetail(m) {
   const risks       = report.risks       || report.issues || [];
   const participants= report.participants|| report.attendees || [];
   const topics      = report.topics      || report.agenda_items || [];
-  const summary     = report.summary     || report.executive_summary || "No summary available yet.";
+  const summary     = report.summary     || report.executive_summary || "暂无摘要";
   const duration    = report.duration    || m.duration || "-";
 
   // ---- Pipeline Stage Indicator ----
@@ -538,7 +539,7 @@ function renderMeetingDetail(m) {
   const currentType = m.meetingType || "general";
   let html = `
     <div class="meeting-detail-header">
-      <div class="brand">&#9670; Meeting Minutes</div>
+      <div class="brand">&#9670; 会议纪要</div>
       <div class="detail-title-row" style="display:flex;align-items:center;gap:10px;">
         <h1 id="detail-title-display">${title}</h1>
         <span class="badge" style="background:rgba(255,153,0,0.2);color:#FF9900;font-size:11px;" id="detail-type-display">${escapeHtml(meetingTypeLabel[currentType] || currentType)}</span>
@@ -564,10 +565,10 @@ function renderMeetingDetail(m) {
     </div>
 
     <div class="meeting-meta-bar">
-      <div class="meta-item"><strong>Date</strong>${time}</div>
-      <div class="meta-item"><strong>Duration</strong>${escapeHtml(String(duration))}</div>
-      <div class="meta-item"><strong>Participants</strong>${participants.length || "-"}</div>
-      <div class="meta-item"><strong>Meeting ID</strong>${escapeHtml(m.meetingId || "-")}</div>
+      <div class="meta-item"><strong>日期</strong>${time}</div>
+      <div class="meta-item"><strong>时长</strong>${escapeHtml(String(duration))}</div>
+      <div class="meta-item"><strong>参会人数</strong>${participants.length || "-"}</div>
+      <div class="meta-item"><strong>会议 ID</strong>${escapeHtml(m.meetingId || "-")}</div>
     </div>
 
     <div class="meeting-action-bar">
@@ -582,9 +583,19 @@ function renderMeetingDetail(m) {
 
   // ---- Summary ----
   html += `
-    <div class="card summary-card">
-      <div class="card-title"><i class="fa fa-file-text-o"></i> Executive Summary</div>
-      <div class="summary-text">${escapeHtml(summary)}</div>
+    <div class="card summary-card" id="section-summary">
+      <div class="card-title">
+        <span><i class="fa fa-file-text-o"></i> 会议摘要</span>
+        <button class="btn btn-sm section-edit-btn" data-action="edit-section" data-section="summary" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑">&#9999;&#65039;</button>
+      </div>
+      <div class="summary-text" id="summary-display">${escapeHtml(summary)}</div>
+      <div id="summary-editor" style="display:none;">
+        <textarea class="form-control" id="summary-textarea" rows="6" style="width:100%;box-sizing:border-box;border:2px solid #FF9900;border-radius:4px;padding:10px;font-size:14px;">${escapeHtml(summary)}</textarea>
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="cancel-section-edit" data-section="summary">取消</button>
+          <button class="btn btn-primary btn-sm" data-action="save-section" data-section="summary" data-meeting-id="${escapeAttr(m.meetingId)}">保存</button>
+        </div>
+      </div>
     </div>
   `;
 
@@ -797,13 +808,13 @@ function renderMeetingDetail(m) {
   if (topics.length) {
     html += `
       <div class="card">
-        <div class="card-title"><i class="fa fa-comments"></i> Topics Discussed</div>
+        <div class="card-title"><i class="fa fa-comments"></i> 讨论议题</div>
         <div class="table-wrap">
           <table>
             <thead><tr>
-              <th style="color:var(--aws-orange)">Topic</th>
-              <th style="color:var(--aws-orange)">Details</th>
-              <th style="color:var(--aws-orange)">Outcome</th>
+              <th style="color:var(--aws-orange)">议题</th>
+              <th style="color:var(--aws-orange)">讨论内容</th>
+              <th style="color:var(--aws-orange)">结论</th>
             </tr></thead>
             <tbody>
               ${topics.map(t => {
@@ -830,7 +841,7 @@ function renderMeetingDetail(m) {
     if (highlights.length) {
       html += `
         <div class="card">
-          <div class="card-title"><i class="fa fa-thumb-tack"></i> Highlights</div>
+          <div class="card-title"><i class="fa fa-thumb-tack"></i> 亮点</div>
           <ul>${highlights.map(h => `<li class="highlight-item">${escapeHtml(renderListItem(h))}</li>`).join("")}</ul>
         </div>
       `;
@@ -839,7 +850,7 @@ function renderMeetingDetail(m) {
     if (lowlights.length) {
       html += `
         <div class="card">
-          <div class="card-title"><i class="fa fa-exclamation-triangle"></i> Lowlights</div>
+          <div class="card-title"><i class="fa fa-exclamation-triangle"></i> 待改进</div>
           <ul>${lowlights.map(l => `<li class="lowlight-item">${escapeHtml(renderListItem(l))}</li>`).join("")}</ul>
         </div>
       `;
@@ -850,49 +861,68 @@ function renderMeetingDetail(m) {
 
   // ---- Action Items ----
   html += `
-    <div class="card">
-      <div class="card-title"><i class="fa fa-check-square-o"></i> Action Items</div>
+    <div class="card" id="section-actionItems">
+      <div class="card-title">
+        <span><i class="fa fa-check-square-o"></i> 待办事项</span>
+        <button class="btn btn-sm section-edit-btn" data-action="edit-section" data-section="actionItems" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑">&#9999;&#65039;</button>
+      </div>
+      <div id="actionItems-display">
       ${actions.length ? `
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th style="color:var(--aws-orange)">Task</th>
-            <th style="color:var(--aws-orange)">Owner</th>
-            <th style="color:var(--aws-orange)">Deadline</th>
-            <th style="color:var(--aws-orange)">Priority</th>
+            <th style="color:var(--aws-orange)">任务</th>
+            <th style="color:var(--aws-orange)">负责人</th>
+            <th style="color:var(--aws-orange)">截止日期</th>
+            <th style="color:var(--aws-orange)">优先级</th>
+            <th style="color:var(--aws-orange)">操作</th>
           </tr></thead>
           <tbody>
-            ${actions.map(a => {
+            ${actions.map((a, idx) => {
               const prio = (a.priority || "").toLowerCase();
               const prioLabel = a.priority || "-";
-              return `<tr>
+              return `<tr id="action-row-${idx}">
                 <td>${escapeHtml(a.task || a.action || "")}</td>
                 <td>${escapeHtml(a.owner || a.assignee || "-")}</td>
                 <td>${escapeHtml(a.deadline || a.dueDate || "-")}</td>
                 <td><span class="priority-badge priority-${prio}">${escapeHtml(prioLabel)}</span></td>
+                <td>
+                  <button class="btn btn-outline btn-sm" data-action="edit-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+                  <button class="btn btn-danger btn-sm" data-action="delete-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+                </td>
               </tr>`;
             }).join("")}
           </tbody>
         </table>
-      </div>` : '<div class="empty-state">No action items</div>'}
+      </div>` : '<div class="empty-state">暂无待办事项</div>'}
+      </div>
     </div>
   `;
 
   // ---- Key Decisions ----
-  if (decisions.length) {
-    html += `
-      <div class="card decisions-card">
-        <div class="card-title"><i class="fa fa-gavel"></i> Key Decisions</div>
-        <ul>${decisions.map(d => `<li>${escapeHtml(renderListItem(d))}</li>`).join("")}</ul>
+  html += `
+    <div class="card decisions-card" id="section-keyDecisions">
+      <div class="card-title">
+        <span><i class="fa fa-gavel"></i> 关键决策</span>
+        ${decisions.length ? `<button class="btn btn-sm section-edit-btn" data-action="edit-section" data-section="keyDecisions" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑">&#9999;&#65039;</button>` : ""}
       </div>
-    `;
-  }
+      <div id="keyDecisions-display">
+      ${decisions.length ? `<ul>${decisions.map((d, idx) => `<li id="decision-row-${idx}">
+        <span>${escapeHtml(renderListItem(d))}</span>
+        <span class="inline-item-actions">
+          <button class="btn btn-outline btn-sm" data-action="edit-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" data-action="delete-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+        </span>
+      </li>`).join("")}</ul>` : '<div class="empty-state">暂无关键决策</div>'}
+      </div>
+    </div>
+  `;
 
   // ---- Risks / Issues ----
   if (risks.length) {
     html += `
       <div class="card risks-card">
-        <div class="card-title"><i class="fa fa-warning"></i> Risks &amp; Issues</div>
+        <div class="card-title"><i class="fa fa-warning"></i> 风险与问题</div>
         <ul>${risks.map(r => `<li>${escapeHtml(renderListItem(r))}</li>`).join("")}</ul>
       </div>
     `;
@@ -904,7 +934,7 @@ function renderMeetingDetail(m) {
 
     html += `
       <div class="card">
-        <div class="card-title"><i class="fa fa-users"></i> Participants</div>`;
+        <div class="card-title"><i class="fa fa-users"></i> 参会人员</div>`;
 
     if (participants.length > 0) {
       html += `
@@ -934,7 +964,7 @@ function renderMeetingDetail(m) {
             list="glossary-names-list"
             data-participant-label="${escapeAttr(rawLabel)}"
             value="${escapeAttr(savedName)}"
-            placeholder="输入或选择真实姓名" />
+            placeholder="输入真实姓名（可从词汇表选择）" />
         </div>`;
       });
 
@@ -953,6 +983,9 @@ function renderMeetingDetail(m) {
 
   content.innerHTML = html;
 
+  // Store report data for inline editing
+  storeReportData(m.meetingId, report);
+
   // Populate glossary datalist for participant name autocomplete
   const datalist = document.getElementById("glossary-names-list");
   if (datalist) {
@@ -967,9 +1000,9 @@ function renderMeetingDetail(m) {
   const bottomBar = document.getElementById("bottom-bar");
   if (bottomBar) {
     bottomBar.innerHTML = `
-      <a href="index.html" class="btn btn-outline"><i class="fa fa-arrow-left"></i> Back</a>
+      <a href="index.html" class="btn btn-outline"><i class="fa fa-arrow-left"></i> 返回</a>
       <div class="btn-group">
-        <button class="btn btn-outline" data-action="send-email" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-envelope"></i> Send Email</button>
+        <button class="btn btn-outline" data-action="send-email" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-envelope"></i> 发送邮件</button>
       </div>
     `;
   }
@@ -1150,20 +1183,20 @@ let glossaryData = [];
 async function fetchGlossary() {
   const tbody = document.getElementById("glossary-tbody");
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="4" class="loading">Loading...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="4" class="loading">加载中...</td></tr>';
 
   try {
     glossaryData = await API.get("/api/glossary") || [];
     renderGlossary(glossaryData);
   } catch (_) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Failed to load glossary</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">加载词汇表失败</td></tr>';
   }
 }
 
 function renderGlossary(terms) {
   const tbody = document.getElementById("glossary-tbody");
   if (!terms || terms.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fa fa-book"></i>&nbsp;No terms yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fa fa-book"></i>&nbsp;暂无术语</td></tr>';
     return;
   }
   tbody.innerHTML = terms.map(t => {
@@ -1202,21 +1235,21 @@ async function addTerm(e) {
     aliases:    form.aliases.value.trim(),
     definition: form.definition.value.trim(),
   };
-  if (!data.term) { Toast.error("Term name is required"); return; }
+  if (!data.term) { Toast.error("术语名不能为空"); return; }
 
   try {
     await API.post("/api/glossary", data);
-    Toast.success("Term added");
+    Toast.success("术语已添加");
     form.reset();
     fetchGlossary();
   } catch (_) { /* error shown */ }
 }
 
 async function deleteTerm(id) {
-  if (!confirm("Delete this term?")) return;
+  if (!confirm("确认删除该术语？")) return;
   try {
     await API.del(`/api/glossary/${id}`);
-    Toast.success("Term deleted");
+    Toast.success("术语已删除");
     fetchGlossary();
   } catch (_) {}
 }
@@ -1248,7 +1281,7 @@ async function saveEditTerm(e) {
 
   try {
     await API.put(`/api/glossary/${id}`, data);
-    Toast.success("Term updated");
+    Toast.success("术语已更新");
     overlay.classList.remove("show");
     fetchGlossary();
   } catch (_) {}
@@ -1257,6 +1290,155 @@ async function saveEditTerm(e) {
 function closeModal() {
   const overlay = document.getElementById("edit-modal");
   if (overlay) overlay.classList.remove("show");
+}
+
+/* ===== Inline Report Section Editing ===== */
+let _currentReport = null;
+let _currentMeetingId = null;
+
+function storeReportData(meetingId, report) {
+  _currentMeetingId = meetingId;
+  _currentReport = JSON.parse(JSON.stringify(report)); // deep clone
+}
+
+function editSection(section) {
+  if (section === "summary") {
+    document.getElementById("summary-display").style.display = "none";
+    document.getElementById("summary-editor").style.display = "block";
+    document.getElementById("section-summary").style.border = "2px solid #FF9900";
+  }
+}
+
+function cancelSectionEdit(section) {
+  if (section === "summary") {
+    document.getElementById("summary-display").style.display = "";
+    document.getElementById("summary-editor").style.display = "none";
+    document.getElementById("section-summary").style.border = "";
+  }
+}
+
+async function saveSection(section, meetingId) {
+  var data;
+  if (section === "summary") {
+    data = document.getElementById("summary-textarea").value.trim();
+  }
+  if (data === undefined || data === null) return;
+
+  try {
+    await API.patch("/api/meetings/" + meetingId + "/report", { section: section, data: data });
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+function editActionItem(index, meetingId) {
+  if (!_currentReport) return;
+  var actions = _currentReport.actions || [];
+  var item = actions[index];
+  if (!item) return;
+  var row = document.getElementById("action-row-" + index);
+  if (!row) return;
+  row.innerHTML = `
+    <td><input type="text" class="form-control" id="edit-action-task-${index}" value="${escapeAttr(item.task || item.action || "")}" style="border:2px solid #FF9900;"></td>
+    <td><input type="text" class="form-control" id="edit-action-owner-${index}" value="${escapeAttr(item.owner || item.assignee || "")}" style="border:2px solid #FF9900;"></td>
+    <td><input type="text" class="form-control" id="edit-action-deadline-${index}" value="${escapeAttr(item.deadline || item.dueDate || "")}" style="border:2px solid #FF9900;"></td>
+    <td><input type="text" class="form-control" id="edit-action-priority-${index}" value="${escapeAttr(item.priority || "")}" style="border:2px solid #FF9900;"></td>
+    <td>
+      <button class="btn btn-primary btn-sm" data-action="save-action-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-action-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </td>`;
+  row.style.border = "2px solid #FF9900";
+}
+
+async function saveActionItem(index, meetingId) {
+  if (!_currentReport) return;
+  var actions = JSON.parse(JSON.stringify(_currentReport.actions || []));
+  actions[index] = {
+    task: document.getElementById("edit-action-task-" + index).value.trim(),
+    owner: document.getElementById("edit-action-owner-" + index).value.trim(),
+    deadline: document.getElementById("edit-action-deadline-" + index).value.trim(),
+    priority: document.getElementById("edit-action-priority-" + index).value.trim(),
+  };
+  try {
+    await API.patch("/api/meetings/" + meetingId + "/report", { section: "actionItems", data: actions });
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteActionItem(index, meetingId) {
+  if (!_currentReport) return;
+  if (!confirm("确认删除该待办事项？")) return;
+  var actions = JSON.parse(JSON.stringify(_currentReport.actions || []));
+  actions.splice(index, 1);
+  try {
+    await API.patch("/api/meetings/" + meetingId + "/report", { section: "actionItems", data: actions });
+    Toast.success("已删除");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("删除失败");
+  }
+}
+
+function editDecisionItem(index, meetingId) {
+  if (!_currentReport) return;
+  var decisions = _currentReport.decisions || _currentReport.key_decisions || [];
+  var item = decisions[index];
+  if (!item) return;
+  var li = document.getElementById("decision-row-" + index);
+  if (!li) return;
+  var text = renderListItem(item);
+  li.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;">
+      <input type="text" class="form-control" id="edit-decision-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
+      <button class="btn btn-primary btn-sm" data-action="save-decision-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-decision-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </div>`;
+  li.style.border = "2px solid #FF9900";
+  li.style.borderRadius = "4px";
+  li.style.padding = "6px";
+}
+
+async function saveDecisionItem(index, meetingId) {
+  if (!_currentReport) return;
+  var decisions = JSON.parse(JSON.stringify(_currentReport.decisions || _currentReport.key_decisions || []));
+  var newText = document.getElementById("edit-decision-text-" + index).value.trim();
+  // Preserve object structure if it was an object, otherwise store as string
+  if (typeof decisions[index] === "object" && decisions[index] !== null) {
+    var d = decisions[index];
+    if (d.decision !== undefined) d.decision = newText;
+    else if (d.point !== undefined) d.point = newText;
+    else if (d.text !== undefined) d.text = newText;
+    else if (d.content !== undefined) d.content = newText;
+    else d.decision = newText;
+  } else {
+    decisions[index] = newText;
+  }
+  try {
+    await API.patch("/api/meetings/" + meetingId + "/report", { section: "keyDecisions", data: decisions });
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteDecisionItem(index, meetingId) {
+  if (!_currentReport) return;
+  if (!confirm("确认删除该决策？")) return;
+  var decisions = JSON.parse(JSON.stringify(_currentReport.decisions || _currentReport.key_decisions || []));
+  decisions.splice(index, 1);
+  try {
+    await API.patch("/api/meetings/" + meetingId + "/report", { section: "keyDecisions", data: decisions });
+    Toast.success("已删除");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("删除失败");
+  }
 }
 
 /* ===== Merge Selection ===== */
@@ -1393,6 +1575,17 @@ document.addEventListener("click", function(e) {
     case "close-merge-modal":  closeMergeModal(); break;
     case "submit-merge":       submitMerge(); break;
     case "close-modal":        closeModal(); break;
+    case "edit-section":        editSection(el.dataset.section); break;
+    case "cancel-section-edit": cancelSectionEdit(el.dataset.section); break;
+    case "save-section":        saveSection(el.dataset.section, el.dataset.meetingId); break;
+    case "edit-action-item":    editActionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-action-item":    saveActionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-action-item":  deleteActionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "cancel-action-edit":  fetchMeeting(el.dataset.meetingId); break;
+    case "edit-decision-item":  editDecisionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-decision-item":  saveDecisionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-decision-item":deleteDecisionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "cancel-decision-edit":fetchMeeting(el.dataset.meetingId); break;
   }
 });
 
@@ -1422,5 +1615,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (addForm) addForm.addEventListener("submit", addTerm);
     var editForm = document.getElementById("edit-term-form");
     if (editForm) editForm.addEventListener("submit", saveEditTerm);
+    var glossarySearch = document.getElementById("glossary-search");
+    if (glossarySearch) glossarySearch.addEventListener("input", function() { filterGlossary(this.value); });
   }
 });

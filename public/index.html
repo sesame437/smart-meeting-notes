@@ -5,17 +5,17 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meeting Minutes</title>
+  <title>会议纪要</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/font-awesome.min.css">
 </head>
 <body>
 
   <nav class="navbar">
-    <div class="navbar-logo">&#9670; Meeting Minutes</div>
+    <div class="navbar-logo">&#9670; 会议纪要</div>
     <div class="navbar-links">
-      <a href="index.html" class="active">Meeting List</a>
-      <a href="glossary.html">Glossary</a>
+      <a href="index.html" class="active">会议列表</a>
+      <a href="glossary.html">词汇表</a>
     </div>
   </nav>
 
@@ -23,21 +23,21 @@
 
     <!-- Upload Area -->
     <div class="card">
-      <div class="card-title"><i class="fa fa-cloud-upload"></i> Upload Audio / Video</div>
+      <div class="card-title"><i class="fa fa-cloud-upload"></i> 上传音频 / 视频</div>
       <div class="upload-options">
-        <label>Meeting Type:</label>
+        <label>会议类型：</label>
         <div class="meeting-type-pills">
           <input type="radio" name="meetingType" id="mt-general" value="general" checked>
-          <label for="mt-general">General</label>
+          <label for="mt-general">通用</label>
 
           <input type="radio" name="meetingType" id="mt-weekly" value="weekly">
-          <label for="mt-weekly">Weekly</label>
+          <label for="mt-weekly">周会</label>
 
           <input type="radio" name="meetingType" id="mt-tech" value="tech">
-          <label for="mt-tech">Tech Discussion</label>
+          <label for="mt-tech">技术讨论</label>
 
           <input type="radio" name="meetingType" id="mt-customer" value="customer">
-          <label for="mt-customer">Customer</label>
+          <label for="mt-customer">客户</label>
         </div>
       </div>
       <div class="form-group" style="margin-bottom:12px;">
@@ -48,20 +48,20 @@
       <div class="upload-area" id="upload-area">
         <input type="file" id="upload-input" accept=".mp4,.mp3,.m4a,.ogg">
         <i class="fa fa-cloud-upload"></i>
-        <p>Drag &amp; drop MP4 / MP3 / OGG file here, or click to select</p>
-        <p class="upload-hint">Supports MP4, MP3, M4A, OGG formats</p>
+        <p>拖放 MP4 / MP3 / OGG 文件到此处，或点击选择</p>
+        <p class="upload-hint">支持 MP4、MP3、M4A、OGG 格式</p>
       </div>
       <div class="upload-progress" id="upload-progress">
         <div class="progress-bar-wrap">
           <div class="progress-bar" id="progress-bar"></div>
         </div>
-        <div class="progress-text" id="progress-text">Uploading...</div>
+        <div class="progress-text" id="progress-text">上传中...</div>
       </div>
     </div>
 
     <!-- Meeting List -->
     <div class="card">
-      <div class="card-title"><i class="fa fa-list"></i> Meeting List</div>
+      <div class="card-title"><i class="fa fa-list"></i> 会议列表</div>
       <div class="meeting-filter-bar" id="filter-bar">
         <div class="filter-tabs">
           <button class="filter-tab active" data-filter="all">全部</button>
@@ -76,7 +76,7 @@
         </div>
       </div>
       <div class="meeting-card-list" id="meetings-list">
-        <div class="loading">Loading...</div>
+        <div class="loading">加载中...</div>
       </div>
     </div>
 

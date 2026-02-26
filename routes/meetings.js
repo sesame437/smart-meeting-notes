@@ -719,6 +719,72 @@ router.put("/:id/speaker-map", async (req, res, next) => {
   }
 });
 
+// Patch report section (inline editing)
+router.patch("/:id/report", async (req, res, next) => {
+  try {
+    const { section, data } = req.body;
+    const validSections = ["summary", "actionItems", "keyDecisions"];
+    if (!validSections.includes(section)) {
+      return res.status(400).json({ error: "Invalid section. Must be one of: summary, actionItems, keyDecisions" });
+    }
+    if (data === undefined || data === null) {
+      return res.status(400).json({ error: "data is required" });
+    }
+
+    const item = await getMeetingById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Not found" });
+    if (!item.reportKey) return res.status(400).json({ error: "No report exists for this meeting" });
+
+    // Read current report from S3
+    const stream = await getFile(item.reportKey);
+    const chunks = [];
+    for await (const chunk of stream) {
+      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    }
+    const report = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+
+    // Update the corresponding field
+    const fieldMap = {
+      summary: "summary",
+      actionItems: "actions",
+      keyDecisions: "decisions",
+    };
+    // Also check alternative field names from Bedrock output
+    const altFieldMap = {
+      summary: "executive_summary",
+      actionItems: "actions",
+      keyDecisions: "key_decisions",
+    };
+    const primaryField = fieldMap[section];
+    const altField = altFieldMap[section];
+    if (report[primaryField] !== undefined) {
+      report[primaryField] = data;
+    } else if (report[altField] !== undefined) {
+      report[altField] = data;
+    } else {
+      report[primaryField] = data;
+    }
+
+    // Write back to S3
+    await uploadFile(item.reportKey.replace(/^meeting-minutes\//, ""), JSON.stringify(report, null, 2), "application/json");
+
+    // Update DynamoDB updatedAt
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE,
+      Key: { meetingId: req.params.id, createdAt: item.createdAt },
+      UpdateExpression: "SET content = :c, updatedAt = :u",
+      ExpressionAttributeValues: {
+        ":c": report,
+        ":u": new Date().toISOString(),
+      },
+    }));
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Manually trigger email sending
 router.post("/:id/send-email", async (req, res, next) => {
   try {
