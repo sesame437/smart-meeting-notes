@@ -220,7 +220,7 @@ function meetingCard(m) {
     ? `<div style="font-size:12px;color:#d32f2f;margin-top:4px;">${escapeHtml(m.errorMessage.length > 50 ? m.errorMessage.slice(0, 50) + '…' : m.errorMessage)}</div>`
     : "";
   const retryBtn = status === "failed"
-    ? `<button class="btn btn-sm" style="border:1px solid #FF9900;color:#FF9900;background:transparent;margin-left:8px;" onclick="retryMeeting('${id}')">🔄 重试</button>`
+    ? `<button class="btn btn-sm" style="border:1px solid #FF9900;color:#FF9900;background:transparent;margin-left:8px;" data-action="retry-meeting" data-id="${escapeAttr(id)}">🔄 重试</button>`
     : "";
 
   // Merge checkbox: only for completed, non-merged meetings
@@ -238,10 +238,10 @@ function meetingCard(m) {
     <div class="item-time">${time}</div>
     <div>${statusBadge(status)}${stageText ? `<div style="font-size:12px;color:#879596;margin-top:4px;">${stageText}</div>` : ""}${errorMsg}</div>
     <div class="item-actions">
-      <button class="btn btn-outline btn-sm" onclick="startCardEdit('${id}','${escapeHtml(m.title || m.meetingId).replace(/'/g, "\\'")}','${mType}')" title="编辑"><i class="fa fa-pencil"></i></button>
+      <button class="btn btn-outline btn-sm" data-action="start-card-edit" data-id="${escapeAttr(id)}" data-title="${escapeAttr(m.title || m.meetingId)}" data-type="${escapeAttr(mType)}" title="编辑"><i class="fa fa-pencil"></i></button>
       <a href="meeting.html?id=${encodeURIComponent(id)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> View</a>
       ${retryBtn}
-      <button class="btn btn-danger btn-sm" onclick="deleteMeeting('${id}')"><i class="fa fa-trash"></i></button>
+      <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(id)}"><i class="fa fa-trash"></i></button>
     </div>
   </div>`;
 }
@@ -261,8 +261,8 @@ function startCardEdit(id, currentTitle, currentType) {
         <option value="tech" ${currentType==='tech'?'selected':''}>技术</option>
         <option value="customer" ${currentType==='customer'?'selected':''}>客户</option>
       </select>
-      <button class="btn btn-primary btn-sm" onclick="saveCardEdit('${id}')">确认</button>
-      <button class="btn btn-outline btn-sm" onclick="cancelCardEdit()">取消</button>
+      <button class="btn btn-primary btn-sm" data-action="save-card-edit" data-id="${escapeAttr(id)}">确认</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-card-edit">取消</button>
     </div>
   `;
   document.getElementById('card-edit-title-' + id).focus();
@@ -308,7 +308,7 @@ function meetingRow(m) {
     <td>
       <div class="btn-group">
         <a href="meeting.html?id=${encodeURIComponent(m.meetingId)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> View</a>
-        <button class="btn btn-danger btn-sm" onclick="deleteMeeting('${m.meetingId}')"><i class="fa fa-trash"></i></button>
+        <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-trash"></i></button>
       </div>
     </td>
   </tr>`;
@@ -513,7 +513,7 @@ function renderMeetingDetail(m) {
       stageHtml += `<div style="background:#ffebee;border:1px solid #ffcdd2;border-radius:8px;padding:16px 20px;margin:8px 0 16px;">
         <div style="font-size:15px;font-weight:700;color:#c62828;margin-bottom:8px;">❌ 处理失败</div>
         <div style="font-size:13px;color:#d32f2f;margin-bottom:12px;">错误信息：${escapeHtml(m.errorMessage || "未知错误")}</div>
-        <button class="btn" style="border:1px solid #FF9900;color:#FF9900;background:transparent;font-size:13px;padding:6px 16px;border-radius:4px;cursor:pointer;" onclick="retryMeetingDetail('${m.meetingId}')">🔄 重试</button>
+        <button class="btn" style="border:1px solid #FF9900;color:#FF9900;background:transparent;font-size:13px;padding:6px 16px;border-radius:4px;cursor:pointer;" data-action="retry-detail" data-id="${escapeAttr(m.meetingId)}">🔄 重试</button>
       </div>`;
     }
   }
@@ -527,7 +527,7 @@ function renderMeetingDetail(m) {
       <div class="detail-title-row" style="display:flex;align-items:center;gap:10px;">
         <h1 id="detail-title-display">${title}</h1>
         <span class="badge" style="background:rgba(255,153,0,0.2);color:#FF9900;font-size:11px;" id="detail-type-display">${escapeHtml(meetingTypeLabel[currentType] || currentType)}</span>
-        <button class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;cursor:pointer;" onclick="startDetailEdit('${escapeHtml(m.meetingId)}','${escapeHtml(m.title || m.meetingId)}','${escapeHtml(currentType)}')" title="编辑">&#9999;&#65039;</button>
+        <button class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;cursor:pointer;" data-action="start-detail-edit" data-id="${escapeAttr(m.meetingId)}" data-title="${escapeAttr(m.title || m.meetingId)}" data-type="${escapeAttr(currentType)}" title="编辑">&#9999;&#65039;</button>
       </div>
       <div id="detail-edit-form" style="display:none;margin:8px 0;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -538,8 +538,8 @@ function renderMeetingDetail(m) {
             <option value="tech">技术</option>
             <option value="customer">客户</option>
           </select>
-          <button class="btn btn-primary btn-sm" onclick="saveDetailEdit('${escapeHtml(m.meetingId)}')">保存</button>
-          <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,0.3);" onclick="cancelDetailEdit()">取消</button>
+          <button class="btn btn-primary btn-sm" data-action="save-detail-edit" data-id="${escapeAttr(m.meetingId)}">保存</button>
+          <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,0.3);" data-action="cancel-detail-edit">取消</button>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -579,7 +579,7 @@ function renderMeetingDetail(m) {
           `).join("")}
         </div>
         <div style="text-align:right;margin-top:16px;">
-          <button class="btn btn-primary" onclick="saveSpeakerMap('${m.meetingId}')">保存并重新生成纪要</button>
+          <button class="btn btn-primary" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">保存并重新生成纪要</button>
         </div>
       </div>
     `;
@@ -913,7 +913,7 @@ function renderMeetingDetail(m) {
     bottomBar.innerHTML = `
       <a href="index.html" class="btn btn-outline"><i class="fa fa-arrow-left"></i> Back</a>
       <div class="btn-group">
-        <button class="btn btn-outline" onclick="sendEmail('${m.meetingId}')"><i class="fa fa-envelope"></i> Send Email</button>
+        <button class="btn btn-outline" data-action="send-email" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-envelope"></i> Send Email</button>
       </div>
     `;
   }
@@ -1023,8 +1023,8 @@ function renderGlossary(terms) {
       <td>${definition}</td>
       <td>
         <div class="btn-group">
-          <button class="btn btn-outline btn-sm" onclick="editTerm('${t.termId}')"><i class="fa fa-pencil"></i></button>
-          <button class="btn btn-danger btn-sm" onclick="deleteTerm('${t.termId}')"><i class="fa fa-trash"></i></button>
+          <button class="btn btn-outline btn-sm" data-action="edit-term" data-id="${escapeAttr(t.termId)}"><i class="fa fa-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" data-action="delete-term" data-id="${escapeAttr(t.termId)}"><i class="fa fa-trash"></i></button>
         </div>
       </td>
     </tr>`;
@@ -1123,7 +1123,7 @@ function updateMergeSelection() {
     }
     bar.innerHTML = `
       <span>已选 <strong>${ids.length}</strong> 个会议</span>
-      <button class="btn btn-primary" onclick="openMergeModal()">合并生成报告</button>
+      <button class="btn btn-primary" data-action="open-merge-modal">合并生成报告</button>
     `;
     bar.style.display = 'flex';
   } else {
@@ -1163,8 +1163,8 @@ function openMergeModal() {
         <textarea id="merge-custom-prompt" class="form-control" rows="3" placeholder="例：总结本周项目进展，重点关注风险和 action items"></textarea>
       </div>
       <div class="modal-actions">
-        <button class="btn btn-outline" onclick="closeMergeModal()">取消</button>
-        <button class="btn btn-primary" id="merge-submit-btn" onclick="submitMerge()"><i class="fa fa-magic"></i> 生成报告</button>
+        <button class="btn btn-outline" data-action="close-merge-modal">取消</button>
+        <button class="btn btn-primary" id="merge-submit-btn" data-action="submit-merge"><i class="fa fa-magic"></i> 生成报告</button>
       </div>
     </div>
   `;
@@ -1204,9 +1204,43 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function escapeAttr(str) {
+  return escapeHtml(String(str))
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
+
+/* ===== Event Delegation (replaces inline onclick for CSP compliance) ===== */
+document.addEventListener("click", function(e) {
+  const el = e.target.closest("[data-action]");
+  if (!el) return;
+  const action = el.dataset.action;
+  const id = el.dataset.id;
+
+  switch (action) {
+    case "delete-meeting":     deleteMeeting(id); break;
+    case "retry-meeting":      retryMeeting(id); break;
+    case "start-card-edit":    startCardEdit(id, el.dataset.title, el.dataset.type); break;
+    case "save-card-edit":     saveCardEdit(id); break;
+    case "cancel-card-edit":   cancelCardEdit(); break;
+    case "retry-detail":       retryMeetingDetail(id); break;
+    case "start-detail-edit":  startDetailEdit(id, el.dataset.title, el.dataset.type); break;
+    case "save-detail-edit":   saveDetailEdit(id); break;
+    case "cancel-detail-edit": cancelDetailEdit(); break;
+    case "save-speaker-map":   saveSpeakerMap(id); break;
+    case "send-email":         sendEmail(id); break;
+    case "edit-term":          editTerm(id); break;
+    case "delete-term":        deleteTerm(id); break;
+    case "open-merge-modal":   openMergeModal(); break;
+    case "close-merge-modal":  closeMergeModal(); break;
+    case "submit-merge":       submitMerge(); break;
+    case "close-modal":        closeModal(); break;
+  }
+});
 
 /* ===== Init (moved from inline script to avoid CSP violation) ===== */
 document.addEventListener("DOMContentLoaded", function() {

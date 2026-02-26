@@ -57,8 +57,8 @@ function meetingCard(m) {
     <div>${statusBadge(status)}</div>
     <div class="item-actions">
       <a href="meeting.html?id=${encodeURIComponent(id)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> View</a>
-      ${status === "completed" ? `<button class="btn btn-success btn-sm" onclick="downloadPdf('${id}')"><i class="fa fa-download"></i> PDF</button>` : ""}
-      <button class="btn btn-danger btn-sm" onclick="deleteMeeting('${id}')"><i class="fa fa-trash"></i></button>
+      ${status === "completed" ? `<button class="btn btn-success btn-sm" data-action="download-pdf" data-id="${id}"><i class="fa fa-download"></i> PDF</button>` : ""}
+      <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${id}"><i class="fa fa-trash"></i></button>
     </div>
   </div>`;
 }
@@ -163,8 +163,8 @@ describe("meetingCard() – card rendering & null safety", () => {
   });
 
   test("shows PDF button only for completed meetings", () => {
-    expect(meetingCard(BASE)).toContain("downloadPdf");
-    expect(meetingCard({ ...BASE, status: "processing" })).not.toContain("downloadPdf");
+    expect(meetingCard(BASE)).toContain('data-action="download-pdf"');
+    expect(meetingCard({ ...BASE, status: "processing" })).not.toContain('data-action="download-pdf"');
   });
 
   test("falls back to meetingId when title is missing", () => {
