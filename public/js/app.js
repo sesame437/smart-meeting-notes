@@ -1011,3 +1011,10 @@ function escapeHtml(str) {
 function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
+
+/* ===== Init (moved from inline script to avoid CSP violation) ===== */
+document.addEventListener("DOMContentLoaded", function() {
+  initUpload();
+  initFilter();
+  fetchMeetings();
+});
