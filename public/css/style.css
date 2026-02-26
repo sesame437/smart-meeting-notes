@@ -905,14 +905,32 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 
 /* Participant speaker binding */
-.participant-list { display: flex; flex-direction: column; gap: 10px; }
+.participant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 .participant-row {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 8px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e8edf2;
 }
 .participant-row:last-child { border-bottom: none; }
-.participant-label { flex: 1; font-size: 14px; color: rgba(255,255,255,0.85); line-height: 1.4; }
+.participant-label {
+  flex: 0 0 auto;
+  width: 220px;
+  min-width: 180px;
+  font-size: 14px;
+  color: #232F3E;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.participant-row .form-control {
+  flex: 1;
+  max-width: 300px;
+}
 .speaker-bind-select {
   flex-shrink: 0;
   background: rgba(255,255,255,0.07);
