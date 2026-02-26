@@ -931,11 +931,6 @@ function renderMeetingDetail(m) {
     html += `</div>`;
   }
 
-    }
-
-    html += `</div>`;
-  }
-
   content.innerHTML = html;
 
   // Populate glossary datalist for participant name autocomplete
