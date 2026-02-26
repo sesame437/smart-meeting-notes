@@ -1051,16 +1051,27 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 
 /* ===== Row action buttons: icon-only, appear on row hover ===== */
 .row-actions {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 2px;
   opacity: 0;
   transition: opacity 0.15s ease;
+  vertical-align: middle;
+}
+/* td containing row-actions: fixed width, no wrap, centered */
+td:has(.row-actions),
+th:has(.row-actions) {
+  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
+  width: 72px;
+  min-width: 72px;
 }
 /* Show when parent row is hovered — covers all actual DOM containers */
-tr:hover > td .row-actions,
-li:hover > .inline-item-actions .row-actions,
+tr:hover .row-actions,
+li:hover .row-actions,
 .card ul li:hover .row-actions,
+.meeting-card:hover .row-actions,
 .meeting-card-item:hover .row-actions {
   opacity: 1;
 }
