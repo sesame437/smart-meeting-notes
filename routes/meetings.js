@@ -83,6 +83,22 @@ router.get("/:id", async (req, res, next) => {
   try {
     const item = await getMeetingById(req.params.id);
     if (!item) return res.status(404).json({ error: "Not found" });
+
+    // If report exists in S3 but not yet in DynamoDB content field, load it
+    if (!item.content && item.reportKey) {
+      try {
+        const stream = await getFile(item.reportKey);
+        const chunks = [];
+        for await (const chunk of stream) {
+          chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+        }
+        const text = Buffer.concat(chunks).toString("utf-8");
+        item.content = JSON.parse(text);
+      } catch (e) {
+        // report not ready yet, return item without content
+      }
+    }
+
     res.json(item);
   } catch (err) {
     next(err);
