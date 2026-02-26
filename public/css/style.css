@@ -1421,20 +1421,3 @@ table td, table th { font-size: 14px; }
   border-bottom: 1px solid rgba(255,255,255,0.06);
   padding: 0;
 }
-
-/* ===== actions-table: fixed layout so task column truly wraps ===== */
-.actions-table {
-  table-layout: fixed;
-  width: 100%;
-}
-.actions-table col:nth-child(1),
-.actions-table th:nth-child(1),
-.actions-table td:nth-child(1) {
-  width: 38%;
-  white-space: normal !important;
-  word-break: break-word !important;
-  word-wrap: break-word !important;
-  overflow-wrap: break-word !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-}
