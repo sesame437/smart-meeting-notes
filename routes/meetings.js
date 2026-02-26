@@ -449,6 +449,20 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     if (!speakerMap || typeof speakerMap !== "object" || Array.isArray(speakerMap)) {
       return res.status(400).json({ error: "speakerMap must be an object" });
     }
+    if (Object.keys(speakerMap).length === 0) {
+      return res.status(400).json({ error: "speakerMap cannot be empty" });
+    }
+    for (const [speakerId, speakerName] of Object.entries(speakerMap)) {
+      if (!/^SPEAKER_\d+$/.test(speakerId)) {
+        return res.status(400).json({ error: "speakerMap key must match SPEAKER_<number>" });
+      }
+      if (typeof speakerName !== "string") {
+        return res.status(400).json({ error: "speakerMap values must be strings" });
+      }
+      if (speakerName.length > 50) {
+        return res.status(400).json({ error: "speakerMap value must be at most 50 characters" });
+      }
+    }
 
     // Verify meeting exists
     const { Item } = await docClient.send(new GetCommand({
@@ -593,11 +607,15 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     // Send to export queue to trigger email resend
     const exportQueueUrl = process.env.SQS_EXPORT_QUEUE;
     if (exportQueueUrl) {
-      await sendMessage(exportQueueUrl, {
-        meetingId: req.params.id,
-        reportKey: fullReportKey,
-        createdAt: Item.createdAt,
-      });
+      try {
+        await sendMessage(exportQueueUrl, {
+          meetingId: req.params.id,
+          reportKey: fullReportKey,
+          createdAt: Item.createdAt,
+        });
+      } catch (err) {
+        console.warn("[speaker-map] Failed to send export queue message:", err.message);
+      }
     }
 
     res.json({ success: true, report });

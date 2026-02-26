@@ -304,7 +304,7 @@ function initUpload() {
 }
 
 async function uploadFile(file) {
-  const validTypes = ["video/mp4", "audio/mpeg", "audio/mp3", "audio/mp4", "video/quicktime", "audio/ogg"];
+  const validTypes = ["video/mp4", "audio/mpeg", "audio/mp3", "audio/mp4", "video/quicktime", "audio/ogg", "application/ogg"];
   const ext = file.name.split(".").pop().toLowerCase();
   if (!validTypes.includes(file.type) && !["mp4", "mp3", "m4a", "ogg"].includes(ext)) {
     Toast.error("Please upload MP4, MP3 or OGG files only.");
