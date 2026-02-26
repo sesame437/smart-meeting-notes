@@ -1178,3 +1178,32 @@ tr:hover .row-actions,
   color: #FF9900;
   opacity: 1;
 }
+
+/* ===== action-primary-btn: 统一橙色主操作按钮 ===== */
+.action-primary-btn {
+  background: transparent;
+  color: #FF9900;
+  border: 1.5px solid #FF9900;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.action-primary-btn:hover {
+  background: #FF9900;
+  color: #0a1520;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 153, 0, 0.4);
+}
+.action-primary-btn:active {
+  transform: translateY(0px);
+  box-shadow: 0 2px 6px rgba(255, 153, 0, 0.3);
+}
+.action-primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}

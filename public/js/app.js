@@ -542,10 +542,10 @@ function renderMeetingDetail(m) {
       <div class="detail-header-top">
         <div class="brand">&#9670; 会议纪要</div>
         <div class="detail-header-actions">
-          <button class="btn btn-sm report-action-btn" data-action="regenerate-report" data-id="${escapeAttr(m.meetingId)}">
+          <button class="btn action-primary-btn btn-sm" data-action="regenerate-report" data-id="${escapeAttr(m.meetingId)}">
             <i class="fa fa-refresh"></i> 重新生成
           </button>
-          <button class="btn btn-sm report-action-btn" data-action="send-email" data-id="${escapeAttr(m.meetingId)}">
+          <button class="btn action-primary-btn btn-sm" data-action="send-email" data-id="${escapeAttr(m.meetingId)}">
             <i class="fa fa-envelope"></i> 发送邮件
           </button>
         </div>
@@ -975,7 +975,7 @@ function renderMeetingDetail(m) {
 
       html += `</div>
         <div style="text-align:right;margin-top:12px;">
-          <button class="btn btn-primary btn-sm" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">
+          <button class="btn action-primary-btn btn-sm" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">
             <i class="fa fa-save"></i> 保存名字
           </button>
         </div>`;
