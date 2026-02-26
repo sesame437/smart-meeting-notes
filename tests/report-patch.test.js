@@ -175,4 +175,16 @@ describe("PATCH /api/meetings/:id/report", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/No report/);
   });
+
+  test("returns 500 when S3 report read fails", async () => {
+    mockDynamoSend.mockResolvedValueOnce({ Items: [MEETING_ITEM] });
+    mockGetFile.mockRejectedValueOnce(new Error("S3 read failed"));
+
+    const res = await request(app)
+      .patch("/api/meetings/test-123/report")
+      .send({ section: "summary", data: "x" });
+
+    expect(res.status).toBe(500);
+    expect(mockUploadFile).not.toHaveBeenCalled();
+  });
 });
