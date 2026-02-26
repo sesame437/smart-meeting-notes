@@ -887,8 +887,8 @@ function renderMeetingDetail(m) {
                 <td>${escapeHtml(a.deadline || a.dueDate || "-")}</td>
                 <td><span class="priority-badge priority-${prio}">${escapeHtml(prioLabel)}</span></td>
                 <td>
-                  <button class="btn btn-outline btn-sm" data-action="edit-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
-                  <button class="btn btn-danger btn-sm" data-action="delete-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+                  <div class="row-actions"><button class="btn btn-outline btn-sm" data-action="edit-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+                  <button class="btn btn-danger btn-sm" data-action="delete-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button></div>
                 </td>
               </tr>`;
             }).join("")}
@@ -910,8 +910,8 @@ function renderMeetingDetail(m) {
       ${decisions.length ? `<ul>${decisions.map((d, idx) => `<li id="decision-row-${idx}">
         <span>${escapeHtml(renderListItem(d))}</span>
         <span class="inline-item-actions">
-          <button class="btn btn-outline btn-sm" data-action="edit-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
-          <button class="btn btn-danger btn-sm" data-action="delete-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+          <div class="row-actions"><button class="btn btn-outline btn-sm" data-action="edit-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" data-action="delete-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button></div>
         </span>
       </li>`).join("")}</ul>` : '<div class="empty-state">暂无关键决策</div>'}
       </div>
@@ -1209,8 +1209,8 @@ function renderGlossary(terms) {
       <td>${definition}</td>
       <td>
         <div class="btn-group">
-          <button class="btn btn-outline btn-sm" data-action="edit-term" data-id="${escapeAttr(t.termId)}"><i class="fa fa-pencil"></i></button>
-          <button class="btn btn-danger btn-sm" data-action="delete-term" data-id="${escapeAttr(t.termId)}"><i class="fa fa-trash"></i></button>
+          <div class="row-actions"><button class="btn btn-outline btn-sm" data-action="edit-term" data-id="${escapeAttr(t.termId)}"><i class="fa fa-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" data-action="delete-term" data-id="${escapeAttr(t.termId)}"><i class="fa fa-trash"></i></button></div>
         </div>
       </td>
     </tr>`;
