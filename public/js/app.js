@@ -1014,7 +1014,18 @@ function getParam(name) {
 
 /* ===== Init (moved from inline script to avoid CSP violation) ===== */
 document.addEventListener("DOMContentLoaded", function() {
-  initUpload();
-  initFilter();
-  fetchMeetings();
+  const meetingId = getParam("id");
+  if (meetingId) {
+    // meeting.html — detail page
+    fetchMeeting(meetingId);
+    window._detailPollingTimer = setInterval(() => fetchMeeting(meetingId), 12000);
+  } else if (document.getElementById("upload-area")) {
+    // index.html — list page
+    initUpload();
+    initFilter();
+    fetchMeetings();
+  } else if (document.getElementById("glossary-tbody")) {
+    // glossary.html
+    loadGlossary();
+  }
 });
