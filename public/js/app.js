@@ -614,7 +614,7 @@ function renderMeetingDetail(m) {
       <div class="meta-item"><strong>会议 ID</strong>${escapeHtml(m.meetingId || "-")}</div>
     </div>
 
-    <div class="meeting-action-bar" style="display:none"></div>
+    <div class="detail-header-actions" style="display:none"></div>
   `;
 
   // ---- Summary ----
