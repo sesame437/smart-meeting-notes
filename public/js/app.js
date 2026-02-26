@@ -206,6 +206,7 @@ function meetingCard(m) {
   const time   = m.createdAt ? new Date(m.createdAt).toLocaleString("zh-CN") : "-";
   const status = m.status || "pending";
   const id     = m.meetingId;
+  const mType  = m.meetingType || "general";
 
   // Stage description for active jobs
   const stage = m.stage || "";
@@ -222,19 +223,76 @@ function meetingCard(m) {
     ? `<button class="btn btn-sm" style="border:1px solid #FF9900;color:#FF9900;background:transparent;margin-left:8px;" onclick="retryMeeting('${id}')">🔄 重试</button>`
     : "";
 
+  // Merge checkbox: only for completed, non-merged meetings
+  const showCheckbox = status === "completed" && mType !== "merged";
+  const checkboxHtml = showCheckbox
+    ? `<input type="checkbox" class="merge-checkbox" data-id="${id}" onchange="updateMergeSelection()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;" />`
+    : `<div style="width:16px;flex-shrink:0;"></div>`;
+
   return `
-  <div class="meeting-card-item">
-    <div class="item-title">
+  <div class="meeting-card-item" id="card-${id}">
+    ${checkboxHtml}
+    <div class="item-title" id="card-title-${id}">
       <a href="meeting.html?id=${encodeURIComponent(id)}">${title}</a>
     </div>
     <div class="item-time">${time}</div>
     <div>${statusBadge(status)}${stageText ? `<div style="font-size:12px;color:#879596;margin-top:4px;">${stageText}</div>` : ""}${errorMsg}</div>
     <div class="item-actions">
+      <button class="btn btn-outline btn-sm" onclick="startCardEdit('${id}','${escapeHtml(m.title || m.meetingId).replace(/'/g, "\\'")}','${mType}')" title="编辑"><i class="fa fa-pencil"></i></button>
       <a href="meeting.html?id=${encodeURIComponent(id)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> View</a>
       ${retryBtn}
       <button class="btn btn-danger btn-sm" onclick="deleteMeeting('${id}')"><i class="fa fa-trash"></i></button>
     </div>
   </div>`;
+}
+
+function startCardEdit(id, currentTitle, currentType) {
+  // Cancel any other active card edit
+  cancelCardEdit();
+  const titleEl = document.getElementById('card-title-' + id);
+  if (!titleEl) return;
+  titleEl.dataset.original = titleEl.innerHTML;
+  titleEl.innerHTML = `
+    <div class="card-edit-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <input type="text" class="form-control" id="card-edit-title-${id}" value="${escapeHtml(currentTitle)}" style="max-width:240px;padding:4px 8px;font-size:13px;" />
+      <select class="form-control" id="card-edit-type-${id}" style="max-width:100px;padding:4px 8px;font-size:13px;">
+        <option value="weekly" ${currentType==='weekly'?'selected':''}>周会</option>
+        <option value="general" ${currentType==='general'?'selected':''}>通用</option>
+        <option value="tech" ${currentType==='tech'?'selected':''}>技术</option>
+        <option value="customer" ${currentType==='customer'?'selected':''}>客户</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="saveCardEdit('${id}')">确认</button>
+      <button class="btn btn-outline btn-sm" onclick="cancelCardEdit()">取消</button>
+    </div>
+  `;
+  document.getElementById('card-edit-title-' + id).focus();
+  window._activeCardEditId = id;
+}
+
+function cancelCardEdit() {
+  if (!window._activeCardEditId) return;
+  const id = window._activeCardEditId;
+  const titleEl = document.getElementById('card-title-' + id);
+  if (titleEl && titleEl.dataset.original) {
+    titleEl.innerHTML = titleEl.dataset.original;
+    delete titleEl.dataset.original;
+  }
+  window._activeCardEditId = null;
+}
+
+async function saveCardEdit(id) {
+  const titleInput = document.getElementById('card-edit-title-' + id);
+  const typeSelect = document.getElementById('card-edit-type-' + id);
+  if (!titleInput || !typeSelect) return;
+  const title = titleInput.value.trim();
+  const meetingType = typeSelect.value;
+  if (!title) { Toast.error("标题不能为空"); return; }
+  try {
+    await API.put(`/api/meetings/${id}`, { title, meetingType });
+    Toast.success("已保存");
+    window._activeCardEditId = null;
+    fetchMeetings();
+  } catch (_) { /* error shown by API */ }
 }
 
 /* Table row fallback */
@@ -461,10 +519,29 @@ function renderMeetingDetail(m) {
   }
 
   // ---- Header (Cloudscape style) ----
+  const meetingTypeLabel = { weekly: "周会", general: "通用", tech: "技术", customer: "客户", merged: "合并" };
+  const currentType = m.meetingType || "general";
   let html = `
     <div class="meeting-detail-header">
       <div class="brand">&#9670; Meeting Minutes</div>
-      <h1>${title}</h1>
+      <div class="detail-title-row" style="display:flex;align-items:center;gap:10px;">
+        <h1 id="detail-title-display">${title}</h1>
+        <span class="badge" style="background:rgba(255,153,0,0.2);color:#FF9900;font-size:11px;" id="detail-type-display">${escapeHtml(meetingTypeLabel[currentType] || currentType)}</span>
+        <button class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;cursor:pointer;" onclick="startDetailEdit('${escapeHtml(m.meetingId)}','${escapeHtml(m.title || m.meetingId)}','${escapeHtml(currentType)}')" title="编辑">&#9999;&#65039;</button>
+      </div>
+      <div id="detail-edit-form" style="display:none;margin:8px 0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <input type="text" id="detail-title-input" class="form-control" style="max-width:400px;font-size:16px;" />
+          <select id="detail-type-select" class="form-control" style="max-width:160px;font-size:14px;">
+            <option value="weekly">周会</option>
+            <option value="general">通用</option>
+            <option value="tech">技术</option>
+            <option value="customer">客户</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="saveDetailEdit('${escapeHtml(m.meetingId)}')">保存</button>
+          <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,0.3);" onclick="cancelDetailEdit()">取消</button>
+        </div>
+      </div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         ${statusBadge(status)}
       </div>
@@ -842,6 +919,34 @@ function renderMeetingDetail(m) {
   }
 }
 
+function startDetailEdit(meetingId, currentTitle, currentType) {
+  document.getElementById('detail-title-display').style.display = 'none';
+  document.getElementById('detail-type-display').style.display = 'none';
+  const form = document.getElementById('detail-edit-form');
+  form.style.display = 'block';
+  const titleInput = document.getElementById('detail-title-input');
+  titleInput.value = currentTitle;
+  document.getElementById('detail-type-select').value = currentType;
+  titleInput.focus();
+}
+
+function cancelDetailEdit() {
+  document.getElementById('detail-title-display').style.display = '';
+  document.getElementById('detail-type-display').style.display = '';
+  document.getElementById('detail-edit-form').style.display = 'none';
+}
+
+async function saveDetailEdit(meetingId) {
+  const title = document.getElementById('detail-title-input').value.trim();
+  const meetingType = document.getElementById('detail-type-select').value;
+  if (!title) { Toast.error("标题不能为空"); return; }
+  try {
+    await API.put(`/api/meetings/${meetingId}`, { title, meetingType });
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) { /* error shown by API */ }
+}
+
 async function retryMeetingDetail(id) {
   try {
     await API.post(`/api/meetings/${id}/retry`);
@@ -999,6 +1104,97 @@ async function saveEditTerm(e) {
 function closeModal() {
   const overlay = document.getElementById("edit-modal");
   if (overlay) overlay.classList.remove("show");
+}
+
+/* ===== Merge Selection ===== */
+function getSelectedMeetingIds() {
+  return Array.from(document.querySelectorAll('.merge-checkbox:checked')).map(cb => cb.dataset.id);
+}
+
+function updateMergeSelection() {
+  const ids = getSelectedMeetingIds();
+  let bar = document.getElementById('merge-action-bar');
+  if (ids.length >= 2) {
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'merge-action-bar';
+      bar.className = 'merge-action-bar';
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML = `
+      <span>已选 <strong>${ids.length}</strong> 个会议</span>
+      <button class="btn btn-primary" onclick="openMergeModal()">合并生成报告</button>
+    `;
+    bar.style.display = 'flex';
+  } else {
+    if (bar) bar.style.display = 'none';
+  }
+}
+
+function openMergeModal() {
+  const ids = getSelectedMeetingIds();
+  if (ids.length < 2) { Toast.error("请至少选择 2 个会议"); return; }
+
+  // Build meeting list for display
+  const selectedMeetings = ids.map(id => {
+    const m = allMeetings.find(mt => mt.meetingId === id);
+    return m ? escapeHtml(m.title || m.meetingId) : id;
+  });
+
+  let overlay = document.getElementById('merge-modal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'merge-modal';
+    overlay.className = 'modal-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:560px;">
+      <h3><i class="fa fa-object-group"></i> 合并生成报告</h3>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:600;color:#232F3E;margin-bottom:8px;">已选会议（${ids.length}）</div>
+        <ul style="list-style:none;padding:0;max-height:150px;overflow-y:auto;">
+          ${selectedMeetings.map(t => `<li style="padding:4px 0;font-size:13px;border-bottom:1px solid #e8edf2;">${t}</li>`).join('')}
+        </ul>
+      </div>
+      <div class="form-group">
+        <label for="merge-custom-prompt">自定义提示词（可选）</label>
+        <textarea id="merge-custom-prompt" class="form-control" rows="3" placeholder="例：总结本周项目进展，重点关注风险和 action items"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeMergeModal()">取消</button>
+        <button class="btn btn-primary" id="merge-submit-btn" onclick="submitMerge()"><i class="fa fa-magic"></i> 生成报告</button>
+      </div>
+    </div>
+  `;
+  overlay.classList.add('show');
+}
+
+function closeMergeModal() {
+  const overlay = document.getElementById('merge-modal');
+  if (overlay) overlay.classList.remove('show');
+}
+
+async function submitMerge() {
+  const ids = getSelectedMeetingIds();
+  const customPrompt = (document.getElementById('merge-custom-prompt') || {}).value || '';
+  const btn = document.getElementById('merge-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '生成中…'; }
+
+  try {
+    await API.post('/api/meetings/merge', { meetingIds: ids, customPrompt: customPrompt.trim() || undefined });
+    Toast.success('合并报告生成中');
+    closeMergeModal();
+    // Uncheck all checkboxes
+    document.querySelectorAll('.merge-checkbox:checked').forEach(cb => { cb.checked = false; });
+    updateMergeSelection();
+    fetchMeetings();
+  } catch (_) {
+    /* error shown by API */
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-magic"></i> 生成报告'; }
+  }
 }
 
 /* ===== Utils ===== */

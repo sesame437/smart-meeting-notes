@@ -24,22 +24,24 @@ function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speak
 
   if (meetingType === "merged") {
     const customNote = customPrompt
-      ? `用户自定义要求：${customPrompt}\n\n`
+      ? `用户额外要求：${customPrompt}\n\n`
       : "";
-    return `${customNote}${glossaryNote}你是专业会议纪要助手。以下是多个会议的转录文本合集，请生成一份综合汇总报告。
+    return `${customNote}${glossaryNote}你是专业会议纪要助手，请根据以下多份会议纪要内容，生成一份综合汇总报告。
 
-转录文本：
+会议纪要内容：
 ${transcriptText}
 
 以 JSON 格式输出：
 {
   "meetingType": "merged",
   "summary": "跨会议综合总结（3-5句话）",
-  "keyFindings": [{ "finding": "重要发现", "source": "来源会议", "detail": "详情" }],
-  "crossMeetingThemes": [{ "theme": "跨会议主题", "detail": "分析" }],
+  "keyTopics": [{ "topic": "主题", "detail": "分析", "source": "来源会议" }],
+  "highlights": [{ "point": "亮点", "detail": "详情", "source": "来源会议" }],
+  "lowlights": [{ "point": "问题/风险", "detail": "详情", "source": "来源会议" }],
   "actions": [{ "task": "行动项", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low", "source": "来源会议" }],
   "decisions": [{ "decision": "决策", "rationale": "原因", "source": "来源会议" }],
   "risks": [{ "risk": "风险", "impact": "影响", "mitigation": "措施" }],
+  "participants": ["跨会议参与人汇总"],
   "sourceMeetings": ["会议标题列表"]
 }
 只输出 JSON。`;

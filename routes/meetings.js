@@ -111,7 +111,7 @@ router.put("/:id", async (req, res, next) => {
     const item = await getMeetingById(req.params.id);
     if (!item) return res.status(404).json({ error: "Not found" });
 
-    const { status, content, title } = req.body;
+    const { status, content, title, meetingType } = req.body;
     const expressions = [];
     const names = {};
     const values = {};
@@ -130,6 +130,10 @@ router.put("/:id", async (req, res, next) => {
       expressions.push("#t = :t");
       names["#t"] = "title";
       values[":t"] = title;
+    }
+    if (meetingType !== undefined) {
+      expressions.push("meetingType = :mt");
+      values[":mt"] = meetingType;
     }
 
     expressions.push("updatedAt = :u");
@@ -327,79 +331,41 @@ router.post("/merge", async (req, res, next) => {
       meetings.push(item);
     }
 
-    // Read transcripts from S3 in parallel
-    const transcriptResults = await Promise.allSettled(
-      meetings.map(async (m) => {
-        const parts = [];
-        for (const key of [m.funasrKey, m.transcribeKey, m.whisperKey]) {
-          if (!key) continue;
-          try {
-            const stream = getFile(key);
-            const chunks = [];
-            for await (const chunk of stream) {
-              chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-            }
-            const raw = Buffer.concat(chunks).toString("utf-8");
-            // FunASR JSON: extract formatted text
-            if (key.includes("funasr")) {
-              try {
-                const data = JSON.parse(raw);
-                if (data.segments && data.segments.length > 0) {
-                  const lines = [];
-                  let currentSpeaker = null;
-                  let currentText = "";
-                  for (const seg of data.segments) {
-                    const spk = seg.speaker || "SPEAKER_0";
-                    if (spk !== currentSpeaker) {
-                      if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
-                      currentSpeaker = spk;
-                      currentText = seg.text || "";
-                    } else {
-                      currentText += seg.text || "";
-                    }
-                  }
-                  if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
-                  parts.push(lines.join("\n"));
-                } else if (data.text) {
-                  parts.push(data.text);
-                }
-              } catch { parts.push(raw); }
-            } else if (key.includes("transcribe")) {
-              try {
-                const data = JSON.parse(raw);
-                const text = data?.results?.transcripts?.[0]?.transcript;
-                parts.push(text || raw);
-              } catch { parts.push(raw); }
-            } else {
-              parts.push(raw);
-            }
-            break; // use first available transcript
-          } catch (err) {
-            console.warn(`[merge] Failed to read ${key}:`, err.message);
-          }
-        }
-        return { meeting: m, text: parts.join("\n") };
-      })
-    );
-
-    // Build merged text
+    // Read report content from DynamoDB or S3 for each meeting
     const mergedParts = [];
     const skipped = [];
     const parentIds = [];
-    for (const result of transcriptResults) {
-      if (result.status === "fulfilled" && result.value.text) {
-        const m = result.value.meeting;
+
+    for (const m of meetings) {
+      let content = m.content;
+
+      // If no content in DynamoDB but reportKey exists, load from S3
+      if (!content && m.reportKey) {
+        try {
+          const stream = await getFile(m.reportKey);
+          const chunks = [];
+          for await (const chunk of stream) {
+            chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+          }
+          const text = Buffer.concat(chunks).toString("utf-8");
+          content = JSON.parse(text);
+        } catch (err) {
+          console.warn(`[merge] Failed to read report for ${m.meetingId}:`, err.message);
+        }
+      }
+
+      if (content) {
         const date = m.createdAt ? new Date(m.createdAt).toLocaleDateString("zh-CN") : "";
-        mergedParts.push(`=== 会议: ${m.title || m.meetingId} (${date}) ===\n${result.value.text}`);
+        const type = m.meetingType || "general";
+        mergedParts.push(`=== 会议：${m.title || m.meetingId}（${type}，${date}）===\n${JSON.stringify(content, null, 2)}`);
         parentIds.push(m.meetingId);
       } else {
-        const m = result.status === "fulfilled" ? result.value.meeting : meetings[transcriptResults.indexOf(result)];
-        skipped.push({ meetingId: m.meetingId, reason: "无转录文件" });
+        skipped.push({ meetingId: m.meetingId, reason: "无报告内容" });
       }
     }
 
     if (mergedParts.length === 0) {
-      return res.status(400).json({ error: "所有会议均无转录文件" });
+      return res.status(400).json({ error: "所有会议均无报告内容" });
     }
 
     const mergedText = mergedParts.join("\n\n");
