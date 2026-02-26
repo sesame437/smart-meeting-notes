@@ -912,7 +912,7 @@ function renderMeetingDetail(m) {
             <th style="color:var(--aws-orange)">负责人</th>
             <th style="color:var(--aws-orange)">截止日期</th>
             <th style="color:var(--aws-orange)">优先级</th>
-            <th style="color:var(--aws-orange);width:72px;text-align:center;">操作</th>
+            <th style="width:72px;"></th>
           </tr></thead>
           <tbody>
             ${actions.map((a, idx) => {
