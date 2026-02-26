@@ -1417,6 +1417,6 @@ document.addEventListener("DOMContentLoaded", function() {
     fetchMeetings();
   } else if (document.getElementById("glossary-tbody")) {
     // glossary.html
-    loadGlossary();
+    fetchGlossary();
   }
 });
