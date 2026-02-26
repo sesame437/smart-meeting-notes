@@ -1084,3 +1084,49 @@ tr:hover .row-actions,
 .row-actions .btn:active {
   transform: scale(0.92);
 }
+
+/* ===== Row action buttons: larger hit area + tooltip on hover ===== */
+.row-actions .btn {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+/* Tooltip label */
+.row-actions .btn::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a2332;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #d0d7e2;
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 50;
+}
+.row-actions .btn:hover::after {
+  opacity: 1;
+}
+
+/* ===== Action Items: task cell wraps instead of truncating ===== */
+.actions-table td,
+.actions-table th {
+  white-space: normal;
+  word-break: break-word;
+}
+/* task column gets more room */
+.actions-table td:first-child {
+  min-width: 180px;
+  max-width: 320px;
+  line-height: 1.5;
+}

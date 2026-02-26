@@ -869,7 +869,7 @@ function renderMeetingDetail(m) {
       <div id="actionItems-display">
       ${actions.length ? `
       <div class="table-wrap">
-        <table>
+        <table class="actions-table">
           <thead><tr>
             <th style="color:var(--aws-orange)">任务</th>
             <th style="color:var(--aws-orange)">负责人</th>
