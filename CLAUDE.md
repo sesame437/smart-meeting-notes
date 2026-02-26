@@ -97,3 +97,25 @@ node workers/report-worker.js
 - 所有按钮用 `data-action` + `document.addEventListener("click", ...)` 事件委托
 - 页面初始化在 DOMContentLoaded 里按 URL/DOM 特征判断页面类型
 - Font Awesome 等静态资源本地化（放 public/css/ + public/fonts/）
+
+## Quality Gate（必须执行）
+
+每个功能完成后必须：
+
+1. **node --check** 所有修改的 .js 文件
+2. **npm test** 补充/运行 unit test（正常路径 + 边界 + 错误路径）
+3. **前端功能**：用 browser 工具打开 http://localhost:3300，Console 确认：
+   - 无 CSP 错误（`Refused to execute inline script`）
+   - 无 JS SyntaxError / ReferenceError
+   - 功能操作正常
+4. **git commit**
+
+## CSP 配置（server.js）
+
+helmet 已配置明确的 CSP 白名单（见 server.js），规则：
+- `scriptSrc: ["'self'"]` — 禁止内联 script，只允许外链 .js 文件
+- `styleSrc: ["'self'", "'unsafe-inline'"]` — 允许 inline style
+- 禁止任何外部 CDN（cloudflare/jsdelivr 等）
+- 所有字体/图标/CSS 必须本地化到 public/ 目录
+
+**新增静态资源时**：更新 server.js 的 CSP directives，而不是用 `unsafe-inline` 或 `unsafe-eval`。

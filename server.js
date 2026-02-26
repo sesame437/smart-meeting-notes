@@ -11,7 +11,20 @@ const app = express();
 const PORT = process.env.PORT || 3300;
 
 app.use(cors());
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],          // 禁止内联 script（强制 CSP 合规）
+      styleSrc: ["'self'", "'unsafe-inline'"],   // 允许 inline style（表单控件需要）
+      fontSrc: ["'self'", "data:"],   // 本地字体 + data URI
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'"],         // 只允许同源 API 请求
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
