@@ -277,6 +277,171 @@ router.post("/:id/retry", async (req, res, next) => {
   }
 });
 
+// Merge multiple meetings into a combined report
+router.post("/merge", async (req, res, next) => {
+  try {
+    const { meetingIds, customPrompt } = req.body;
+
+    // Validate meetingIds
+    if (!Array.isArray(meetingIds) || meetingIds.length < 2) {
+      return res.status(400).json({ error: "meetingIds must contain at least 2 items" });
+    }
+    if (meetingIds.length > 10) {
+      return res.status(400).json({ error: "meetingIds cannot exceed 10 items" });
+    }
+
+    // Fetch all meeting records
+    const meetings = [];
+    for (const id of meetingIds) {
+      const { Item } = await docClient.send(new GetCommand({
+        TableName: TABLE,
+        Key: { meetingId: id },
+      }));
+      if (!Item) return res.status(404).json({ error: `Meeting not found: ${id}` });
+      meetings.push(Item);
+    }
+
+    // Read transcripts from S3 in parallel
+    const transcriptResults = await Promise.allSettled(
+      meetings.map(async (m) => {
+        const parts = [];
+        for (const key of [m.funasrKey, m.transcribeKey, m.whisperKey]) {
+          if (!key) continue;
+          try {
+            const stream = getFile(key);
+            const chunks = [];
+            for await (const chunk of stream) {
+              chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+            }
+            const raw = Buffer.concat(chunks).toString("utf-8");
+            // FunASR JSON: extract formatted text
+            if (key.includes("funasr")) {
+              try {
+                const data = JSON.parse(raw);
+                if (data.segments && data.segments.length > 0) {
+                  const lines = [];
+                  let currentSpeaker = null;
+                  let currentText = "";
+                  for (const seg of data.segments) {
+                    const spk = seg.speaker || "SPEAKER_0";
+                    if (spk !== currentSpeaker) {
+                      if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
+                      currentSpeaker = spk;
+                      currentText = seg.text || "";
+                    } else {
+                      currentText += seg.text || "";
+                    }
+                  }
+                  if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
+                  parts.push(lines.join("\n"));
+                } else if (data.text) {
+                  parts.push(data.text);
+                }
+              } catch { parts.push(raw); }
+            } else if (key.includes("transcribe")) {
+              try {
+                const data = JSON.parse(raw);
+                const text = data?.results?.transcripts?.[0]?.transcript;
+                parts.push(text || raw);
+              } catch { parts.push(raw); }
+            } else {
+              parts.push(raw);
+            }
+            break; // use first available transcript
+          } catch (err) {
+            console.warn(`[merge] Failed to read ${key}:`, err.message);
+          }
+        }
+        return { meeting: m, text: parts.join("\n") };
+      })
+    );
+
+    // Build merged text
+    const mergedParts = [];
+    const skipped = [];
+    const parentIds = [];
+    for (const result of transcriptResults) {
+      if (result.status === "fulfilled" && result.value.text) {
+        const m = result.value.meeting;
+        const date = m.createdAt ? new Date(m.createdAt).toLocaleDateString("zh-CN") : "";
+        mergedParts.push(`=== 会议: ${m.title || m.meetingId} (${date}) ===\n${result.value.text}`);
+        parentIds.push(m.meetingId);
+      } else {
+        const m = result.status === "fulfilled" ? result.value.meeting : meetings[transcriptResults.indexOf(result)];
+        skipped.push({ meetingId: m.meetingId, reason: "无转录文件" });
+      }
+    }
+
+    if (mergedParts.length === 0) {
+      return res.status(400).json({ error: "所有会议均无转录文件" });
+    }
+
+    const mergedText = mergedParts.join("\n\n");
+
+    // Fetch glossary terms
+    let glossaryTerms = [];
+    try {
+      const { Items: glossaryItems } = await docClient.send(new ScanCommand({
+        TableName: "meeting-minutes-glossary",
+        ProjectionExpression: "termId",
+      }));
+      glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
+    } catch (err) {
+      console.warn("[merge] Failed to fetch glossary:", err.message);
+    }
+
+    // Call Bedrock
+    const modelId = process.env.BEDROCK_MODEL_ID || undefined;
+    const responseText = await invokeModel(mergedText, "merged", glossaryTerms, modelId, null, customPrompt || null);
+
+    // Parse report JSON
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return res.status(500).json({ error: "Failed to parse report from Bedrock" });
+    }
+    const report = JSON.parse(jsonMatch[0]);
+
+    // Create merged meeting record
+    const meetingId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    // Upload report to S3
+    const reportKey = `reports/${meetingId}/report.json`;
+    const fullReportKey = await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
+
+    // Save to DynamoDB
+    await docClient.send(new PutCommand({
+      TableName: TABLE,
+      Item: {
+        meetingId,
+        meetingType: "merged",
+        title: `合并报告 — ${new Date().toLocaleDateString("zh-CN")}`,
+        parentIds,
+        customPrompt: customPrompt || "",
+        status: "reported",
+        stage: "exporting",
+        content: report,
+        reportKey: fullReportKey,
+        createdAt: now,
+      },
+    }));
+
+    // Send to export queue
+    const exportQueueUrl = process.env.SQS_EXPORT_QUEUE;
+    if (exportQueueUrl) {
+      await sendMessage(exportQueueUrl, {
+        meetingId,
+        reportKey: fullReportKey,
+        createdAt: now,
+      });
+    }
+
+    res.status(201).json({ meetingId, report, skipped });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Update speaker map and regenerate report
 router.put("/:id/speaker-map", async (req, res, next) => {
   try {

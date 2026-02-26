@@ -479,6 +479,27 @@ function renderMeetingDetail(m) {
     </div>
   `;
 
+  // ---- Speaker Rename Block ----
+  if (m.speakers && m.speakers.length > 0) {
+    const speakerMap = m.speakerMap || {};
+    html += `
+      <div class="card speaker-edit-card">
+        <div class="card-title"><i class="fa fa-user"></i> 说话人识别</div>
+        <div class="speaker-edit-list">
+          ${m.speakers.map(spk => `
+            <div class="speaker-edit-row">
+              <span class="speaker-label">${escapeHtml(spk)}</span>
+              <input type="text" class="form-control speaker-name-input" data-speaker="${escapeHtml(spk)}" value="${escapeHtml(speakerMap[spk] || '')}" placeholder="如：张三" />
+            </div>
+          `).join("")}
+        </div>
+        <div style="text-align:right;margin-top:16px;">
+          <button class="btn btn-primary" onclick="saveSpeakerMap('${m.meetingId}')">保存并重新生成纪要</button>
+        </div>
+      </div>
+    `;
+  }
+
   // ---- Customer 专属字段 ----
   if (report.customerInfo || report.awsAttendees) {
     const ci = report.customerInfo || {};
@@ -824,6 +845,33 @@ async function retryMeetingDetail(id) {
       window._detailPollingTimer = setInterval(() => fetchMeeting(id), 12000);
     }
   } catch (_) { /* error already shown by API */ }
+}
+
+async function saveSpeakerMap(meetingId) {
+  const inputs = document.querySelectorAll('.speaker-name-input');
+  const speakerMap = {};
+  inputs.forEach(input => {
+    const val = input.value.trim();
+    if (val) speakerMap[input.dataset.speaker] = val;
+  });
+
+  if (Object.keys(speakerMap).length === 0) {
+    Toast.error("请至少填写一个说话人姓名");
+    return;
+  }
+
+  const btn = document.querySelector('.speaker-edit-card .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = "生成中…"; }
+
+  try {
+    await API.put(`/api/meetings/${meetingId}/speaker-map`, { speakerMap });
+    Toast.success("已保存并重新生成纪要");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    /* error shown by API */
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "保存并重新生成纪要"; }
+  }
 }
 
 function sendEmail(id) {

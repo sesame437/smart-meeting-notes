@@ -736,6 +736,36 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   margin-top: 20px;
 }
 
+/* ===== Speaker Edit Block ===== */
+.speaker-edit-card {
+  border-left: 4px solid var(--aws-orange);
+}
+
+.speaker-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.speaker-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.speaker-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aws-dark);
+  min-width: 100px;
+  font-family: 'Courier New', monospace;
+}
+
+.speaker-name-input {
+  flex: 1;
+  max-width: 260px;
+}
+
 /* ===== Responsive ===== */
 /* ===== Meeting Filter Bar ===== */
 .meeting-filter-bar {

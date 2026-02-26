@@ -362,13 +362,37 @@ async function processMessage(message) {
 
     console.log(`[Result] Transcribe: ${transcribeKey || "FAILED"}, Whisper: ${whisperKey || "SKIPPED"}, FunASR: ${funasrKey || "SKIPPED"}`);
 
+    // Extract unique speakers from FunASR result
+    let speakers = [];
+    if (funasrKey) {
+      try {
+        const resp = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: funasrKey }));
+        const chunks = [];
+        for await (const chunk of resp.Body) chunks.push(chunk);
+        const funasrResult = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+        if (funasrResult.segments && funasrResult.segments.length > 0) {
+          const speakerSet = new Set();
+          for (const seg of funasrResult.segments) {
+            if (seg.speaker) speakerSet.add(seg.speaker);
+          }
+          speakers = Array.from(speakerSet).sort();
+        }
+      } catch (err) {
+        console.warn(`[speakers] Failed to extract speakers from FunASR result:`, err.message);
+      }
+    }
+
     // Update DynamoDB meeting status, advance stage to "reporting"
-    await updateMeetingStatus(meetingId, createdAt, "transcribed", {
+    const extraAttrs = {
       transcribeKey: transcribeKey || "",
       whisperKey: whisperKey || "",
       funasrKey: funasrKey || "",
       stage: "reporting",
-    });
+    };
+    if (speakers.length > 0) {
+      extraAttrs.speakers = speakers;
+    }
+    await updateMeetingStatus(meetingId, createdAt, "transcribed", extraAttrs);
 
     // Resolve meetingType: use parsed value, or look up from DynamoDB
     let resolvedMeetingType = meetingType;

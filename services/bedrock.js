@@ -9,7 +9,7 @@ const bedrockClient = new BedrockRuntimeClient({
 
 const DEFAULT_MODEL_ID = "global.anthropic.claude-sonnet-4-6";
 
-function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speakerMap = null) {
+function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speakerMap = null, customPrompt = null) {
   let speakerNote = "";
   if (speakerMap && Object.keys(speakerMap).length > 0) {
     const mapping = Object.entries(speakerMap).map(([k, v]) => `${k}: ${v}`).join(", ");
@@ -21,6 +21,29 @@ function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speak
   const glossaryNote = glossaryTerms.length > 0
     ? `专有名词词库（请确保报告中使用正确拼写）：${glossaryTerms.join("、")}\n\n`
     : "";
+
+  if (meetingType === "merged") {
+    const customNote = customPrompt
+      ? `用户自定义要求：${customPrompt}\n\n`
+      : "";
+    return `${customNote}${glossaryNote}你是专业会议纪要助手。以下是多个会议的转录文本合集，请生成一份综合汇总报告。
+
+转录文本：
+${transcriptText}
+
+以 JSON 格式输出：
+{
+  "meetingType": "merged",
+  "summary": "跨会议综合总结（3-5句话）",
+  "keyFindings": [{ "finding": "重要发现", "source": "来源会议", "detail": "详情" }],
+  "crossMeetingThemes": [{ "theme": "跨会议主题", "detail": "分析" }],
+  "actions": [{ "task": "行动项", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low", "source": "来源会议" }],
+  "decisions": [{ "decision": "决策", "rationale": "原因", "source": "来源会议" }],
+  "risks": [{ "risk": "风险", "impact": "影响", "mitigation": "措施" }],
+  "sourceMeetings": ["会议标题列表"]
+}
+只输出 JSON。`;
+  }
 
   if (meetingType === "weekly") {
     return `${speakerNote}${glossaryNote}你是专业会议纪要助手，请分析以下 AWS SA 团队周例会转录文本，生成结构化会议纪要。周例会通常包含三大部分：团队/个人 KPI 汇报、公司公告事项、客户/项目逐个 Review。请注意：若 teamKPI 或 announcements 部分在转录中未明确提及，对应字段输出空数组即可，不要编造内容。每个项目/客户单独作为一个 projectReviews 条目，若会议中多人分别汇报不同项目，请逐项拆分，不要合并为一条。
@@ -197,9 +220,9 @@ function truncateTranscript(text) {
   return text.slice(0, MAX_TOTAL);
 }
 
-async function invokeModel(transcriptText, meetingType = "general", glossaryTerms = [], modelId = DEFAULT_MODEL_ID, speakerMap = null) {
+async function invokeModel(transcriptText, meetingType = "general", glossaryTerms = [], modelId = DEFAULT_MODEL_ID, speakerMap = null, customPrompt = null) {
   const truncated = truncateTranscript(transcriptText);
-  const prompt = getMeetingPrompt(truncated, meetingType, glossaryTerms, speakerMap);
+  const prompt = getMeetingPrompt(truncated, meetingType, glossaryTerms, speakerMap, customPrompt);
 
   const resp = await bedrockClient.send(
     new InvokeModelCommand({
