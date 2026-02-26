@@ -6,7 +6,7 @@ const multer = require("multer");
 const { docClient } = require("../db/dynamodb");
 const {
   ScanCommand,
-  GetCommand,
+  QueryCommand,
   PutCommand,
   UpdateCommand,
   DeleteCommand,
@@ -40,6 +40,18 @@ const upload = multer({
   },
 });
 
+async function getMeetingById(id) {
+  const { Items } = await docClient.send(new QueryCommand({
+    TableName: TABLE,
+    KeyConditionExpression: "meetingId = :id",
+    ExpressionAttributeValues: {
+      ":id": id,
+    },
+    Limit: 1,
+  }));
+  return Items?.[0] || null;
+}
+
 // List meetings
 router.get("/", async (_req, res, next) => {
   try {
@@ -69,12 +81,9 @@ router.post("/", async (req, res, next) => {
 // Get single meeting
 router.get("/:id", async (req, res, next) => {
   try {
-    const { Item } = await docClient.send(new GetCommand({
-      TableName: TABLE,
-      Key: { meetingId: req.params.id },
-    }));
-    if (!Item) return res.status(404).json({ error: "Not found" });
-    res.json(Item);
+    const item = await getMeetingById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Not found" });
+    res.json(item);
   } catch (err) {
     next(err);
   }
@@ -83,6 +92,9 @@ router.get("/:id", async (req, res, next) => {
 // Update meeting
 router.put("/:id", async (req, res, next) => {
   try {
+    const item = await getMeetingById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Not found" });
+
     const { status, content, title } = req.body;
     const expressions = [];
     const names = {};
@@ -109,7 +121,7 @@ router.put("/:id", async (req, res, next) => {
 
     const { Attributes } = await docClient.send(new UpdateCommand({
       TableName: TABLE,
-      Key: { meetingId: req.params.id },
+      Key: { meetingId: req.params.id, createdAt: item.createdAt },
       UpdateExpression: `SET ${expressions.join(", ")}`,
       ExpressionAttributeNames: Object.keys(names).length ? names : undefined,
       ExpressionAttributeValues: values,
@@ -124,9 +136,12 @@ router.put("/:id", async (req, res, next) => {
 // Delete meeting
 router.delete("/:id", async (req, res, next) => {
   try {
+    const item = await getMeetingById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Not found" });
+
     await docClient.send(new DeleteCommand({
       TableName: TABLE,
-      Key: { meetingId: req.params.id },
+      Key: { meetingId: req.params.id, createdAt: item.createdAt },
     }));
     res.status(204).end();
   } catch (err) {
@@ -211,12 +226,9 @@ router.post("/upload", (req, res, next) => {
 // Retry failed meeting
 router.post("/:id/retry", async (req, res, next) => {
   try {
-    const { Item } = await docClient.send(new GetCommand({
-      TableName: TABLE,
-      Key: { meetingId: req.params.id },
-    }));
-    if (!Item) return res.status(404).json({ error: "Not found" });
-    if (Item.status !== "failed") {
+    const item = await getMeetingById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Not found" });
+    if (item.status !== "failed") {
       return res.status(400).json({ error: "Only failed meetings can be retried" });
     }
 
@@ -226,7 +238,7 @@ router.post("/:id/retry", async (req, res, next) => {
     try {
       await docClient.send(new UpdateCommand({
         TableName: TABLE,
-        Key: { meetingId: req.params.id },
+        Key: { meetingId: req.params.id, createdAt: item.createdAt },
         UpdateExpression: updateExpr,
         ConditionExpression: "#s = :failed",
         ExpressionAttributeNames: { "#s": "status" },
@@ -246,17 +258,17 @@ router.post("/:id/retry", async (req, res, next) => {
 
     try {
       await sendMessage(process.env.SQS_TRANSCRIPTION_QUEUE, {
-        meetingId: Item.meetingId,
-        s3Key: Item.s3Key,
-        filename: Item.filename,
-        meetingType: Item.meetingType || "general",
+        meetingId: item.meetingId,
+        s3Key: item.s3Key,
+        filename: item.filename,
+        meetingType: item.meetingType || "general",
       });
     } catch (sqsErr) {
       // Rollback: revert status to failed since SQS enqueue failed
       try {
         await docClient.send(new UpdateCommand({
           TableName: TABLE,
-          Key: { meetingId: req.params.id },
+          Key: { meetingId: req.params.id, createdAt: item.createdAt },
           UpdateExpression: "SET #s = :s, stage = :stage, errorMessage = :em, updatedAt = :u",
           ExpressionAttributeNames: { "#s": "status" },
           ExpressionAttributeValues: {
@@ -294,12 +306,9 @@ router.post("/merge", async (req, res, next) => {
     // Fetch all meeting records
     const meetings = [];
     for (const id of meetingIds) {
-      const { Item } = await docClient.send(new GetCommand({
-        TableName: TABLE,
-        Key: { meetingId: id },
-      }));
-      if (!Item) return res.status(404).json({ error: `Meeting not found: ${id}` });
-      meetings.push(Item);
+      const item = await getMeetingById(id);
+      if (!item) return res.status(404).json({ error: `Meeting not found: ${id}` });
+      meetings.push(item);
     }
 
     // Read transcripts from S3 in parallel
@@ -466,16 +475,13 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     }
 
     // Verify meeting exists
-    const { Item } = await docClient.send(new GetCommand({
-      TableName: TABLE,
-      Key: { meetingId: req.params.id },
-    }));
-    if (!Item) return res.status(404).json({ error: "Not found" });
+    const item = await getMeetingById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Not found" });
 
     // Save speakerMap to DynamoDB
     await docClient.send(new UpdateCommand({
       TableName: TABLE,
-      Key: { meetingId: req.params.id },
+      Key: { meetingId: req.params.id, createdAt: item.createdAt },
       UpdateExpression: "SET speakerMap = :sm, updatedAt = :u",
       ExpressionAttributeValues: {
         ":sm": speakerMap,
@@ -487,9 +493,9 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     const transcriptParts = [];
 
     // Try Transcribe/Whisper
-    if (Item.transcribeKey) {
+    if (item.transcribeKey) {
       try {
-        const stream = getFile(Item.transcribeKey);
+        const stream = getFile(item.transcribeKey);
         const chunks = [];
         for await (const chunk of stream) {
           chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
@@ -507,9 +513,9 @@ router.put("/:id/speaker-map", async (req, res, next) => {
       }
     }
 
-    if (Item.whisperKey) {
+    if (item.whisperKey) {
       try {
-        const stream = getFile(Item.whisperKey);
+        const stream = getFile(item.whisperKey);
         const chunks = [];
         for await (const chunk of stream) {
           chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
@@ -522,9 +528,9 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     }
 
     // FunASR (with speaker labels)
-    if (Item.funasrKey) {
+    if (item.funasrKey) {
       try {
-        const stream = getFile(Item.funasrKey);
+        const stream = getFile(item.funasrKey);
         const chunks = [];
         for await (const chunk of stream) {
           chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
@@ -561,7 +567,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     }
 
     const transcriptText = transcriptParts.join("\n\n");
-    const meetingType = Item.meetingType || "general";
+    const meetingType = item.meetingType || "general";
 
     // Fetch glossary terms
     let glossaryTerms = [];
@@ -593,7 +599,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     // Update DynamoDB with new report
     await docClient.send(new UpdateCommand({
       TableName: TABLE,
-      Key: { meetingId: req.params.id },
+      Key: { meetingId: req.params.id, createdAt: item.createdAt },
       UpdateExpression: "SET content = :c, reportKey = :rk, #s = :s, stage = :stage, updatedAt = :u",
       ExpressionAttributeNames: { "#s": "status" },
       ExpressionAttributeValues: {
@@ -612,7 +618,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
         await sendMessage(exportQueueUrl, {
           meetingId: req.params.id,
           reportKey: fullReportKey,
-          createdAt: Item.createdAt,
+          createdAt: item.createdAt,
         });
       } catch (err) {
         console.warn("[speaker-map] Failed to send export queue message:", err.message);
