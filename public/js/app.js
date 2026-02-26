@@ -1418,5 +1418,9 @@ document.addEventListener("DOMContentLoaded", function() {
   } else if (document.getElementById("glossary-tbody")) {
     // glossary.html
     fetchGlossary();
+    var addForm = document.getElementById("add-term-form");
+    if (addForm) addForm.addEventListener("submit", addTerm);
+    var editForm = document.getElementById("edit-term-form");
+    if (editForm) editForm.addEventListener("submit", saveEditTerm);
   }
 });

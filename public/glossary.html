@@ -24,7 +24,7 @@
     <!-- Add Term -->
     <div class="card">
       <div class="card-title"><i class="fa fa-plus-circle"></i> Add Term</div>
-      <form onsubmit="addTerm(event)">
+      <form id="add-term-form">
         <div class="form-row">
           <div class="form-group">
             <label for="add-term">Term</label>
@@ -73,7 +73,7 @@
   <div class="modal-overlay" id="edit-modal">
     <div class="modal">
       <h3><i class="fa fa-pencil"></i> Edit Term</h3>
-      <form onsubmit="saveEditTerm(event)">
+      <form id="edit-term-form">
         <div class="form-group">
           <label for="edit-term">Term</label>
           <input type="text" class="form-control" id="edit-term" required>
