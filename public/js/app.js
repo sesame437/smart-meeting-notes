@@ -586,6 +586,7 @@ function renderMeetingDetail(m) {
         <h1 id="detail-title-display">${title}</h1>
         <span class="badge" style="background:rgba(255,153,0,0.2);color:#FF9900;font-size:11px;" id="detail-type-display">${escapeHtml(meetingTypeLabel[currentType] || currentType)}</span>
         <button class="btn btn-sm" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;cursor:pointer;" data-action="start-detail-edit" data-id="${escapeAttr(m.meetingId)}" data-title="${escapeAttr(m.title || m.meetingId)}" data-type="${escapeAttr(currentType)}" title="编辑">&#9999;&#65039;</button>
+        <button class="btn btn-sm auto-name-btn" data-action="auto-name" data-id="${escapeAttr(m.meetingId)}" data-title="${escapeAttr(m.title || m.meetingId)}" data-type="${escapeAttr(currentType)}" title="自动生成会议名称">&#10024;</button>
       </div>
       <div id="detail-edit-form" style="display:none;margin:8px 0;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -1076,6 +1077,21 @@ async function saveDetailEdit(meetingId) {
     Toast.success("已保存");
     fetchMeeting(meetingId);
   } catch (_) { /* error shown by API */ }
+}
+
+async function autoNameMeeting(id, btn) {
+  btn.disabled = true;
+  btn.style.animation = "spin 1s linear infinite";
+  try {
+    const data = await API.post(`/api/meetings/${id}/auto-name`);
+    if (data && data.suggestedName) {
+      startDetailEdit(id, btn.dataset.title, btn.dataset.type);
+      document.getElementById('detail-title-input').value = data.suggestedName;
+      Toast.success("已生成建议名称，确认后请点击保存");
+    }
+  } catch (_) { /* error shown by API */ }
+  btn.disabled = false;
+  btn.style.animation = "";
 }
 
 async function retryMeetingDetail(id) {
@@ -1599,6 +1615,7 @@ document.addEventListener("click", function(e) {
     case "save-card-edit":     saveCardEdit(id); break;
     case "cancel-card-edit":   cancelCardEdit(); break;
     case "retry-detail":       retryMeetingDetail(id); break;
+    case "auto-name":          autoNameMeeting(id, el); break;
     case "start-detail-edit":  startDetailEdit(id, el.dataset.title, el.dataset.type); break;
     case "save-detail-edit":   saveDetailEdit(id); break;
     case "cancel-detail-edit": cancelDetailEdit(); break;

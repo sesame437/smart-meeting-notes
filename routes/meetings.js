@@ -785,6 +785,66 @@ router.patch("/:id/report", async (req, res, next) => {
   }
 });
 
+// Auto-generate meeting name from report summary
+router.post("/:id/auto-name", async (req, res, next) => {
+  try {
+    const item = await getMeetingById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Not found" });
+    if (!item.reportKey) return res.status(400).json({ error: "Report not generated yet" });
+
+    // Read report from S3
+    const stream = await getFile(item.reportKey);
+    const chunks = [];
+    for await (const chunk of stream) {
+      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    }
+    const report = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+
+    const summary = (report.summary || report.executive_summary || "").slice(0, 400);
+    if (!summary) {
+      return res.status(400).json({ error: "Report has no summary" });
+    }
+
+    const dateStr = item.createdAt
+      ? new Date(item.createdAt).toISOString().slice(0, 10).replace(/-/g, "")
+      : new Date().toISOString().slice(0, 10).replace(/-/g, "");
+
+    const prompt = `你是会议助手。根据以下会议摘要，生成一个简洁的会议主题名称。
+
+格式要求：
+- 用短横线"-"分隔，共2-3段
+- 第一段：会议类型（内部会议/客户会议/技术讨论/周会等，从摘要推断）
+- 第二段：核心主题（10字以内，突出关键内容）
+- 第三段：日期（YYYYMMDD格式）固定为 ${dateStr}
+- 例：内部会议-AWS医疗GenAI讨论-20260226
+- 例：客户会议-思格Connect进展同步-20260226
+- 只返回名称本身，不要任何解释
+
+会议摘要：
+${summary}`;
+
+    const { BedrockRuntimeClient, InvokeModelCommand } = require("@aws-sdk/client-bedrock-runtime");
+    const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
+    const resp = await client.send(new InvokeModelCommand({
+      modelId: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      contentType: "application/json",
+      accept: "application/json",
+      body: JSON.stringify({
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 200,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    }));
+
+    const result = JSON.parse(new TextDecoder().decode(resp.body));
+    const suggestedName = result.content[0].text.trim().slice(0, 60);
+
+    res.json({ suggestedName });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Manually trigger email sending
 router.post("/:id/send-email", async (req, res, next) => {
   try {
