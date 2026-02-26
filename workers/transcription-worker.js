@@ -9,6 +9,7 @@ const { S3Client, GetObjectCommand, PutObjectCommand } = require("@aws-sdk/clien
 const { UpdateCommand, PutCommand, GetCommand, QueryCommand } = require("@aws-sdk/lib-dynamodb");
 const { docClient } = require("../db/dynamodb");
 const { receiveMessages, deleteMessage, sendMessage } = require("../services/sqs");
+const { ensureReady, recordActivity } = require("../services/gpu-autoscale");
 
 const QUEUE_URL = process.env.SQS_TRANSCRIPTION_QUEUE;
 const REPORT_QUEUE_URL = process.env.SQS_REPORT_QUEUE;
@@ -343,6 +344,12 @@ async function processMessage(message) {
     console.log(`Processing transcription for meeting ${meetingId}, audio: ${s3Key}`);
     console.log(`[Pipeline] Tracks enabled — Transcribe: ${ENABLE_TRANSCRIBE}, Whisper: ${ENABLE_WHISPER}, FunASR: ${ENABLE_FUNASR}`);
 
+    // GPU auto-scale: ensure FunASR instance is running before transcription
+    if (ENABLE_FUNASR) {
+      await ensureReady();
+    }
+    recordActivity();
+
     // Run enabled tracks in parallel
     const [transcribeKey, whisperKey, funasrKey] = await Promise.all([
       ENABLE_TRANSCRIBE
@@ -420,6 +427,7 @@ async function processMessage(message) {
       createdAt,
     });
 
+    recordActivity();
     console.log(`Transcription complete for meeting ${meetingId}`);
   } catch (err) {
     console.error(`[transcription-worker] Failed for meeting ${meetingId}:`, err.message);

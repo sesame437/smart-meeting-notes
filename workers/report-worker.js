@@ -1,5 +1,6 @@
 require("dotenv").config();
 const { receiveMessages, deleteMessage, sendMessage } = require("../services/sqs");
+const { recordActivity } = require("../services/gpu-autoscale");
 const { getFile, uploadFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
 const { docClient } = require("../db/dynamodb");
@@ -232,6 +233,7 @@ async function processMessage(message) {
       createdAt,
     });
 
+    recordActivity();
     console.log(`Report generated for meeting ${meetingId}`);
   } catch (err) {
     console.error(`[report-worker] Failed for meeting ${meetingId}:`, err.message);
