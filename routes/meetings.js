@@ -11,8 +11,9 @@ const {
   UpdateCommand,
   DeleteCommand,
 } = require("@aws-sdk/lib-dynamodb");
-const { uploadFile } = require("../services/s3");
+const { uploadFile, getFile } = require("../services/s3");
 const { sendMessage } = require("../services/sqs");
+const { invokeModel } = require("../services/bedrock");
 
 const router = Router();
 const TABLE = process.env.DYNAMODB_TABLE;
@@ -271,6 +272,170 @@ router.post("/:id/retry", async (req, res, next) => {
     }
 
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Update speaker map and regenerate report
+router.put("/:id/speaker-map", async (req, res, next) => {
+  try {
+    const { speakerMap } = req.body;
+    if (!speakerMap || typeof speakerMap !== "object" || Array.isArray(speakerMap)) {
+      return res.status(400).json({ error: "speakerMap must be an object" });
+    }
+
+    // Verify meeting exists
+    const { Item } = await docClient.send(new GetCommand({
+      TableName: TABLE,
+      Key: { meetingId: req.params.id },
+    }));
+    if (!Item) return res.status(404).json({ error: "Not found" });
+
+    // Save speakerMap to DynamoDB
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE,
+      Key: { meetingId: req.params.id },
+      UpdateExpression: "SET speakerMap = :sm, updatedAt = :u",
+      ExpressionAttributeValues: {
+        ":sm": speakerMap,
+        ":u": new Date().toISOString(),
+      },
+    }));
+
+    // Read transcript from S3 (same logic as report-worker)
+    const transcriptParts = [];
+
+    // Try Transcribe/Whisper
+    if (Item.transcribeKey) {
+      try {
+        const stream = getFile(Item.transcribeKey);
+        const chunks = [];
+        for await (const chunk of stream) {
+          chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+        }
+        const raw = Buffer.concat(chunks).toString("utf-8");
+        // AWS Transcribe returns JSON with results.transcripts[0].transcript
+        try {
+          const data = JSON.parse(raw);
+          const text = data?.results?.transcripts?.[0]?.transcript;
+          if (text) transcriptParts.push(`[AWS Transcribe 转录]\n${text}`);
+          else transcriptParts.push(raw);
+        } catch { transcriptParts.push(raw); }
+      } catch (err) {
+        console.warn("[speaker-map] Failed to read transcribeKey:", err.message);
+      }
+    }
+
+    if (Item.whisperKey) {
+      try {
+        const stream = getFile(Item.whisperKey);
+        const chunks = [];
+        for await (const chunk of stream) {
+          chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+        }
+        const text = Buffer.concat(chunks).toString("utf-8");
+        transcriptParts.push(`[Whisper 转录]\n${text}`);
+      } catch (err) {
+        console.warn("[speaker-map] Failed to read whisperKey:", err.message);
+      }
+    }
+
+    // FunASR (with speaker labels)
+    if (Item.funasrKey) {
+      try {
+        const stream = getFile(Item.funasrKey);
+        const chunks = [];
+        for await (const chunk of stream) {
+          chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+        }
+        const raw = Buffer.concat(chunks).toString("utf-8");
+        const data = JSON.parse(raw);
+        if (data.segments && data.segments.length > 0) {
+          const lines = [];
+          let currentSpeaker = null;
+          let currentText = "";
+          for (const seg of data.segments) {
+            const spk = seg.speaker || "SPEAKER_0";
+            if (spk !== currentSpeaker) {
+              if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
+              currentSpeaker = spk;
+              currentText = seg.text || "";
+            } else {
+              currentText += seg.text || "";
+            }
+          }
+          if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
+          const funasrText = lines.join("\n").slice(0, 60000);
+          transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${funasrText}`);
+        } else if (data.text) {
+          transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${data.text}`);
+        }
+      } catch (err) {
+        console.warn("[speaker-map] Failed to read funasrKey:", err.message);
+      }
+    }
+
+    if (transcriptParts.length === 0) {
+      return res.status(400).json({ error: "No transcript found for this meeting" });
+    }
+
+    const transcriptText = transcriptParts.join("\n\n");
+    const meetingType = Item.meetingType || "general";
+
+    // Fetch glossary terms
+    let glossaryTerms = [];
+    try {
+      const { Items: glossaryItems } = await docClient.send(new ScanCommand({
+        TableName: "meeting-minutes-glossary",
+        ProjectionExpression: "termId",
+      }));
+      glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
+    } catch (err) {
+      console.warn("[speaker-map] Failed to fetch glossary:", err.message);
+    }
+
+    // Regenerate report with speakerMap
+    const modelId = process.env.BEDROCK_MODEL_ID || undefined;
+    const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, modelId, speakerMap);
+
+    // Parse report JSON
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return res.status(500).json({ error: "Failed to parse report from Bedrock" });
+    }
+    const report = JSON.parse(jsonMatch[0]);
+
+    // Save report to S3
+    const reportKey = `reports/${req.params.id}/report.json`;
+    const fullReportKey = await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
+
+    // Update DynamoDB with new report
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE,
+      Key: { meetingId: req.params.id },
+      UpdateExpression: "SET content = :c, reportKey = :rk, #s = :s, stage = :stage, updatedAt = :u",
+      ExpressionAttributeNames: { "#s": "status" },
+      ExpressionAttributeValues: {
+        ":c": report,
+        ":rk": fullReportKey,
+        ":s": "reported",
+        ":stage": "exporting",
+        ":u": new Date().toISOString(),
+      },
+    }));
+
+    // Send to export queue to trigger email resend
+    const exportQueueUrl = process.env.SQS_EXPORT_QUEUE;
+    if (exportQueueUrl) {
+      await sendMessage(exportQueueUrl, {
+        meetingId: req.params.id,
+        reportKey: fullReportKey,
+        createdAt: Item.createdAt,
+      });
+    }
+
+    res.json({ success: true, report });
   } catch (err) {
     next(err);
   }

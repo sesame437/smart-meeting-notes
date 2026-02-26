@@ -9,10 +9,14 @@ const bedrockClient = new BedrockRuntimeClient({
 
 const DEFAULT_MODEL_ID = "global.anthropic.claude-sonnet-4-6";
 
-function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = []) {
-  const speakerNote = transcriptText.includes("[SPEAKER_")
-    ? `转录文本中包含说话人标签（如 [SPEAKER_0]、[SPEAKER_1]），请根据每位说话人的发言内容、语气和角色推断其身份（如"主持人"、"成员A"、"客户代表"等），在纪要中使用推断的角色名称而非 SPEAKER_X 编号。若无法推断具体身份，可使用"成员A/B/C"等匿名标注。\n\n`
-    : "";
+function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speakerMap = null) {
+  let speakerNote = "";
+  if (speakerMap && Object.keys(speakerMap).length > 0) {
+    const mapping = Object.entries(speakerMap).map(([k, v]) => `${k}: ${v}`).join(", ");
+    speakerNote = `以下是参会人真实姓名映射，请在纪要中使用真实姓名：{${mapping}}\n\n`;
+  } else if (transcriptText.includes("[SPEAKER_")) {
+    speakerNote = `转录文本中包含说话人标签（如 [SPEAKER_0]、[SPEAKER_1]），请根据每位说话人的发言内容、语气和角色推断其身份（如"主持人"、"成员A"、"客户代表"等），在纪要中使用推断的角色名称而非 SPEAKER_X 编号。若无法推断具体身份，可使用"成员A/B/C"等匿名标注。\n\n`;
+  }
 
   const glossaryNote = glossaryTerms.length > 0
     ? `专有名词词库（请确保报告中使用正确拼写）：${glossaryTerms.join("、")}\n\n`
@@ -193,9 +197,9 @@ function truncateTranscript(text) {
   return text.slice(0, MAX_TOTAL);
 }
 
-async function invokeModel(transcriptText, meetingType = "general", glossaryTerms = [], modelId = DEFAULT_MODEL_ID) {
+async function invokeModel(transcriptText, meetingType = "general", glossaryTerms = [], modelId = DEFAULT_MODEL_ID, speakerMap = null) {
   const truncated = truncateTranscript(transcriptText);
-  const prompt = getMeetingPrompt(truncated, meetingType, glossaryTerms);
+  const prompt = getMeetingPrompt(truncated, meetingType, glossaryTerms, speakerMap);
 
   const resp = await bedrockClient.send(
     new InvokeModelCommand({
