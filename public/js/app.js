@@ -892,68 +892,61 @@ function renderMeetingDetail(m) {
   // ---- Participants ----
   {
     const speakerMap = m.speakerMap || {};
-    const speakers = (m.speakers || []).map(s => String(s));
-    const hasSpkMap = speakers.length > 0;
 
     html += `
       <div class="card">
         <div class="card-title"><i class="fa fa-users"></i> Participants</div>`;
 
     if (participants.length > 0) {
-      // Show each participant from report, with optional speaker binding
-      html += `<div class="participant-list">`;
+      html += `
+        <datalist id="glossary-names-list"></datalist>
+        <div class="participant-list">`;
+
       participants.forEach((p, idx) => {
         const label = typeof p === "string" ? p : (p.name || JSON.stringify(p));
-        // Find if this participant already has a speaker mapping (reverse lookup)
-        const boundSpk = Object.entries(speakerMap).find(([,v]) => v === label)?.[0] || "";
+        // existing real name if already saved (keyed by label or by index)
+        const savedName = speakerMap[label] || speakerMap[String(idx)] || "";
 
         html += `<div class="participant-row">
-          <div class="participant-label">${escapeHtml(label)}</div>`;
-
-        if (hasSpkMap) {
-          // Speaker binding dropdown
-          html += `<select class="form-control speaker-bind-select" data-participant-idx="${idx}"
-            data-participant-name="${escapeAttr(label)}" style="max-width:160px;font-size:13px;">
-            <option value="">— 对应说话人 —</option>
-            ${speakers.map(spk => `<option value="${escapeAttr(spk)}" ${boundSpk === spk ? "selected" : ""}>
-              说话人 ${escapeHtml(spk)}${speakerMap[spk] ? " ("+escapeHtml(speakerMap[spk])+")" : ""}
-            </option>`).join("")}
-          </select>`;
-        }
-        html += `</div>`;
+          <div class="participant-label">${escapeHtml(label)}</div>
+          <input type="text"
+            class="form-control participant-name-input"
+            list="glossary-names-list"
+            data-participant-label="${escapeAttr(label)}"
+            value="${escapeAttr(savedName)}"
+            placeholder="输入或选择真实姓名" />
+        </div>`;
       });
-      html += `</div>`;
 
-      if (hasSpkMap) {
-        html += `<div style="text-align:right;margin-top:12px;">
+      html += `</div>
+        <div style="text-align:right;margin-top:12px;">
           <button class="btn btn-primary btn-sm" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">
             <i class="fa fa-save"></i> 保存并重新生成纪要
           </button>
         </div>`;
-      }
-    } else if (hasSpkMap) {
-      // No report participants — fallback to speaker rows
-      html += `<div class="speaker-edit-list">
-        ${speakers.map(spk => `
-          <div class="speaker-edit-row">
-            <span class="speaker-label">说话人 ${escapeHtml(spk)}</span>
-            <input type="text" class="form-control speaker-name-input" data-speaker="${escapeAttr(spk)}"
-              value="${escapeAttr(speakerMap[spk] || '')}" placeholder="填写真实姓名" />
-          </div>`).join("")}
-      </div>
-      <div style="text-align:right;margin-top:12px;">
-        <button class="btn btn-primary btn-sm" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">
-          <i class="fa fa-save"></i> 保存并重新生成纪要
-        </button>
-      </div>`;
     } else {
-      html += `<p style="color:rgba(255,255,255,0.4);font-size:13px;">暂无参会人信息</p>`;
+      html += `<p style="color:#888;font-size:13px;">暂无参会人信息</p>`;
+    }
+
+    html += `</div>`;
+  }
+
     }
 
     html += `</div>`;
   }
 
   content.innerHTML = html;
+
+  // Populate glossary datalist for participant name autocomplete
+  const datalist = document.getElementById("glossary-names-list");
+  if (datalist) {
+    API.get("/api/glossary").then(terms => {
+      datalist.innerHTML = terms.map(t =>
+        `<option value="${escapeAttr(t.term)}">${escapeHtml(t.term)}</option>`
+      ).join("");
+    }).catch(() => {});
+  }
 
   // Bottom bar
   const bottomBar = document.getElementById("bottom-bar");
@@ -1017,21 +1010,20 @@ async function retryMeetingDetail(id) {
 async function saveSpeakerMap(meetingId) {
   const speakerMap = {};
 
-  // From participant binding dropdowns (participant name → speaker ID mapping)
-  document.querySelectorAll('.speaker-bind-select').forEach(sel => {
-    const spk = sel.value.trim();
-    const name = sel.dataset.participantName;
-    if (spk && name) speakerMap[spk] = name;
+  // From participant name inputs (label → real name)
+  document.querySelectorAll('.participant-name-input').forEach(input => {
+    const val = input.value.trim();
+    if (val) speakerMap[input.dataset.participantLabel] = val;
   });
 
-  // From plain text inputs (fallback mode)
+  // Fallback: plain speaker inputs
   document.querySelectorAll('.speaker-name-input').forEach(input => {
     const val = input.value.trim();
     if (val) speakerMap[input.dataset.speaker] = val;
   });
 
   if (Object.keys(speakerMap).length === 0) {
-    Toast.error("请先选择说话人对应关系");
+    Toast.error("请先填写至少一个真实姓名");
     return;
   }
 
