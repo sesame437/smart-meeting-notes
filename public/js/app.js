@@ -571,14 +571,7 @@ function renderMeetingDetail(m) {
       <div class="meta-item"><strong>会议 ID</strong>${escapeHtml(m.meetingId || "-")}</div>
     </div>
 
-    <div class="meeting-action-bar">
-      <button class="btn btn-primary" data-action="regenerate-report" data-id="${escapeAttr(m.meetingId)}">
-        <i class="fa fa-refresh"></i> 重新生成纪要
-      </button>
-      <button class="btn btn-outline" data-action="send-email" data-id="${escapeAttr(m.meetingId)}">
-        <i class="fa fa-envelope"></i> 发送邮件
-      </button>
-    </div>
+    <div class="meeting-action-bar" style="display:none"></div>
   `;
 
   // ---- Summary ----
@@ -586,7 +579,15 @@ function renderMeetingDetail(m) {
     <div class="card summary-card" id="section-summary">
       <div class="card-title">
         <span><i class="fa fa-file-text-o"></i> 会议摘要</span>
-        <button class="btn btn-sm section-edit-btn" data-action="edit-section" data-section="summary" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑">&#9999;&#65039;</button>
+        <div class="card-title-actions">
+          <button class="btn btn-sm section-edit-btn" data-action="edit-section" data-section="summary" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑">&#9999;&#65039;</button>
+          <button class="btn btn-sm btn-outline report-action-btn" data-action="regenerate-report" data-id="${escapeAttr(m.meetingId)}" title="重新生成">
+            <i class="fa fa-refresh"></i> 重新生成
+          </button>
+          <button class="btn btn-sm btn-outline report-action-btn" data-action="send-email" data-id="${escapeAttr(m.meetingId)}" title="发送邮件">
+            <i class="fa fa-envelope"></i> 发送邮件
+          </button>
+        </div>
       </div>
       <div class="summary-text" id="summary-display">${escapeHtml(summary)}</div>
       <div id="summary-editor" style="display:none;">

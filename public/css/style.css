@@ -1130,3 +1130,27 @@ tr:hover .row-actions,
   max-width: 320px;
   line-height: 1.5;
 }
+
+/* card-title 右侧操作按钮组 */
+.card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.card-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.report-action-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.report-action-btn:hover {
+  opacity: 1;
+  color: #FF9900 !important;
+  border-color: #FF9900 !important;
+}
