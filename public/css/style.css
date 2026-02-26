@@ -1154,3 +1154,27 @@ tr:hover .row-actions,
   color: #FF9900 !important;
   border-color: #FF9900 !important;
 }
+
+/* detail header top row: brand left, actions right */
+.detail-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.detail-header-actions {
+  display: flex;
+  gap: 8px;
+}
+.detail-header-actions .report-action-btn {
+  font-size: 12px;
+  padding: 4px 12px;
+  border: 1px solid rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.7);
+  background: transparent;
+}
+.detail-header-actions .report-action-btn:hover {
+  border-color: #FF9900;
+  color: #FF9900;
+  opacity: 1;
+}

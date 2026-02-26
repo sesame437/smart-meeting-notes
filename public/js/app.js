@@ -539,7 +539,17 @@ function renderMeetingDetail(m) {
   const currentType = m.meetingType || "general";
   let html = `
     <div class="meeting-detail-header">
-      <div class="brand">&#9670; 会议纪要</div>
+      <div class="detail-header-top">
+        <div class="brand">&#9670; 会议纪要</div>
+        <div class="detail-header-actions">
+          <button class="btn btn-sm report-action-btn" data-action="regenerate-report" data-id="${escapeAttr(m.meetingId)}">
+            <i class="fa fa-refresh"></i> 重新生成
+          </button>
+          <button class="btn btn-sm report-action-btn" data-action="send-email" data-id="${escapeAttr(m.meetingId)}">
+            <i class="fa fa-envelope"></i> 发送邮件
+          </button>
+        </div>
+      </div>
       <div class="detail-title-row" style="display:flex;align-items:center;gap:10px;">
         <h1 id="detail-title-display">${title}</h1>
         <span class="badge" style="background:rgba(255,153,0,0.2);color:#FF9900;font-size:11px;" id="detail-type-display">${escapeHtml(meetingTypeLabel[currentType] || currentType)}</span>
@@ -581,12 +591,6 @@ function renderMeetingDetail(m) {
         <span><i class="fa fa-file-text-o"></i> 会议摘要</span>
         <div class="card-title-actions">
           <button class="btn btn-sm section-edit-btn" data-action="edit-section" data-section="summary" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑">&#9999;&#65039;</button>
-          <button class="btn btn-sm btn-outline report-action-btn" data-action="regenerate-report" data-id="${escapeAttr(m.meetingId)}" title="重新生成">
-            <i class="fa fa-refresh"></i> 重新生成
-          </button>
-          <button class="btn btn-sm btn-outline report-action-btn" data-action="send-email" data-id="${escapeAttr(m.meetingId)}" title="发送邮件">
-            <i class="fa fa-envelope"></i> 发送邮件
-          </button>
         </div>
       </div>
       <div class="summary-text" id="summary-display">${escapeHtml(summary)}</div>
