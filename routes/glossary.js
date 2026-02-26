@@ -11,6 +11,16 @@ const {
 const router = Router();
 const TABLE = process.env.GLOSSARY_TABLE;
 
+// Param validation middleware: id must be non-empty, max 100 chars
+function validateIdParam(req, res, next) {
+  const id = req.params.id;
+  if (!id || typeof id !== "string" || id.length > 100) {
+    return res.status(400).json({ error: "Invalid id parameter" });
+  }
+  next();
+}
+router.param("id", validateIdParam);
+
 // List glossary terms
 router.get("/", async (_req, res, next) => {
   try {
@@ -24,11 +34,14 @@ router.get("/", async (_req, res, next) => {
 // Add term
 router.post("/", async (req, res, next) => {
   try {
+    const { term, definition, aliases } = req.body;
     const item = {
       termId: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
-      ...req.body,
     };
+    if (term !== undefined) item.term = term;
+    if (definition !== undefined) item.definition = definition;
+    if (aliases !== undefined) item.aliases = aliases;
     await docClient.send(new PutCommand({ TableName: TABLE, Item: item }));
     res.status(201).json(item);
   } catch (err) {

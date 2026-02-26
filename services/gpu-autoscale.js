@@ -2,7 +2,8 @@ const { EC2Client, StartInstancesCommand, StopInstancesCommand, DescribeInstance
 const { DynamoDBClient, ScanCommand } = require("@aws-sdk/client-dynamodb");
 
 const INSTANCE_ID = process.env.FUNASR_INSTANCE_ID || "i-0f69617df5dc59d6b";
-const FUNASR_URL = process.env.FUNASR_URL || "http://172.31.27.101:9002";
+const FUNASR_PRIVATE_IP = process.env.FUNASR_PRIVATE_IP || "172.31.27.101";
+const FUNASR_URL = process.env.FUNASR_URL || `http://${FUNASR_PRIVATE_IP}:9002`;
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || "meeting-minutes-meetings";
 const REGION = process.env.AWS_REGION || "us-west-2";

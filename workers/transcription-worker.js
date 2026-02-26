@@ -18,6 +18,7 @@ const PREFIX = process.env.S3_PREFIX || "meeting-minutes";
 const REGION = process.env.AWS_REGION;
 const DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || "meeting-minutes-meetings";
 const WHISPER_URL = process.env.WHISPER_URL || "http://localhost:9000";
+const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
 const FUNASR_URL = process.env.FUNASR_URL || "";  // 空字符串表示未配置
 const ENABLE_TRANSCRIBE = process.env.ENABLE_TRANSCRIBE === "true";  // 默认关闭
 const ENABLE_WHISPER = process.env.ENABLE_WHISPER === "true";        // 默认关闭
@@ -54,10 +55,10 @@ async function runAWSTranscribe(meetingId, s3Key) {
   };
 
   // Use custom vocabulary if available
-  const hasVocab = await checkVocabularyExists("meeting-minutes-glossary");
+  const hasVocab = await checkVocabularyExists(GLOSSARY_TABLE);
   if (hasVocab) {
-    params.Settings = { VocabularyName: "meeting-minutes-glossary" };
-    console.log(`[Transcribe] Using custom vocabulary: meeting-minutes-glossary`);
+    params.Settings = { VocabularyName: GLOSSARY_TABLE };
+    console.log(`[Transcribe] Using custom vocabulary: ${GLOSSARY_TABLE}`);
   }
 
   console.log(`[Transcribe] Starting job: ${jobName}`);
@@ -93,15 +94,6 @@ async function isWhisperAvailable() {
   } catch {
     return false;
   }
-}
-
-async function downloadS3Buffer(key) {
-  const resp = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
-  const chunks = [];
-  for await (const chunk of resp.Body) {
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks);
 }
 
 async function runWhisper(meetingId, s3Key, filename) {
@@ -440,6 +432,7 @@ async function processMessage(message) {
     } catch (updateErr) {
       console.error('[transcription-worker] Failed to update error status:', updateErr.message);
     }
+    throw err; // Re-throw so message is NOT deleted from SQS (visibility timeout retry)
   }
 }
 

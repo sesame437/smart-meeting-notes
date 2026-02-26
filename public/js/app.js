@@ -25,6 +25,16 @@ const API = {
   del(url)          { return this.request(url, { method: "DELETE" }); },
 };
 
+/* ===== Date Formatting ===== */
+function formatDeadline(raw) {
+  if (!raw || raw === "-") return "-";
+  var d = new Date(raw);
+  if (!isNaN(d.getTime())) {
+    return d.getFullYear() + "/" + String(d.getMonth()+1).padStart(2,"0") + "/" + String(d.getDate()).padStart(2,"0");
+  }
+  return raw;
+}
+
 /* ===== Toast ===== */
 const Toast = {
   _container: null,
@@ -723,7 +733,7 @@ function renderMeetingDetail(m) {
                 <td><strong>${esc(c.party || "-")}</strong></td>
                 <td>${esc(c.commitment)}</td>
                 <td>${esc(c.owner || "-")}</td>
-                <td>${esc(c.deadline || "-")}</td>
+                <td>${formatDeadline(c.deadline || "-")}</td>
               </tr>`;
             }).join("")}
           </tbody>
@@ -749,7 +759,7 @@ function renderMeetingDetail(m) {
               return `<tr>
                 <td>${esc(ns.task)}</td>
                 <td>${esc(ns.owner || "-")}</td>
-                <td>${esc(ns.deadline || "-")}</td>
+                <td>${formatDeadline(ns.deadline || "-")}</td>
                 <td><span class="priority-badge priority-${prio}">${esc(ns.priority || "-")}</span></td>
               </tr>`;
             }).join("")}
@@ -833,7 +843,7 @@ function renderMeetingDetail(m) {
         prHtml += `<table class="report-table" style="margin-top:10px;">
           <thead><tr><th>跟进事项</th><th>负责人</th><th>截止</th></tr></thead><tbody>`;
         for (const f of pr.followUps) {
-          prHtml += `<tr><td>${esc(f.task)}</td><td>${esc(f.owner||'-')}</td><td>${esc(f.deadline||'-')}</td></tr>`;
+          prHtml += `<tr><td>${esc(f.task)}</td><td>${esc(f.owner||'-')}</td><td>${formatDeadline(f.deadline||'-')}</td></tr>`;
         }
         prHtml += `</tbody></table>`;
       }
@@ -922,7 +932,7 @@ function renderMeetingDetail(m) {
               return `<tr id="action-row-${idx}">
                 <td>${escapeHtml(a.task || a.action || "")}</td>
                 <td>${escapeHtml(a.owner || a.assignee || "-")}</td>
-                <td>${escapeHtml(a.deadline || a.dueDate || "-")}</td>
+                <td>${formatDeadline(a.deadline || a.dueDate || "-")}</td>
                 <td><span class="priority-badge priority-${prio}">${escapeHtml(prioLabel)}</span></td>
                 <td>
                   <div class="row-actions"><button class="btn btn-outline btn-sm" data-action="edit-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
@@ -1026,7 +1036,7 @@ function renderMeetingDetail(m) {
   // Populate glossary datalist for participant name autocomplete
   const datalist = document.getElementById("glossary-names-list");
   if (datalist) {
-    API.get("/api/glossary").then(terms => {
+    getCachedGlossaryTerms().then(terms => {
       datalist.innerHTML = terms.map(t =>
         `<option value="${escapeAttr(t.term)}">${escapeHtml(t.term)}</option>`
       ).join("");
@@ -1223,14 +1233,75 @@ async function regenerateReport(meetingId) {
 }
 
 async function sendEmail(id) {
+  if (_sendingEmailMeetingIds.has(id)) return;
+  _sendingEmailMeetingIds.add(id);
+  setSendEmailButtonsLoading(id, true);
   try {
     await API.post(`/api/meetings/${id}/send-email`);
     Toast.success("邮件发送已触发");
   } catch (_) { /* error already shown by API */ }
+  finally {
+    _sendingEmailMeetingIds.delete(id);
+    setSendEmailButtonsLoading(id, false);
+  }
 }
 
 /* ===== Glossary ===== */
 let glossaryData = [];
+let _glossaryCache = null;
+let _glossaryCacheTime = 0;
+const GLOSSARY_CACHE_TTL = 5 * 60 * 1000;
+const _sendingEmailMeetingIds = new Set();
+
+function setFormSubmitting(form, isSubmitting, loadingText) {
+  if (!form) return;
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (!submitBtn) return;
+  if (isSubmitting) {
+    submitBtn.disabled = true;
+    submitBtn.dataset.originalText = submitBtn.innerHTML;
+    submitBtn.textContent = loadingText;
+    return;
+  }
+  submitBtn.disabled = false;
+  if (submitBtn.dataset.originalText) {
+    submitBtn.innerHTML = submitBtn.dataset.originalText;
+    delete submitBtn.dataset.originalText;
+  }
+}
+
+function setSendEmailButtonsLoading(meetingId, isLoading) {
+  const buttons = Array.from(document.querySelectorAll('[data-action="send-email"]'))
+    .filter((btn) => btn.dataset.id === meetingId);
+  buttons.forEach((btn) => {
+    if (isLoading) {
+      btn.disabled = true;
+      btn.dataset.originalText = btn.innerHTML;
+      btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> 发送中…';
+      return;
+    }
+    btn.disabled = false;
+    if (btn.dataset.originalText) {
+      btn.innerHTML = btn.dataset.originalText;
+      delete btn.dataset.originalText;
+    }
+  });
+}
+
+function invalidateGlossaryCache() {
+  _glossaryCache = null;
+  _glossaryCacheTime = 0;
+}
+
+async function getCachedGlossaryTerms() {
+  if (_glossaryCache && (Date.now() - _glossaryCacheTime) < GLOSSARY_CACHE_TTL) {
+    return _glossaryCache;
+  }
+  const terms = await API.get("/api/glossary") || [];
+  _glossaryCache = terms;
+  _glossaryCacheTime = Date.now();
+  return terms;
+}
 
 async function fetchGlossary() {
   const tbody = document.getElementById("glossary-tbody");
@@ -1238,7 +1309,7 @@ async function fetchGlossary() {
   tbody.innerHTML = '<tr><td colspan="4" class="loading">加载中...</td></tr>';
 
   try {
-    glossaryData = await API.get("/api/glossary") || [];
+    glossaryData = await getCachedGlossaryTerms();
     renderGlossary(glossaryData);
   } catch (_) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty-state">加载词汇表失败</td></tr>';
@@ -1289,12 +1360,17 @@ async function addTerm(e) {
   };
   if (!data.term) { Toast.error("术语名不能为空"); return; }
 
+  setFormSubmitting(form, true, "添加中…");
   try {
     await API.post("/api/glossary", data);
     Toast.success("术语已添加");
     form.reset();
+    invalidateGlossaryCache();
     fetchGlossary();
   } catch (_) { /* error shown */ }
+  finally {
+    setFormSubmitting(form, false, "");
+  }
 }
 
 async function deleteTerm(id) {
@@ -1302,6 +1378,7 @@ async function deleteTerm(id) {
   try {
     await API.del(`/api/glossary/${id}`);
     Toast.success("术语已删除");
+    invalidateGlossaryCache();
     fetchGlossary();
   } catch (_) {}
 }
@@ -1322,6 +1399,7 @@ function editTerm(id) {
 
 async function saveEditTerm(e) {
   e.preventDefault();
+  const form = e.target;
   const overlay = document.getElementById("edit-modal");
   const id = overlay.dataset.termId;
 
@@ -1331,12 +1409,17 @@ async function saveEditTerm(e) {
     definition: document.getElementById("edit-definition").value.trim(),
   };
 
+  setFormSubmitting(form, true, "保存中…");
   try {
     await API.put(`/api/glossary/${id}`, data);
     Toast.success("术语已更新");
     overlay.classList.remove("show");
+    invalidateGlossaryCache();
     fetchGlossary();
   } catch (_) {}
+  finally {
+    setFormSubmitting(form, false, "");
+  }
 }
 
 function closeModal() {

@@ -17,6 +17,18 @@ const { invokeModel } = require("../services/bedrock");
 
 const router = Router();
 const TABLE = process.env.DYNAMODB_TABLE;
+const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
+const HAIKU_MODEL_ID = process.env.HAIKU_MODEL_ID || "us.anthropic.claude-haiku-4-5-20251001-v1:0";
+
+// Param validation middleware: id must be non-empty, max 100 chars
+function validateIdParam(req, res, next) {
+  const id = req.params.id;
+  if (!id || typeof id !== "string" || id.length > 100) {
+    return res.status(400).json({ error: "Invalid id parameter" });
+  }
+  next();
+}
+router.param("id", validateIdParam);
 const upload = multer({
   dest: "/tmp",
   limits: {
@@ -39,6 +51,13 @@ const upload = multer({
     }
   },
 });
+
+function sanitizeFilename(name) {
+  return name
+    .replace(/[^\w\-_.]/g, "_")  // 只保留安全字符
+    .replace(/\.{2,}/g, "_")      // 去掉 ../
+    .substring(0, 200);
+}
 
 async function getMeetingById(id) {
   const { Items } = await docClient.send(new QueryCommand({
@@ -65,12 +84,15 @@ router.get("/", async (_req, res, next) => {
 // Create meeting
 router.post("/", async (req, res, next) => {
   try {
+    const { title, meetingType, recipientEmails } = req.body;
     const item = {
       meetingId: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       status: "created",
-      ...req.body,
     };
+    if (title !== undefined) item.title = title;
+    if (meetingType !== undefined) item.meetingType = meetingType;
+    if (recipientEmails !== undefined) item.recipientEmails = recipientEmails;
     await docClient.send(new PutCommand({ TableName: TABLE, Item: item }));
     res.status(201).json(item);
   } catch (err) {
@@ -191,7 +213,7 @@ router.post("/upload", (req, res, next) => {
     }
 
     const meetingId = crypto.randomUUID();
-    const filename = req.file.originalname;
+    const filename = sanitizeFilename(req.file.originalname);
     const s3Key = `inbox/${meetingId}/${filename}`;
 
     // Upload to S3
@@ -375,7 +397,7 @@ router.post("/merge", async (req, res, next) => {
     let glossaryTerms = [];
     try {
       const { Items: glossaryItems } = await docClient.send(new ScanCommand({
-        TableName: "meeting-minutes-glossary",
+        TableName: GLOSSARY_TABLE,
         ProjectionExpression: "termId",
       }));
       glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
@@ -579,7 +601,7 @@ router.post("/:id/regenerate", async (req, res, next) => {
     let glossaryTerms = [];
     try {
       const { Items: glossaryItems } = await docClient.send(new ScanCommand({
-        TableName: "meeting-minutes-glossary",
+        TableName: GLOSSARY_TABLE,
         ProjectionExpression: "termId",
       }));
       glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
@@ -666,7 +688,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     let glossaryTerms = [];
     try {
       const { Items: glossaryItems } = await docClient.send(new ScanCommand({
-        TableName: "meeting-minutes-glossary",
+        TableName: GLOSSARY_TABLE,
         ProjectionExpression: "termId",
       }));
       glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
@@ -826,7 +848,7 @@ ${summary}`;
     const { BedrockRuntimeClient, InvokeModelCommand } = require("@aws-sdk/client-bedrock-runtime");
     const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION });
     const resp = await client.send(new InvokeModelCommand({
-      modelId: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      modelId: HAIKU_MODEL_ID,
       contentType: "application/json",
       accept: "application/json",
       body: JSON.stringify({

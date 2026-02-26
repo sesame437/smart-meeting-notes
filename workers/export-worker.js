@@ -4,7 +4,7 @@ const { getFile } = require("../services/s3");
 const { ses } = require("../services/ses");
 const { docClient } = require("../db/dynamodb");
 const { UpdateCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
-const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
+const { SendEmailCommand } = require("@aws-sdk/client-ses");
 
 const QUEUE_URL = process.env.SQS_EXPORT_QUEUE;
 const TABLE = process.env.DYNAMODB_TABLE;
@@ -545,6 +545,7 @@ async function processMessage(message) {
     } catch (updateErr) {
       console.error('[export-worker] Failed to update error status:', updateErr.message);
     }
+    throw err; // Re-throw so message is NOT deleted from SQS (visibility timeout retry)
   }
 }
 

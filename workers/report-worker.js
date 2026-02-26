@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { receiveMessages, deleteMessage, sendMessage } = require("../services/sqs");
+const { receiveMessages, deleteMessage } = require("../services/sqs");
 const { recordActivity } = require("../services/gpu-autoscale");
 const { getFile, uploadFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
@@ -11,6 +11,7 @@ const { DynamoDBClient, ScanCommand } = require("@aws-sdk/client-dynamodb");
 const QUEUE_URL = process.env.SQS_REPORT_QUEUE;
 const EXPORT_QUEUE_URL = process.env.SQS_EXPORT_QUEUE;
 const TABLE = process.env.DYNAMODB_TABLE;
+const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
 const REGION = process.env.AWS_REGION;
 
 const s3Client = new S3Client({ region: REGION });
@@ -30,7 +31,7 @@ async function fetchGlossaryTerms() {
     let lastKey;
     do {
       const params = {
-        TableName: "meeting-minutes-glossary",
+        TableName: GLOSSARY_TABLE,
         ProjectionExpression: "termId",
       };
       if (lastKey) params.ExclusiveStartKey = lastKey;
@@ -246,6 +247,7 @@ async function processMessage(message) {
     } catch (updateErr) {
       console.error('[report-worker] Failed to update error status:', updateErr.message);
     }
+    throw err; // Re-throw so message is NOT deleted from SQS (visibility timeout retry)
   }
 }
 
