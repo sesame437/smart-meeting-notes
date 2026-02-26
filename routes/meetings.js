@@ -446,14 +446,14 @@ router.put("/:id/speaker-map", async (req, res, next) => {
       return res.status(400).json({ error: "speakerMap cannot be empty" });
     }
     for (const [speakerId, speakerName] of Object.entries(speakerMap)) {
-      if (!/^SPEAKER_\d+$/.test(speakerId)) {
-        return res.status(400).json({ error: "speakerMap key must match SPEAKER_<number>" });
+      if (!speakerId || typeof speakerId !== "string" || speakerId.length > 200) {
+        return res.status(400).json({ error: "speakerMap key must be a non-empty string" });
       }
       if (typeof speakerName !== "string") {
         return res.status(400).json({ error: "speakerMap values must be strings" });
       }
-      if (speakerName.length > 50) {
-        return res.status(400).json({ error: "speakerMap value must be at most 50 characters" });
+      if (speakerName.length > 100) {
+        return res.status(400).json({ error: "speakerMap value must be at most 100 characters" });
       }
     }
 
