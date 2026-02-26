@@ -321,7 +321,8 @@ async function processMessage(message) {
   }
 
   // Auto-create DynamoDB record for S3 Event messages
-  const createdAt = new Date().toISOString();
+  // For retry messages, createdAt comes from SQS body (existing record)
+  const createdAt = body.createdAt || new Date().toISOString();
   if (isS3Event) {
     console.log(`[S3 Event] Creating meeting record: ${meetingId} (type: ${meetingType})`);
     await docClient.send(new PutCommand({

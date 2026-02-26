@@ -282,6 +282,7 @@ router.post("/:id/retry", async (req, res, next) => {
         s3Key: item.s3Key,
         filename: item.filename,
         meetingType: item.meetingType || "general",
+        createdAt: item.createdAt,
       });
     } catch (sqsErr) {
       // Rollback: revert status to failed since SQS enqueue failed
