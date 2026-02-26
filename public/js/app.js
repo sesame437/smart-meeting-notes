@@ -579,27 +579,6 @@ function renderMeetingDetail(m) {
     </div>
   `;
 
-  // ---- Speaker Rename Block ----
-  if (m.speakers && m.speakers.length > 0) {
-    const speakerMap = m.speakerMap || {};
-    html += `
-      <div class="card speaker-edit-card">
-        <div class="card-title"><i class="fa fa-user"></i> 说话人识别</div>
-        <div class="speaker-edit-list">
-          ${m.speakers.map(spk => `
-            <div class="speaker-edit-row">
-              <span class="speaker-label">${escapeHtml(spk)}</span>
-              <input type="text" class="form-control speaker-name-input" data-speaker="${escapeHtml(spk)}" value="${escapeHtml(speakerMap[spk] || '')}" placeholder="如：张三" />
-            </div>
-          `).join("")}
-        </div>
-        <div style="text-align:right;margin-top:16px;">
-          <button class="btn btn-primary" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">保存并重新生成纪要</button>
-        </div>
-      </div>
-    `;
-  }
-
   // ---- Customer 专属字段 ----
   if (report.customerInfo || report.awsAttendees) {
     const ci = report.customerInfo || {};
@@ -911,13 +890,41 @@ function renderMeetingDetail(m) {
   }
 
   // ---- Participants ----
-  if (participants.length) {
+  {
+    const speakerMap = m.speakerMap || {};
+    const speakers = m.speakers || [];
+    // Build participant list: prefer speakerMap names, fallback to report.participants
+    const hasEditable = speakers.length > 0;
+
     html += `
       <div class="card">
-        <div class="card-title"><i class="fa fa-users"></i> Participants</div>
-        <p class="participants-text">${participants.map(p => escapeHtml(typeof p === "string" ? p : p.name || JSON.stringify(p))).join(", ")}</p>
-      </div>
-    `;
+        <div class="card-title"><i class="fa fa-users"></i> Participants</div>`;
+
+    if (hasEditable) {
+      // Show editable rows — one per detected speaker
+      html += `
+        <div class="speaker-edit-list">
+          ${speakers.map(spk => `
+            <div class="speaker-edit-row">
+              <span class="speaker-label">说话人 ${escapeHtml(String(spk))}</span>
+              <input type="text" class="form-control speaker-name-input" data-speaker="${escapeAttr(String(spk))}"
+                value="${escapeAttr(speakerMap[String(spk)] || '')}" placeholder="填写真实姓名" />
+            </div>
+          `).join("")}
+        </div>
+        <div style="text-align:right;margin-top:12px;">
+          <button class="btn btn-primary btn-sm" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">
+            <i class="fa fa-save"></i> 保存并重新生成纪要
+          </button>
+        </div>`;
+    } else if (participants.length) {
+      // Fallback: plain list from report
+      html += `<p class="participants-text">${participants.map(p => escapeHtml(typeof p === "string" ? p : p.name || JSON.stringify(p))).join(", ")}</p>`;
+    } else {
+      html += `<p style="color:rgba(255,255,255,0.4);font-size:13px;">暂无参会人信息</p>`;
+    }
+
+    html += `</div>`;
   }
 
   content.innerHTML = html;
