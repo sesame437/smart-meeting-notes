@@ -1384,40 +1384,44 @@ table td, table th { font-size: 14px; }
 /* Toast */
 .toast { font-size: 14px; }
 
-/* ===== Force task column to wrap (override any nowrap) ===== */
-.actions-table td:first-child {
+/* ===== Force task column to wrap (override any nowrap/ellipsis rules) ===== */
+.actions-table th:nth-child(1),
+.actions-table td:nth-child(1) {
   white-space: normal !important;
   word-break: break-word !important;
+}
+.actions-table td:nth-child(1) {
   overflow: visible !important;
-  text-overflow: unset !important;
+  text-overflow: clip !important;
 }
 
-/* ===== Key decisions: align buttons to same fixed right column as action items ===== */
+/* ===== Key decisions: stable flex row + fixed right action column ===== */
 .decisions-card ul {
-  display: table;
-  width: 100%;
-  border-collapse: collapse;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 .decisions-card li {
-  display: table-row;
-}
-.decision-text {
-  display: table-cell;
-  padding: 10px 12px 10px 0;
-  vertical-align: middle;
-  line-height: 1.55;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.decisions-card li:last-child .decision-text,
-.decisions-card li:last-child .row-actions {
+.decision-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.55;
+}
+.decisions-card li:last-child {
   border-bottom: none;
 }
 .decisions-card li .row-actions {
-  display: table-cell;
+  display: inline-flex;
+  justify-content: center;
+  align-self: center;
   width: 72px;
   min-width: 72px;
-  text-align: center;
-  vertical-align: middle;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  padding: 0;
+  flex-shrink: 0;
+  margin-left: auto;
 }
