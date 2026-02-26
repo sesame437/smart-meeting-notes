@@ -804,15 +804,15 @@ describe("Suite 6 — transcription-worker meetingType GetCommand 回查（bug f
 
   test("6d. meetingType 回查路径：createdAt 变量在 GetCommand 调用前已赋值", () => {
     // 验证作用域顺序：
-    // 1. const createdAt = new Date().toISOString()  (processMessage 内, ~line 236)
-    // 2. GetCommand({ Key: { meetingId, createdAt } }) (processMessage 内, ~line 284)
+    // 1. const createdAt = ...new Date().toISOString()  (processMessage 内)
+    // 2. GetCommand({ Key: { meetingId, createdAt } }) (processMessage 内)
     // createdAt 在 GetCommand 时已经定义，不存在 undefined 问题
     const source = require("fs").readFileSync(
       require("path").resolve(__dirname, "..", "workers", "transcription-worker.js"),
       "utf8"
     );
 
-    const createdAtAssignIndex = source.indexOf("const createdAt = new Date().toISOString()");
+    const createdAtAssignIndex = source.search(/const\s+createdAt\s*=\s*.*new Date\(\)\.toISOString\(\)/);
     // GetCommand 所在的上下文包含 "Resolve meetingType" 注释，精确定位 processMessage 内的调用
     const getMeetingTypeBlockIndex = source.indexOf("Resolve meetingType");
     const getCommandInBlock = source.indexOf("Key: { meetingId, createdAt }", getMeetingTypeBlockIndex);

@@ -13,6 +13,7 @@ jest.mock("../services/sqs", () => ({
 
 jest.mock("@aws-sdk/lib-dynamodb", () => ({
   ScanCommand: jest.fn((p) => ({ ...p, _type: "ScanCommand" })),
+  QueryCommand: jest.fn((p) => ({ ...p, _type: "QueryCommand" })),
   GetCommand: jest.fn((p) => ({ ...p, _type: "GetCommand" })),
   PutCommand: jest.fn((p) => ({ ...p, _type: "PutCommand" })),
   UpdateCommand: jest.fn((p) => ({ ...p, _type: "UpdateCommand" })),
@@ -63,13 +64,14 @@ describe("POST /api/meetings/:id/retry", () => {
   test("正常重试：failed 会议 -> 发 SQS -> 更新 DynamoDB -> 返回 success", async () => {
     mockSend
       .mockResolvedValueOnce({
-        Item: {
+        Items: [{
           meetingId: "m-1",
+          createdAt: "2026-02-18T15:00:00.000Z",
           status: "failed",
           s3Key: "inbox/m-1/a.mp3",
           filename: "a.mp3",
           meetingType: "weekly",
-        },
+        }],
       })
       .mockResolvedValueOnce({ Attributes: {} });
     mockSendMessage.mockResolvedValueOnce({ MessageId: "msg-1" });
@@ -89,6 +91,7 @@ describe("POST /api/meetings/:id/retry", () => {
       s3Key: "inbox/m-1/a.mp3",
       filename: "a.mp3",
       meetingType: "weekly",
+      createdAt: "2026-02-18T15:00:00.000Z",
     });
 
     const updateCall = mockSend.mock.calls[1][0];
@@ -100,7 +103,7 @@ describe("POST /api/meetings/:id/retry", () => {
   });
 
   test("会议不存在 -> 返回 404", async () => {
-    mockSend.mockResolvedValueOnce({ Item: undefined });
+    mockSend.mockResolvedValueOnce({ Items: [] });
 
     const handler = getRetryHandler();
     const req = { params: { id: "not-found" } };
@@ -118,12 +121,13 @@ describe("POST /api/meetings/:id/retry", () => {
 
   test("status 不是 failed -> 返回 400", async () => {
     mockSend.mockResolvedValueOnce({
-      Item: {
+      Items: [{
         meetingId: "m-2",
+        createdAt: "2026-02-18T15:10:00.000Z",
         status: "processing",
         s3Key: "inbox/m-2/b.mp3",
         filename: "b.mp3",
-      },
+      }],
     });
 
     const handler = getRetryHandler();
@@ -143,14 +147,15 @@ describe("POST /api/meetings/:id/retry", () => {
   test("DynamoDB 更新字段：status=processing, stage=transcribing, errorMessage 清空", async () => {
     mockSend
       .mockResolvedValueOnce({
-        Item: {
+        Items: [{
           meetingId: "m-3",
+          createdAt: "2026-02-18T15:20:00.000Z",
           status: "failed",
           s3Key: "inbox/m-3/c.mp3",
           filename: "c.mp3",
           meetingType: "general",
           errorMessage: "previous error",
-        },
+        }],
       })
       .mockResolvedValueOnce({ Attributes: {} });
     mockSendMessage.mockResolvedValueOnce({ MessageId: "msg-3" });
@@ -172,15 +177,16 @@ describe("POST /api/meetings/:id/retry", () => {
   });
 
   test("并发重试：ConditionalCheckFailedException -> 返回 409", async () => {
-    // GetItem 返回 failed 会议
+    // Query 返回 failed 会议
     mockSend.mockResolvedValueOnce({
-      Item: {
+      Items: [{
         meetingId: "m-race",
+        createdAt: "2026-02-18T15:30:00.000Z",
         status: "failed",
         s3Key: "inbox/m-race/d.mp3",
         filename: "d.mp3",
         meetingType: "general",
-      },
+      }],
     });
     // UpdateCommand 抛出 ConditionalCheckFailedException（模拟并发第二个请求）
     const condErr = new Error("The conditional request failed");
@@ -201,15 +207,16 @@ describe("POST /api/meetings/:id/retry", () => {
   });
 
   test("SQS 发送失败 -> 回滚 DynamoDB 到 failed -> 返回 500", async () => {
-    // GetItem 返回 failed 会议
+    // Query 返回 failed 会议
     mockSend.mockResolvedValueOnce({
-      Item: {
+      Items: [{
         meetingId: "m-sqsfail",
+        createdAt: "2026-02-18T15:40:00.000Z",
         status: "failed",
         s3Key: "inbox/m-sqsfail/e.mp3",
         filename: "e.mp3",
         meetingType: "weekly",
-      },
+      }],
     });
     // UpdateCommand (set processing) 成功
     mockSend.mockResolvedValueOnce({ Attributes: {} });
