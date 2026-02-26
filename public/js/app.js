@@ -240,7 +240,7 @@ function meetingCard(m) {
     <div>${statusBadge(status)}${stageText ? `<div style="font-size:12px;color:#879596;margin-top:4px;">${stageText}</div>` : ""}${errorMsg}</div>
     <div class="row-actions">
       <button class="btn btn-outline btn-sm" data-action="start-card-edit" data-id="${escapeAttr(id)}" data-title="${escapeAttr(m.title || m.meetingId)}" data-type="${escapeAttr(mType)}" title="编辑"><i class="fa fa-pencil"></i></button>
-      <a href="meeting.html?id=${encodeURIComponent(id)}" class="btn btn-outline btn-sm" title="查看"><i class="fa fa-eye"></i></a>
+      
       ${retryBtn}
       <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(id)}" title="删除"><i class="fa fa-trash"></i></button>
     </div>
@@ -308,7 +308,7 @@ function meetingRow(m) {
     <td>${statusBadge(status)}</td>
     <td>
       <div class="row-actions" style="opacity:1;">
-        <a href="meeting.html?id=${encodeURIComponent(m.meetingId)}" class="btn btn-outline btn-sm" title="查看"><i class="fa fa-eye"></i></a>
+        
         <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
       </div>
     </td>
@@ -869,7 +869,7 @@ function renderMeetingDetail(m) {
     <div class="card" id="section-actionItems">
       <div class="card-title">
         <span><i class="fa fa-check-square-o"></i> 待办事项</span>
-        <button class="btn btn-sm section-edit-btn" data-action="edit-section" data-section="actionItems" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑">&#9999;&#65039;</button>
+        
       </div>
       <div id="actionItems-display">
       ${actions.length ? `
@@ -909,15 +909,14 @@ function renderMeetingDetail(m) {
     <div class="card decisions-card" id="section-keyDecisions">
       <div class="card-title">
         <span><i class="fa fa-gavel"></i> 关键决策</span>
-        ${decisions.length ? `<button class="btn btn-sm section-edit-btn" data-action="edit-section" data-section="keyDecisions" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑">&#9999;&#65039;</button>` : ""}
       </div>
       <div id="keyDecisions-display">
       ${decisions.length ? `<ul>${decisions.map((d, idx) => `<li id="decision-row-${idx}">
-        <span>${escapeHtml(renderListItem(d))}</span>
-        <span class="inline-item-actions">
-          <div class="row-actions"><button class="btn btn-outline btn-sm" data-action="edit-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
-          <button class="btn btn-danger btn-sm" data-action="delete-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button></div>
-        </span>
+        <span class="decision-text">${escapeHtml(renderListItem(d))}</span>
+        <div class="row-actions">
+          <button class="btn btn-outline btn-sm" data-action="edit-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" data-action="delete-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+        </div>
       </li>`).join("")}</ul>` : '<div class="empty-state">暂无关键决策</div>'}
       </div>
     </div>
