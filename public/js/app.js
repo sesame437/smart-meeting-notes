@@ -912,16 +912,27 @@ function renderMeetingDetail(m) {
         <div class="participant-list">`;
 
       participants.forEach((p, idx) => {
-        const label = typeof p === "string" ? p : (p.name || JSON.stringify(p));
+        const rawLabel = typeof p === "string" ? p : (p.name || JSON.stringify(p));
+        // Clean up label: remove noise phrases like "角色未明确", "角色不明", "未知"
+        const noisePatterns = ["角色未明确", "角色不明", "角色未知", "身份未知", "未知角色", "角色不详"];
+        let label = rawLabel;
+        // If label contains noise in parentheses, strip that part: "成员A（角色未明确）" → "成员A"
+        noisePatterns.forEach(noise => {
+          label = label.replace(new RegExp(`（[^）]*${noise}[^）]*）`, "g"), "");
+          label = label.replace(new RegExp(`\\([^)]*${noise}[^)]*\\)`, "g"), "");
+        });
+        label = label.trim().replace(/[，,。.、]+$/, "").trim();
+        if (!label) label = rawLabel; // fallback to original if fully stripped
+
         // existing real name if already saved (keyed by label or by index)
-        const savedName = speakerMap[label] || speakerMap[String(idx)] || "";
+        const savedName = speakerMap[rawLabel] || speakerMap[label] || speakerMap[String(idx)] || "";
 
         html += `<div class="participant-row">
           <div class="participant-label">${escapeHtml(label)}</div>
           <input type="text"
             class="form-control participant-name-input"
             list="glossary-names-list"
-            data-participant-label="${escapeAttr(label)}"
+            data-participant-label="${escapeAttr(rawLabel)}"
             value="${escapeAttr(savedName)}"
             placeholder="输入或选择真实姓名" />
         </div>`;
