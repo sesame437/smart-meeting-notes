@@ -581,6 +581,36 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   flex-shrink: 0;
 }
 
+/* Highlight items — green/teal theme */
+.highlight-item {
+  border-left: 3px solid #4CAF50;
+  background: rgba(76,175,80,0.08);
+  padding: 8px 12px !important;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  border-bottom: none !important;
+}
+
+.highlight-item::before {
+  content: "\25B2" !important;
+  color: #4CAF50 !important;
+}
+
+/* Lowlight items — orange-red theme */
+.lowlight-item {
+  border-left: 3px solid #FF6B6B;
+  background: rgba(255,107,107,0.08);
+  padding: 8px 12px !important;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  border-bottom: none !important;
+}
+
+.lowlight-item::before {
+  content: "\25BC" !important;
+  color: #FF6B6B !important;
+}
+
 .summary-text {
   font-size: 14px;
   line-height: 1.8;

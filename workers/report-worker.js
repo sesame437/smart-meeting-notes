@@ -212,26 +212,19 @@ async function processMessage(message) {
     await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
     const fullReportKey = `${process.env.S3_PREFIX}/${reportKey}`;
 
-    // 5. Update DynamoDB status to "reported", advance stage to "exporting"
+    // 5. Update DynamoDB status to "completed", stage to "done" (email sending is now manual)
     await docClient.send(new UpdateCommand({
       TableName: TABLE,
       Key: { meetingId, createdAt },
       UpdateExpression: "SET #s = :s, reportKey = :rk, updatedAt = :u, stage = :stage",
       ExpressionAttributeNames: { "#s": "status" },
       ExpressionAttributeValues: {
-        ":s": "reported",
+        ":s": "completed",
         ":rk": fullReportKey,
         ":u": new Date().toISOString(),
-        ":stage": "exporting",
+        ":stage": "done",
       },
     }));
-
-    // 6. Send message to export queue
-    await sendMessage(EXPORT_QUEUE_URL, {
-      meetingId,
-      reportKey: fullReportKey,
-      createdAt,
-    });
 
     recordActivity();
     console.log(`Report generated for meeting ${meetingId}`);

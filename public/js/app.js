@@ -444,14 +444,29 @@ async function uploadFile(file) {
 async function fetchMeeting(id) {
   const content = document.getElementById("meeting-content");
   if (!content) return;
-  content.innerHTML = '<div class="loading">Loading...</div>';
-
+  // Only show loading spinner on first load
+  if (!content.dataset.loaded) {
+    content.innerHTML = '<div class="loading">Loading...</div>';
+  }
   try {
     const m = await API.get(`/api/meetings/${id}`);
+    content.dataset.loaded = "1";
     renderMeetingDetail(m);
   } catch (_) {
-    content.innerHTML = '<div class="empty-state">Failed to load meeting details.</div>';
+    if (!content.dataset.loaded) {
+      content.innerHTML = '<div class="empty-state">Failed to load meeting details.</div>';
+    }
   }
+}
+
+function renderListItem(item) {
+  if (typeof item === "string") return item;
+  if (typeof item === "object" && item !== null) {
+    return item.point || item.text || item.content || item.description
+      || item.action || item.decision || item.risk || item.issue
+      || item.item || item.name || JSON.stringify(item);
+  }
+  return String(item);
 }
 
 function renderMeetingDetail(m) {
@@ -828,7 +843,7 @@ function renderMeetingDetail(m) {
       html += `
         <div class="card">
           <div class="card-title"><i class="fa fa-thumb-tack"></i> Highlights</div>
-          <ul>${highlights.map(h => `<li>${escapeHtml(typeof h === "string" ? h : h.text || JSON.stringify(h))}</li>`).join("")}</ul>
+          <ul>${highlights.map(h => `<li class="highlight-item">${escapeHtml(renderListItem(h))}</li>`).join("")}</ul>
         </div>
       `;
     }
@@ -837,7 +852,7 @@ function renderMeetingDetail(m) {
       html += `
         <div class="card">
           <div class="card-title"><i class="fa fa-exclamation-triangle"></i> Lowlights</div>
-          <ul>${lowlights.map(l => `<li>${escapeHtml(typeof l === "string" ? l : l.text || JSON.stringify(l))}</li>`).join("")}</ul>
+          <ul>${lowlights.map(l => `<li class="lowlight-item">${escapeHtml(renderListItem(l))}</li>`).join("")}</ul>
         </div>
       `;
     }
@@ -880,7 +895,7 @@ function renderMeetingDetail(m) {
     html += `
       <div class="card decisions-card">
         <div class="card-title"><i class="fa fa-gavel"></i> Key Decisions</div>
-        <ul>${decisions.map(d => `<li>${escapeHtml(typeof d === "string" ? d : d.decision || d.text || JSON.stringify(d))}</li>`).join("")}</ul>
+        <ul>${decisions.map(d => `<li>${escapeHtml(renderListItem(d))}</li>`).join("")}</ul>
       </div>
     `;
   }
@@ -890,7 +905,7 @@ function renderMeetingDetail(m) {
     html += `
       <div class="card risks-card">
         <div class="card-title"><i class="fa fa-warning"></i> Risks &amp; Issues</div>
-        <ul>${risks.map(r => `<li>${escapeHtml(typeof r === "string" ? r : r.risk || r.issue || r.text || JSON.stringify(r))}</li>`).join("")}</ul>
+        <ul>${risks.map(r => `<li>${escapeHtml(renderListItem(r))}</li>`).join("")}</ul>
       </div>
     `;
   }
@@ -916,6 +931,12 @@ function renderMeetingDetail(m) {
         <button class="btn btn-outline" data-action="send-email" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-envelope"></i> Send Email</button>
       </div>
     `;
+  }
+
+  // Stop polling when meeting is in a terminal state
+  if (["completed", "failed"].includes(status) && window._detailPollingTimer) {
+    clearInterval(window._detailPollingTimer);
+    window._detailPollingTimer = null;
   }
 }
 
@@ -987,8 +1008,11 @@ async function saveSpeakerMap(meetingId) {
   }
 }
 
-function sendEmail(id) {
-  Toast.info("Email sending is handled by the export worker.");
+async function sendEmail(id) {
+  try {
+    await API.post(`/api/meetings/${id}/send-email`);
+    Toast.success("邮件发送已触发");
+  } catch (_) { /* error already shown by API */ }
 }
 
 /* ===== Glossary ===== */
