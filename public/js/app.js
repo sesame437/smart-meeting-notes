@@ -238,11 +238,11 @@ function meetingCard(m) {
     </div>
     <div class="item-time">${time}</div>
     <div>${statusBadge(status)}${stageText ? `<div style="font-size:12px;color:#879596;margin-top:4px;">${stageText}</div>` : ""}${errorMsg}</div>
-    <div class="item-actions">
+    <div class="row-actions">
       <button class="btn btn-outline btn-sm" data-action="start-card-edit" data-id="${escapeAttr(id)}" data-title="${escapeAttr(m.title || m.meetingId)}" data-type="${escapeAttr(mType)}" title="编辑"><i class="fa fa-pencil"></i></button>
-      <a href="meeting.html?id=${encodeURIComponent(id)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> 查看</a>
+      <a href="meeting.html?id=${encodeURIComponent(id)}" class="btn btn-outline btn-sm" title="查看"><i class="fa fa-eye"></i></a>
       ${retryBtn}
-      <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(id)}"><i class="fa fa-trash"></i></button>
+      <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(id)}" title="删除"><i class="fa fa-trash"></i></button>
     </div>
   </div>`;
 }
@@ -262,7 +262,7 @@ function startCardEdit(id, currentTitle, currentType) {
         <option value="tech" ${currentType==='tech'?'selected':''}>技术</option>
         <option value="customer" ${currentType==='customer'?'selected':''}>客户</option>
       </select>
-      <button class="btn btn-primary btn-sm" data-action="save-card-edit" data-id="${escapeAttr(id)}">确认</button>
+      <button class="btn action-primary-btn btn-sm" data-action="save-card-edit" data-id="${escapeAttr(id)}">确认</button>
       <button class="btn btn-outline btn-sm" data-action="cancel-card-edit">取消</button>
     </div>
   `;
@@ -307,9 +307,9 @@ function meetingRow(m) {
     <td>${time}</td>
     <td>${statusBadge(status)}</td>
     <td>
-      <div class="btn-group">
-        <a href="meeting.html?id=${encodeURIComponent(m.meetingId)}" class="btn btn-outline btn-sm"><i class="fa fa-eye"></i> 查看</a>
-        <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-trash"></i></button>
+      <div class="row-actions" style="opacity:1;">
+        <a href="meeting.html?id=${encodeURIComponent(m.meetingId)}" class="btn btn-outline btn-sm" title="查看"><i class="fa fa-eye"></i></a>
+        <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
       </div>
     </td>
   </tr>`;
@@ -564,7 +564,7 @@ function renderMeetingDetail(m) {
             <option value="tech">技术</option>
             <option value="customer">客户</option>
           </select>
-          <button class="btn btn-primary btn-sm" data-action="save-detail-edit" data-id="${escapeAttr(m.meetingId)}">保存</button>
+          <button class="btn action-primary-btn btn-sm" data-action="save-detail-edit" data-id="${escapeAttr(m.meetingId)}">保存</button>
           <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,0.3);" data-action="cancel-detail-edit">取消</button>
         </div>
       </div>
@@ -598,7 +598,7 @@ function renderMeetingDetail(m) {
         <textarea class="form-control" id="summary-textarea" rows="6" style="width:100%;box-sizing:border-box;border:2px solid #FF9900;border-radius:4px;padding:10px;font-size:14px;">${escapeHtml(summary)}</textarea>
         <div style="text-align:right;margin-top:8px;">
           <button class="btn btn-outline btn-sm" data-action="cancel-section-edit" data-section="summary">取消</button>
-          <button class="btn btn-primary btn-sm" data-action="save-section" data-section="summary" data-meeting-id="${escapeAttr(m.meetingId)}">保存</button>
+          <button class="btn action-primary-btn btn-sm" data-action="save-section" data-section="summary" data-meeting-id="${escapeAttr(m.meetingId)}">保存</button>
         </div>
       </div>
     </div>
@@ -1007,7 +1007,7 @@ function renderMeetingDetail(m) {
     bottomBar.innerHTML = `
       <a href="index.html" class="btn btn-outline"><i class="fa fa-arrow-left"></i> 返回</a>
       <div class="btn-group">
-        <button class="btn btn-outline" data-action="send-email" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-envelope"></i> 发送邮件</button>
+        <button class="btn action-primary-btn" data-action="send-email" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-envelope"></i> 发送邮件</button>
       </div>
     `;
   }
@@ -1351,7 +1351,7 @@ function editActionItem(index, meetingId) {
     <td><input type="text" class="form-control" id="edit-action-deadline-${index}" value="${escapeAttr(item.deadline || item.dueDate || "")}" style="border:2px solid #FF9900;"></td>
     <td><input type="text" class="form-control" id="edit-action-priority-${index}" value="${escapeAttr(item.priority || "")}" style="border:2px solid #FF9900;"></td>
     <td>
-      <button class="btn btn-primary btn-sm" data-action="save-action-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn action-primary-btn btn-sm" data-action="save-action-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
       <button class="btn btn-outline btn-sm" data-action="cancel-action-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
     </td>`;
   row.style.border = "2px solid #FF9900";
@@ -1400,7 +1400,7 @@ function editDecisionItem(index, meetingId) {
   li.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;">
       <input type="text" class="form-control" id="edit-decision-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
-      <button class="btn btn-primary btn-sm" data-action="save-decision-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn action-primary-btn btn-sm" data-action="save-decision-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
       <button class="btn btn-outline btn-sm" data-action="cancel-decision-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
     </div>`;
   li.style.border = "2px solid #FF9900";
@@ -1463,7 +1463,7 @@ function updateMergeSelection() {
     }
     bar.innerHTML = `
       <span>已选 <strong>${ids.length}</strong> 个会议</span>
-      <button class="btn btn-primary" data-action="open-merge-modal">合并生成报告</button>
+      <button class="btn action-primary-btn" data-action="open-merge-modal">合并生成报告</button>
     `;
     bar.style.display = 'flex';
   } else {
@@ -1504,7 +1504,7 @@ function openMergeModal() {
       </div>
       <div class="modal-actions">
         <button class="btn btn-outline" data-action="close-merge-modal">取消</button>
-        <button class="btn btn-primary" id="merge-submit-btn" data-action="submit-merge"><i class="fa fa-magic"></i> 生成报告</button>
+        <button class="btn action-primary-btn" id="merge-submit-btn" data-action="submit-merge"><i class="fa fa-magic"></i> 生成报告</button>
       </div>
     </div>
   `;
