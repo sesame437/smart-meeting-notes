@@ -951,3 +951,39 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   font-size: 13px;
 }
 .speaker-bind-select option { background: #1a2332; color: #fff; }
+
+/* Glossary info tooltip */
+.glossary-info-icon {
+  position: relative;
+  display: inline-block;
+  margin-left: 8px;
+  cursor: pointer;
+  color: #FF9900;
+  font-size: 15px;
+  vertical-align: middle;
+}
+.glossary-info-icon .glossary-tooltip {
+  display: none;
+  position: absolute;
+  left: 24px;
+  top: -8px;
+  z-index: 100;
+  background: #1a2332;
+  border: 1px solid #FF9900;
+  border-radius: 6px;
+  padding: 14px 16px;
+  width: 320px;
+  font-size: 13px;
+  color: #d0d7e2;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  line-height: 1.6;
+}
+.glossary-info-icon .glossary-tooltip p {
+  margin: 0 0 10px 0;
+}
+.glossary-info-icon .glossary-tooltip p:last-child {
+  margin-bottom: 0;
+}
+.glossary-info-icon:hover .glossary-tooltip {
+  display: block;
+}

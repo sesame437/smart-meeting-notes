@@ -23,7 +23,17 @@
 
     <!-- Add Term -->
     <div class="card">
-      <div class="card-title"><i class="fa fa-plus-circle"></i> Add Term</div>
+      <div class="card-title">
+        <i class="fa fa-plus-circle"></i> Add Term
+        <span class="glossary-info-icon" title="" aria-label="字段说明">
+          <i class="fa fa-info-circle"></i>
+          <div class="glossary-tooltip">
+            <p><strong>Term（术语）</strong><br>核心词汇，如 <em>罗氏</em>、<em>MIH</em>。Bedrock 生成纪要时会优先识别。</p>
+            <p><strong>Aliases（别名）</strong><br>同一词的其他叫法，逗号分隔。<br>如 <em>Roche, 罗氏制药</em>——任何别名都会被归一化成 Term。</p>
+            <p><strong>Definition（释义）</strong><br>背景解释，帮助 Bedrock 理解上下文，生成更准确的纪要。<br>如 <em>瑞士跨国制药公司，AWS 医疗行业重点客户</em>。</p>
+          </div>
+        </span>
+      </div>
       <form id="add-term-form">
         <div class="form-row">
           <div class="form-group">
