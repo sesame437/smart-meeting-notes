@@ -10,6 +10,7 @@ jest.mock("../db/dynamodb", () => ({
 
 jest.mock("@aws-sdk/lib-dynamodb", () => ({
   ScanCommand: jest.fn((p) => ({ _cmd: "ScanCommand", ...p })),
+  QueryCommand: jest.fn((p) => ({ _cmd: "QueryCommand", ...p })),
   GetCommand: jest.fn((p) => ({ _cmd: "GetCommand", ...p })),
   PutCommand: jest.fn((p) => ({ _cmd: "PutCommand", ...p })),
   UpdateCommand: jest.fn((p) => ({ _cmd: "UpdateCommand", ...p })),
@@ -60,7 +61,7 @@ describe("PUT /api/meetings/:id/speaker-map error scenarios", () => {
   });
 
   test("meetingId 不存在返回 404", async () => {
-    mockSend.mockResolvedValueOnce({ Item: null });
+    mockSend.mockResolvedValueOnce({ Items: [] });
     const handler = getSpeakerMapPutHandler();
     const req = { params: { id: "not-found-id" }, body: { speakerMap: { SPEAKER_0: "Alice" } } };
     const res = createRes();
@@ -88,7 +89,6 @@ describe("PUT /api/meetings/:id/speaker-map error scenarios", () => {
   });
 
   test("speakerMap 为空对象应返回 400（入参校验）", async () => {
-    mockSend.mockResolvedValueOnce({ Item: { meetingId: "m1", meetingType: "general" } });
     const handler = getSpeakerMapPutHandler();
     const req = { params: { id: "m1" }, body: { speakerMap: {} } };
     const res = createRes();

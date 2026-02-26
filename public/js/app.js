@@ -569,6 +569,15 @@ function renderMeetingDetail(m) {
       <div class="meta-item"><strong>Participants</strong>${participants.length || "-"}</div>
       <div class="meta-item"><strong>Meeting ID</strong>${escapeHtml(m.meetingId || "-")}</div>
     </div>
+
+    <div class="meeting-action-bar">
+      <button class="btn btn-primary" data-action="regenerate-report" data-id="${escapeAttr(m.meetingId)}">
+        <i class="fa fa-refresh"></i> 重新生成纪要
+      </button>
+      <button class="btn btn-outline" data-action="send-email" data-id="${escapeAttr(m.meetingId)}">
+        <i class="fa fa-envelope"></i> 发送邮件
+      </button>
+    </div>
   `;
 
   // ---- Summary ----
@@ -921,7 +930,7 @@ function renderMeetingDetail(m) {
       html += `</div>
         <div style="text-align:right;margin-top:12px;">
           <button class="btn btn-primary btn-sm" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">
-            <i class="fa fa-save"></i> 保存并重新生成纪要
+            <i class="fa fa-save"></i> 保存名字
           </button>
         </div>`;
     } else {
@@ -1022,17 +1031,98 @@ async function saveSpeakerMap(meetingId) {
     return;
   }
 
-  const btn = document.querySelector('[data-action="save-speaker-map"]');
-  if (btn) { btn.disabled = true; btn.textContent = "生成中…"; }
+  var btn = document.querySelector('[data-action="save-speaker-map"]');
+  if (btn) { btn.disabled = true; btn.textContent = "保存中…"; }
 
   try {
-    await API.put(`/api/meetings/${meetingId}/speaker-map`, { speakerMap });
-    Toast.success("已保存并重新生成纪要");
+    await API.put(`/api/meetings/${meetingId}/speaker-names`, { speakerMap });
+    Toast.success("名字已保存");
+    applyNameMapping(speakerMap);
+  } catch (_) {
+    /* error shown by API */
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-save"></i> 保存名字'; }
+  }
+}
+
+function applyNameMapping(speakerMap) {
+  // Build a lookup: extract the prefix before "（" from each key
+  // e.g. "成员A（佳园，...）" → prefix "成员A", value "家园"
+  var mappings = [];
+  Object.keys(speakerMap).forEach(function(key) {
+    var value = speakerMap[key];
+    if (!value) return;
+    var prefix = key.split("（")[0].split("(")[0].trim();
+    mappings.push({ key: key, prefix: prefix, value: value });
+  });
+
+  // Replace participant labels
+  document.querySelectorAll('.participant-label').forEach(function(el) {
+    var text = el.textContent;
+    mappings.forEach(function(m) {
+      if (text === m.key || text.indexOf(m.prefix) === 0) {
+        el.textContent = m.value;
+      }
+    });
+  });
+
+  // Replace action items owner cells (2nd column in action items table)
+  document.querySelectorAll('.card').forEach(function(card) {
+    var title = card.querySelector('.card-title');
+    if (!title) return;
+    var titleText = title.textContent;
+
+    // Action Items table
+    if (titleText.indexOf('Action Items') !== -1) {
+      card.querySelectorAll('tbody td:nth-child(2)').forEach(function(td) {
+        var ownerText = td.textContent;
+        mappings.forEach(function(m) {
+          if (ownerText.indexOf(m.prefix) !== -1) {
+            td.textContent = ownerText.replace(m.prefix, m.value);
+          }
+        });
+      });
+    }
+
+    // Key Decisions list items — replace owner references
+    if (titleText.indexOf('Decisions') !== -1 || titleText.indexOf('Risks') !== -1) {
+      card.querySelectorAll('li').forEach(function(li) {
+        var text = li.textContent;
+        mappings.forEach(function(m) {
+          if (text.indexOf(m.prefix) !== -1) {
+            // Preserve the ::before pseudo element by only replacing inner text
+            li.textContent = text.split(m.prefix).join(m.value);
+          }
+        });
+      });
+    }
+  });
+
+  // Replace in summary text
+  var summaryEl = document.querySelector('.summary-text');
+  if (summaryEl) {
+    var summaryText = summaryEl.textContent;
+    mappings.forEach(function(m) {
+      if (summaryText.indexOf(m.prefix) !== -1) {
+        summaryText = summaryText.split(m.prefix).join(m.value);
+      }
+    });
+    summaryEl.textContent = summaryText;
+  }
+}
+
+async function regenerateReport(meetingId) {
+  var btn = document.querySelector('[data-action="regenerate-report"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-refresh fa-spin"></i> 生成中…'; }
+
+  try {
+    await API.post(`/api/meetings/${meetingId}/regenerate`);
+    Toast.success("纪要已重新生成");
     fetchMeeting(meetingId);
   } catch (_) {
     /* error shown by API */
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "保存并重新生成纪要"; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-refresh"></i> 重新生成纪要'; }
   }
 }
 
@@ -1284,6 +1374,7 @@ document.addEventListener("click", function(e) {
     case "save-detail-edit":   saveDetailEdit(id); break;
     case "cancel-detail-edit": cancelDetailEdit(); break;
     case "save-speaker-map":   saveSpeakerMap(id); break;
+    case "regenerate-report":  regenerateReport(id); break;
     case "send-email":         sendEmail(id); break;
     case "edit-term":          editTerm(id); break;
     case "delete-term":        deleteTerm(id); break;

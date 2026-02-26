@@ -464,6 +464,16 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   font-size: 14px;
 }
 
+/* ===== Meeting Action Bar ===== */
+.meeting-action-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px 0;
+  border-bottom: 2px solid var(--aws-border);
+}
+
 /* ===== Meeting Detail ===== */
 /* Header block */
 .meeting-detail-header {
