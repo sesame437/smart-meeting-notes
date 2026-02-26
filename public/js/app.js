@@ -292,7 +292,11 @@ function initUpload() {
   area.addEventListener("drop", e => {
     e.preventDefault();
     area.classList.remove("dragover");
-    const file = e.dataTransfer.files[0];
+    let file = e.dataTransfer.files[0];
+    if (!file && e.dataTransfer.items) {
+      const item = e.dataTransfer.items[0];
+      if (item && item.kind === "file") file = item.getAsFile();
+    }
     if (file) uploadFile(file);
   });
 
@@ -304,9 +308,13 @@ function initUpload() {
 }
 
 async function uploadFile(file) {
-  const validTypes = ["video/mp4", "audio/mpeg", "audio/mp3", "audio/mp4", "video/quicktime", "audio/ogg", "application/ogg"];
+  const validTypes = [
+    "video/mp4", "audio/mpeg", "audio/mp3", "audio/mp4", "video/quicktime",
+    "audio/ogg", "application/ogg", "audio/x-ogg", "video/ogg", "application/x-ogg", "audio/vorbis"
+  ];
   const ext = file.name.split(".").pop().toLowerCase();
-  if (!validTypes.includes(file.type) && !["mp4", "mp3", "m4a", "ogg"].includes(ext)) {
+  console.log("[upload] file:", file.name, "type:", file.type, "ext:", file.name.split(".").pop());
+  if (!validTypes.includes(file.type) && !["mp4", "mp3", "m4a", "ogg", "oga", "ogv"].includes(ext)) {
     Toast.error("Please upload MP4, MP3 or OGG files only.");
     return;
   }

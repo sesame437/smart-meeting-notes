@@ -26,7 +26,8 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
       "audio/mpeg", "audio/wav", "audio/mp4", "audio/x-m4a",
-      "audio/ogg", "audio/webm", "video/mp4", "video/webm",
+      "audio/ogg", "audio/x-ogg", "video/ogg", "application/x-ogg", "audio/vorbis",
+      "audio/webm", "video/mp4", "video/webm",
       "video/quicktime", "application/octet-stream",
     ];
     const allowedExts = [".mp3", ".wav", ".mp4", ".m4a", ".ogg", ".webm", ".mov"];
