@@ -226,7 +226,7 @@ function meetingCard(m) {
   // Merge checkbox: only for completed, non-merged meetings
   const showCheckbox = status === "completed" && mType !== "merged";
   const checkboxHtml = showCheckbox
-    ? `<input type="checkbox" class="merge-checkbox" data-id="${id}" onchange="updateMergeSelection()" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;" />`
+    ? `<input type="checkbox" class="merge-checkbox" data-id="${id}" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;" />`
     : `<div style="width:16px;flex-shrink:0;"></div>`;
 
   return `
@@ -1239,6 +1239,13 @@ document.addEventListener("click", function(e) {
     case "close-merge-modal":  closeMergeModal(); break;
     case "submit-merge":       submitMerge(); break;
     case "close-modal":        closeModal(); break;
+  }
+});
+
+/* checkbox change → merge selection */
+document.addEventListener("change", function(e) {
+  if (e.target.classList.contains("merge-checkbox")) {
+    updateMergeSelection();
   }
 });
 
