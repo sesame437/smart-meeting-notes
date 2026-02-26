@@ -84,5 +84,18 @@
 
   <script src="js/app.js"></script>
   
+<!-- Confirm Dialog -->
+<div id="confirm-modal" class="confirm-overlay" style="display:none;" role="dialog" aria-modal="true">
+  <div class="confirm-box">
+    <div class="confirm-icon">⚠️</div>
+    <div class="confirm-title" id="confirm-title">确认删除</div>
+    <div class="confirm-body" id="confirm-body">确认要删除这条记录吗？</div>
+    <div class="confirm-actions">
+      <button class="btn action-primary-btn btn-sm" id="confirm-cancel-btn">取消</button>
+      <button class="btn confirm-delete-btn btn-sm" id="confirm-ok-btn">删除</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

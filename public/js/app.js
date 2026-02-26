@@ -324,13 +324,45 @@ async function retryMeeting(id) {
   } catch (_) { /* error already shown by API */ }
 }
 
+/* ===== Custom Confirm Dialog ===== */
+function showConfirm({ title = "确认删除", body = "确认要删除这条记录吗？", onOk }) {
+  const overlay = document.getElementById("confirm-modal");
+  if (!overlay) { if (window.confirm(body)) onOk(); return; }
+  document.getElementById("confirm-title").textContent = title;
+  document.getElementById("confirm-body").innerHTML = body;
+  overlay.style.display = "flex";
+
+  const okBtn = document.getElementById("confirm-ok-btn");
+  const cancelBtn = document.getElementById("confirm-cancel-btn");
+
+  function close() {
+    overlay.style.display = "none";
+    okBtn.replaceWith(okBtn.cloneNode(true));
+    cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+  }
+  document.getElementById("confirm-ok-btn").addEventListener("click", function() { close(); onOk(); }, { once: true });
+  document.getElementById("confirm-cancel-btn").addEventListener("click", close, { once: true });
+  overlay.addEventListener("click", function(e) { if (e.target === overlay) close(); }, { once: true });
+}
+
 async function deleteMeeting(id) {
-  if (!confirm("确认删除该会议？")) return;
-  try {
-    await API.del(`/api/meetings/${id}`);
-    Toast.success("会议已删除");
-    fetchMeetings();
-  } catch (_) { /* error already shown by API */ }
+  // find meeting title from rendered card
+  const card = document.querySelector(`[data-id="${id}"]`);
+  const titleEl = card && card.closest(".meeting-card, tr")
+    && (card.closest(".meeting-card, tr").querySelector("h3, .meeting-title, td:first-child") || card);
+  const name = titleEl ? titleEl.textContent.trim().split("\n")[0].trim() : id;
+
+  showConfirm({
+    title: "确认删除会议",
+    body: `确认要删除会议 <strong>「${name}」</strong> 吗？<br><span style="font-size:12px;opacity:0.5;">此操作不可撤销</span>`,
+    onOk: async () => {
+      try {
+        await API.del(`/api/meetings/${id}`);
+        Toast.success("会议已删除");
+        fetchMeetings();
+      } catch (_) { /* error already shown by API */ }
+    }
+  });
 }
 
 /* ===== File Upload ===== */
