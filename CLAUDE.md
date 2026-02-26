@@ -83,3 +83,17 @@ node workers/report-worker.js
 - 2026-02-22：Python 脚本含中文注释必须加 `# -*- coding: utf-8 -*-`，否则 Mac 下载后乱码。
 - 2026-02-22：SES 邮件发送必须用 us-west-2，qiankai@amazon.com 在此 region 验证。us-east-1 只有 sesame.qian@gmail.com 可用。
 - 重要架构决策不留在飞书对话，直接写入此文件。cc 看不到飞书，对它来说等同于不存在。
+
+## 前端 CSP 规范（必须遵守）
+
+本项目使用 helmet，默认启用严格 CSP，国内网络环境下尤为重要。
+
+**禁止：**
+- `<script>` 内联块（必须放外链 .js 文件）
+- `onclick="..."` 等内联事件属性
+- CDN 外链（cloudflare/jsdelivr 在国内不稳定）
+
+**必须：**
+- 所有按钮用 `data-action` + `document.addEventListener("click", ...)` 事件委托
+- 页面初始化在 DOMContentLoaded 里按 URL/DOM 特征判断页面类型
+- Font Awesome 等静态资源本地化（放 public/css/ + public/fonts/）
