@@ -11,6 +11,7 @@
 
 const path = require("path");
 const fs   = require("fs");
+const { randomUUID } = require("crypto");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared mocks (必须在 require worker 模块前 jest.mock)
@@ -109,7 +110,7 @@ function parseMessage(body) {
     const s3Event  = body.Records[0].s3;
     const s3Key    = decodeURIComponent(s3Event.object.key.replace(/\+/g, " "));
     const filename = s3Key.split("/").pop();
-    const meetingId   = `meeting-${Date.now()}`;
+    const meetingId   = randomUUID();
     const meetingType = parseMeetingTypeFromFilename(filename);
     return { meetingId, s3Key, filename, meetingType, isS3Event: true };
   }
@@ -246,10 +247,8 @@ describe("Suite 1 — createdAt 传播", () => {
     const after  = Date.now();
 
     expect(result.isS3Event).toBe(true);
-    expect(result.meetingId).toMatch(/^meeting-\d+$/);
-    const ts = parseInt(result.meetingId.replace("meeting-", ""), 10);
-    expect(ts).toBeGreaterThanOrEqual(before);
-    expect(ts).toBeLessThanOrEqual(after);
+    // meetingId 现在用 UUID 格式（统一规范，不再用 meeting-${Date.now()} 时间戳）
+    expect(result.meetingId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
   });
 
   /**
