@@ -139,3 +139,22 @@ helmet 已配置明确的 CSP 白名单（见 server.js），规则：
 - S3 Event 传来的 key 带 PREFIX，消费前必须 strip（`parseMessage` 已处理）
 
 **背景：** 2026-02-27 因 s3Key 格式不一致导致 S3 Event 去重失败（重复创建会议记录），已修复。
+
+## 架构决策记录（Key Decisions）
+
+| 日期 | 决策 | 原因 |
+|------|------|------|
+| 2026-02-10 | S3 Key 存裸 key | 避免 PREFIX 双重拼接，service 层统一处理 |
+| 2026-02-15 | meetingId 用 UUID | 格式统一，避免 meeting-XXXXX 冲突 |
+| 2026-02-20 | routes/meetings.js 拆分为子目录 | 单文件 899 行过长，拆为 core/report/email/helpers |
+| 2026-02-22 | SES 固定用 us-west-2 | qiankai@amazon.com 在此 region 验证 |
+| 2026-02-24 | Worker 不发飞书告警 | 解耦项目与飞书，保持系统独立性 |
+| 2026-02-26 | 发邮件改为纯手动触发 | regenerate/merge 路由不再自动发 SQS |
+| 2026-02-27 | 结构化日志统一用 logger.js | 62 处 console.* 替换完成，便于日志聚合 |
+
+## 规范说明
+详细编码/API/测试/数据规范见 .claude/rules/ 目录：
+- .claude/rules/api.md — HTTP 规范、错误格式、分页
+- .claude/rules/testing.md — 覆盖率、写法、Mock
+- .claude/rules/coding.md — 命名、错误处理、日志
+- .claude/rules/data.md — S3 Key、DynamoDB、SQS 格式
