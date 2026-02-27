@@ -913,18 +913,19 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .actions-table td:nth-child(4) { justify-content: flex-start; }
   .actions-table td:nth-child(4)::before { content: "⚡ 优先级："; font-weight: 600; color: var(--aws-secondary); flex-shrink: 0; }
 
-  /* 操作按钮移到卡片底部，独占一行 */
-  .actions-table td:last-child {
-    position: static;
-    width: 100% !important;
-    padding: 8px 0 0 0;
-    margin-top: 6px;
-    border-top: 1px solid var(--aws-border);
+  /* 优先级列：badge + 操作按钮同一行 */
+  .actions-table td.td-priority-actions {
     display: flex !important;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
     gap: 8px;
   }
-  .actions-table td:last-child::before { content: none; }
+  .actions-table td.td-priority-actions::before { content: "⚡ 优先级："; font-weight: 600; color: var(--aws-secondary); flex-shrink: 0; }
+  .actions-table td.td-priority-actions .row-actions {
+    opacity: 1 !important;
+    visibility: visible !important;
+    margin-left: auto;
+  }
 
   /* 移动端：编辑/删除按钮常驻显示（不需要 hover 触发） */
   .row-actions { opacity: 1 !important; visibility: visible !important; }

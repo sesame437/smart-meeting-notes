@@ -929,8 +929,8 @@ function renderMeetingDetail(m) {
                 <td>${escapeHtml(a.task || a.action || "")}</td>
                 <td>${escapeHtml(a.owner || a.assignee || "-")}</td>
                 <td>${formatDeadline(a.deadline || a.dueDate || "-")}</td>
-                <td><span class="priority-badge priority-${prio}">${escapeHtml(prioLabel)}</span></td>
-                <td>
+                <td class="td-priority-actions">
+                  <span class="priority-badge priority-${prio}">${escapeHtml(prioLabel)}</span>
                   <div class="row-actions"><button class="btn btn-outline btn-sm" data-action="edit-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
                   <button class="btn btn-danger btn-sm" data-action="delete-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button></div>
                 </td>
