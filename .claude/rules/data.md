@@ -41,3 +41,10 @@ pending → processing → transcribed → reported → done
 - Key：任意非空字符串（原始说话人 label，如 "SPEAKER_01" 或 participant 描述）
 - Value：真实姓名，最长 100 字符
 - 存 DynamoDB，重新调用 Bedrock 时传入
+
+## 日期格式规范
+所有日期字段一律用 ISO 8601 UTC 格式存储和传输：
+- ✅ 正确：`"2026-02-27T15:30:00.000Z"`
+- ❌ 错误：时间戳数字、本地时间字符串、非标准格式
+- DynamoDB 存字符串，不存数字时间戳
+- API 响应中的日期字段同样遵守此格式

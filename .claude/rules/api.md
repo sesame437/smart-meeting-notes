@@ -34,3 +34,9 @@
 - 列表接口必须支持分页：?limit=20&nextToken=xxx
 - 响应包含：{ items: [], nextToken: "xxx" | null, total: N }
 - 禁止返回全量数据（超过 100 条必须分页）
+
+## Rate Limiting（已有，不要重复添加）
+server.js 已配置 express-rate-limit 中间件：
+- 全局限速：100 req / 15min per IP
+- 上传接口：10 req / 15min per IP
+禁止在路由层再次添加 rate-limit 逻辑，会产生双重限速。

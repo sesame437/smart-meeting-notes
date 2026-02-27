@@ -28,3 +28,9 @@ it("calls s3.uploadFile with correct params", async () => {})
 - 每次 commit 前必须本地跑 npm test
 - 测试失败不得 push
 - 当前测试套件：302 个测试，全部通过为基线
+
+## 验证成功标准（官方最佳实践）
+npm test 必须输出：
+- meeting-minutes：`302 passed, 0 failed`（当前基线）
+- 新增代码后基线只能增加，不能减少
+- 有任何 failed 不得 commit，不得 push
