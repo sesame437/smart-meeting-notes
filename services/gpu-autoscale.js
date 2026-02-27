@@ -138,15 +138,18 @@ async function autoShutdown() {
 }
 
 // 7. checkActiveJobs — scan DynamoDB for pending/transcribing tasks
+// Only count jobs created within the last 2 hours to avoid zombie records blocking shutdown
 async function checkActiveJobs() {
   try {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const resp = await dynamoClient.send(new ScanCommand({
       TableName: DYNAMODB_TABLE,
-      FilterExpression: "#s IN (:pending, :processing)",
+      FilterExpression: "#s IN (:pending, :processing) AND createdAt >= :cutoff",
       ExpressionAttributeNames: { "#s": "status" },
       ExpressionAttributeValues: {
         ":pending": { S: "pending" },
         ":processing": { S: "processing" },
+        ":cutoff": { S: twoHoursAgo },
       },
       Select: "COUNT",
     }));
