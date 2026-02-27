@@ -4,6 +4,17 @@ const cors = require("cors");
 const helmet = require("helmet");
 const path = require("path");
 
+// 启动时校验必需环境变量
+const REQUIRED_ENV = [
+  "S3_BUCKET", "S3_PREFIX", "DYNAMODB_TABLE",
+  "SQS_TRANSCRIPTION_QUEUE", "AWS_REGION", "BEDROCK_MODEL_ID"
+];
+const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missingEnv.length > 0) {
+  console.error("❌ 缺少必需环境变量:", missingEnv.join(", "));
+  process.exit(1);
+}
+
 const meetingsRouter = require("./routes/meetings");
 const glossaryRouter = require("./routes/glossary");
 
@@ -42,6 +53,23 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: err.message || "Internal server error" });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`meeting-minutes server listening on port ${PORT}`);
 });
+
+// 优雅关机：等待 in-flight 请求完成后退出
+function gracefulShutdown(signal) {
+  console.log(`[server] Received ${signal}, shutting down gracefully...`);
+  server.close(() => {
+    console.log("[server] HTTP server closed");
+    process.exit(0);
+  });
+  // 10 秒超时强制退出
+  setTimeout(() => {
+    console.error("[server] Forced shutdown after timeout");
+    process.exit(1);
+  }, 10000);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
