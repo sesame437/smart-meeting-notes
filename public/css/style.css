@@ -994,3 +994,53 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 .suggestion-item:last-child { border-bottom: none; }
 .suggestion-item:hover { background: rgba(255,153,0,0.1); color: var(--aws-orange); }
+
+/* ===== Mobile: Meeting List Card ===== */
+@media (max-width: 640px) {
+  .meeting-card-item {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px;
+    align-items: flex-start;
+  }
+
+  /* checkbox 固定左侧 */
+  .meeting-card-item input[type="checkbox"] { align-self: center; }
+
+  /* 标题占满整行 */
+  .meeting-card-item .item-title {
+    flex: 1 1 calc(100% - 30px);
+    min-width: 0;
+    font-size: 14px;
+  }
+
+  /* 时间小字，独占一行 */
+  .meeting-card-item .item-time {
+    flex: 0 0 100%;
+    white-space: normal;
+    font-size: 12px;
+    margin-left: 24px; /* 对齐 checkbox 宽度 */
+  }
+
+  /* badge 区域独占一行，flex-start */
+  .meeting-card-item > div:nth-child(4) {
+    flex: 1 1 auto;
+    margin-left: 24px;
+  }
+
+  /* badge 横排，不竖排 */
+  .meeting-card-item .status-badge,
+  .meeting-card-item .priority-badge {
+    writing-mode: horizontal-tb !important;
+    white-space: nowrap;
+    display: inline-block;
+  }
+
+  /* 操作按钮靠右，和 badge 同行 */
+  .meeting-card-item .row-actions {
+    opacity: 1 !important;
+    visibility: visible !important;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+}
