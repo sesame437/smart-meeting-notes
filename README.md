@@ -23,7 +23,7 @@
 
 ## 架构
 
-![Architecture](assets/architecture.svg)
+![Architecture](assets/architecture.png)
 
 ### 技术栈
 
@@ -198,7 +198,7 @@ meeting-minutes/
 ├── scripts/
 │   └── upload_meeting.py         # CLI 上传脚本
 └── assets/
-    └── architecture.svg          # 架构图
+    └── architecture.png          # 架构图
 ```
 
 ## 安全说明

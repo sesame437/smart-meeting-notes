@@ -1,0 +1,160 @@
+<mxfile>
+  <diagram name="Meeting Minutes Architecture">
+    <mxGraphModel dx="1400" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0" background="#232F3E">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ========== Layer 1: User Layer (y=30) ========== -->
+        <mxCell id="layer1_group" value="User Layer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#FF9900;strokeWidth=1;dashed=1;opacity=40;fontSize=12;fontColor=#FF9900;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="20" width="1200" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="user_browser" value="Browser" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#232F3E;strokeColor=#FF9900;strokeWidth=2;fontColor=#FFFFFF;fontSize=14;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="420" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="user_mobile" value="Mobile Browser" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#232F3E;strokeColor=#FF9900;strokeWidth=2;fontColor=#FFFFFF;fontSize=14;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="720" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ========== Layer 2: Frontend (y=140) ========== -->
+        <mxCell id="layer2_group" value="Frontend" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#FF9900;strokeWidth=1;dashed=1;opacity=40;fontSize=12;fontColor=#FF9900;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="135" width="1200" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fe_index" value="index.html&#xa;会议列表" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d3d50;strokeColor=#4a90d9;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="280" y="155" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="fe_meeting" value="meeting.html&#xa;会议详情" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d3d50;strokeColor=#4a90d9;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="560" y="155" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="fe_glossary" value="glossary.html&#xa;词汇表" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d3d50;strokeColor=#4a90d9;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="840" y="155" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ========== Layer 3: Backend (y=270) ========== -->
+        <mxCell id="layer3_group" value="Backend" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#FF9900;strokeWidth=1;dashed=1;opacity=40;fontSize=12;fontColor=#FF9900;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="260" width="1200" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="be_express" value="Express Server :3300" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#232F3E;strokeColor=#FF9900;strokeWidth=2;fontColor=#FFFFFF;fontSize=14;fontFamily=Arial;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="280" width="340" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="be_meetings_route" value="routes/meetings.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d3d50;strokeColor=#4a90d9;strokeWidth=1;fontColor=#CCCCCC;fontSize=12;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="200" y="290" width="170" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="be_glossary_route" value="routes/glossary.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d3d50;strokeColor=#4a90d9;strokeWidth=1;fontColor=#CCCCCC;fontSize=12;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="930" y="290" width="170" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- ========== Layer 4: Workers (y=400) ========== -->
+        <mxCell id="layer4_group" value="Workers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#FF9900;strokeWidth=1;dashed=1;opacity=40;fontSize=12;fontColor=#FF9900;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="395" width="1200" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wk_transcription" value="Transcription Worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#232F3E;strokeColor=#8c5fca;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="210" y="415" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="wk_report" value="Report Worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#232F3E;strokeColor=#8c5fca;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="550" y="415" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="wk_export" value="Export Worker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#232F3E;strokeColor=#8c5fca;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;" vertex="1" parent="1">
+          <mxGeometry x="890" y="415" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ========== Layer 5: AWS Services (y=530, two rows) ========== -->
+        <mxCell id="layer5_group" value="AWS Services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#FF9900;strokeWidth=1;dashed=1;opacity=40;fontSize=12;fontColor=#FF9900;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="520" width="1200" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- Row 1 -->
+        <mxCell id="aws_s3" value="Amazon S3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3F8624;strokeColor=#3F8624;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="170" y="545" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="aws_dynamodb" value="Amazon DynamoDB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3B48CC;strokeColor=#3B48CC;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="545" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="aws_sqs" value="Amazon SQS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7157B;strokeColor=#E7157B;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="545" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Row 2 -->
+        <mxCell id="aws_bedrock" value="Amazon Bedrock&#xa;(Claude)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#01A88D;strokeColor=#01A88D;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="170" y="625" width="180" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="aws_ses" value="Amazon SES" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7157B;strokeColor=#E7157B;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="625" width="180" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="aws_ec2_gpu" value="EC2 GPU&#xa;(FunASR)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ED7100;strokeColor=#ED7100;strokeWidth=2;fontColor=#FFFFFF;fontSize=13;fontFamily=Arial;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="950" y="625" width="180" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ========== Arrows ========== -->
+
+        <!-- User → Frontend (bidirectional) -->
+        <mxCell id="arrow_browser_fe" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=2;fontColor=#FFFFFF;startArrow=classic;endArrow=classic;" edge="1" source="user_browser" target="fe_index" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_mobile_fe" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=2;fontColor=#FFFFFF;startArrow=classic;endArrow=classic;" edge="1" source="user_mobile" target="fe_meeting" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Frontend → Express (bidirectional) -->
+        <mxCell id="arrow_fe1_be" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=2;startArrow=classic;endArrow=classic;" edge="1" source="fe_index" target="be_express" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_fe2_be" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=2;startArrow=classic;endArrow=classic;" edge="1" source="fe_meeting" target="be_express" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_fe3_be" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=2;startArrow=classic;endArrow=classic;" edge="1" source="fe_glossary" target="be_express" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Express → Workers -->
+        <mxCell id="arrow_be_wk1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=2;endArrow=classic;" edge="1" source="be_express" target="wk_transcription" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_be_wk2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=2;endArrow=classic;" edge="1" source="be_express" target="wk_report" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_be_wk3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=2;endArrow=classic;" edge="1" source="be_express" target="wk_export" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Workers → AWS Services -->
+        <!-- Transcription Worker → S3, EC2 GPU -->
+        <mxCell id="arrow_wk1_s3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=1.5;endArrow=classic;" edge="1" source="wk_transcription" target="aws_s3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_wk1_ec2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=1.5;endArrow=classic;" edge="1" source="wk_transcription" target="aws_ec2_gpu" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Report Worker → Bedrock, DynamoDB -->
+        <mxCell id="arrow_wk2_bedrock" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=1.5;endArrow=classic;" edge="1" source="wk_report" target="aws_bedrock" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_wk2_dynamo" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=1.5;endArrow=classic;" edge="1" source="wk_report" target="aws_dynamodb" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Export Worker → SES, SQS, S3 -->
+        <mxCell id="arrow_wk3_ses" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=1.5;endArrow=classic;" edge="1" source="wk_export" target="aws_ses" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_wk3_sqs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9900;strokeWidth=1.5;endArrow=classic;" edge="1" source="wk_export" target="aws_sqs" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Express routes connections -->
+        <mxCell id="arrow_route1_be" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4a90d9;strokeWidth=1;dashed=1;endArrow=classic;" edge="1" source="be_meetings_route" target="be_express" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_route2_be" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4a90d9;strokeWidth=1;dashed=1;endArrow=classic;" edge="1" source="be_glossary_route" target="be_express" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
