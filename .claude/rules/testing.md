@@ -6,6 +6,29 @@
 - workers/ 目录：核心逻辑必须有 mock 测试
 - services/ 目录：S3/SQS/DynamoDB 操作必须有 mock 测试
 
+## 覆盖率检查命令
+```bash
+npm test -- --coverage
+# 输出报告中 Lines 列 ≥ 70%（整体），routes/ ≥ 80%
+# 新增代码后覆盖率不得低于当前基线
+```
+
+## 测试类型区分
+- **单元测试**（`__tests__/unit/`）：测试单个函数/service，全部 mock 外部依赖
+- **集成测试**（`__tests__/integration/`）：测试路由 → service → DB 完整链路，用内存 DB
+- 禁止在单元测试中发真实网络请求
+
+## 测试文件组织
+```
+__tests__/
+  unit/
+    services/uploadService.test.js
+    services/reportService.test.js
+  integration/
+    meetings.upload.test.js
+    meetings.report.test.js
+```
+
 ## 测试写法规范
 ```javascript
 // ✅ GOOD：描述行为，不描述实现

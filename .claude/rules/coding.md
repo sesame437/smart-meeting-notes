@@ -47,3 +47,13 @@ item.status = "done"
 - 每个路由文件 ≤ 500 行
 - 超过则按功能拆分子文件（参考 routes/meetings/ 目录结构）
 - 复杂业务逻辑提取到 services/，路由只做参数校验 + 调用 + 响应
+
+## 代码质量工具链
+- ESLint：eslint:recommended + node 环境，运行 `npm run lint`
+- Prettier：printWidth=100, singleQuote=true, semi=false
+- 提交前必须无 lint 错误；带 lint 错误不得 commit / push
+
+## 输入校验规范
+- 用 zod 或 joi 校验所有 API 入参
+- 校验失败统一返回 400：`{ "error": { "code": "VALIDATION_ERROR", "message": "...", "fields": [...] } }`
+- 禁止只做 `if (!req.body.xxx)` 手写校验，必须用 schema
