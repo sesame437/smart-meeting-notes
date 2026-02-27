@@ -880,6 +880,7 @@ router.post("/:id/send-email", async (req, res, next) => {
       meetingId: req.params.id,
       reportKey: item.reportKey,
       createdAt: item.createdAt,
+      meetingName: item.title || undefined,
     });
 
     res.json({ success: true, message: "Email sending triggered" });

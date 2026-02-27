@@ -469,25 +469,27 @@ async function processMessage(message) {
     console.log(`[export-worker] Report loaded for ${meetingId}`);
 
     // 2. Build HTML email and send via SES
-    const meetingTitle = body.meetingName || report.title || report.meetingType || meetingId;
-    const subject = `【会议纪要】${meetingTitle}`;
-    const htmlBody = buildHtmlBody(report, meetingTitle);
-
-    // Resolve recipient emails: check DynamoDB for custom recipients
+    // Resolve recipient emails and title from DynamoDB
     const defaultTo = process.env.SES_TO_EMAIL;
     let recipientEmails = [];
+    let dbTitle = null;
     try {
       const { Item } = await docClient.send(new GetCommand({
         TableName: TABLE,
         Key: { meetingId, createdAt },
-        ProjectionExpression: "recipientEmails",
+        ProjectionExpression: "recipientEmails, title",
       }));
       if (Item && Item.recipientEmails && Item.recipientEmails.length) {
         recipientEmails = Item.recipientEmails;
       }
+      if (Item && Item.title) dbTitle = Item.title;
     } catch (err) {
-      console.warn(`[export-worker] Failed to read recipientEmails: ${err.message}`);
+      console.warn(`[export-worker] Failed to read DynamoDB item: ${err.message}`);
     }
+
+    const meetingTitle = body.meetingName || dbTitle || report.title || report.meetingType || meetingId;
+    const subject = `【会议纪要】${meetingTitle}`;
+    const htmlBody = buildHtmlBody(report, meetingTitle);
 
     if (recipientEmails.length) {
       // Send to custom recipients, BCC default
