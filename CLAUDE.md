@@ -119,3 +119,23 @@ helmet 已配置明确的 CSP 白名单（见 server.js），规则：
 - 所有字体/图标/CSS 必须本地化到 public/ 目录
 
 **新增静态资源时**：更新 server.js 的 CSP directives，而不是用 `unsafe-inline` 或 `unsafe-eval`。
+
+## DynamoDB 字段存储格式规范（S3 Key）
+
+**铁律：所有存入 DynamoDB 的 S3 Key 一律存裸 key（不带 PREFIX）**
+
+| 字段 | 格式示例 | 说明 |
+|------|---------|------|
+| `s3Key` | `inbox/{meetingId}/{filename}` | 音频文件路径 |
+| `reportKey` | `reports/{meetingId}/report.json` | 纪要 JSON |
+| `transcribeKey` | `transcripts/{meetingId}/transcribe.json` | AWS Transcribe 结果 |
+| `whisperKey` | `transcripts/{meetingId}/whisper.json` | Whisper 结果 |
+| `funasrKey` | `transcripts/{meetingId}/funasr.json` | FunASR 结果 |
+
+**规则：**
+- `uploadFile(bareKey, data)` 传裸 key，内部加 PREFIX，返回裸 key
+- `getFile(bareKey)` 传裸 key，内部加 PREFIX
+- 调用方**永远不需要知道 PREFIX**，不要在业务代码里拼 `${PREFIX}/...`
+- S3 Event 传来的 key 带 PREFIX，消费前必须 strip（`parseMessage` 已处理）
+
+**背景：** 2026-02-27 因 s3Key 格式不一致导致 S3 Event 去重失败（重复创建会议记录），已修复。
