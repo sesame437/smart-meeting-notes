@@ -868,3 +868,58 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .navbar-links a { padding: 6px 8px; font-size: 12px; }
   .btn-group { flex-direction: column; }
 }
+
+/* ===== Mobile: Action Items 卡片式布局 ===== */
+@media (max-width: 640px) {
+  /* 隐藏表头 */
+  .actions-table thead { display: none; }
+
+  /* 每行变成独立卡片 */
+  .actions-table,
+  .actions-table tbody,
+  .actions-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .actions-table tr {
+    background: var(--bg-card);
+    border: 1px solid var(--aws-border);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    padding: 12px 14px;
+    position: relative;
+  }
+
+  .actions-table td {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: none;
+    font-size: 13px;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: unset !important;
+  }
+
+  /* 每个 td 前面加标签 */
+  .actions-table td:nth-child(1)::before { content: "📋 任务："; font-weight: 600; color: var(--aws-orange); flex-shrink: 0; }
+  .actions-table td:nth-child(2)::before { content: "👤 负责人："; font-weight: 600; color: var(--aws-secondary); flex-shrink: 0; }
+  .actions-table td:nth-child(3)::before { content: "📅 截止："; font-weight: 600; color: var(--aws-secondary); flex-shrink: 0; }
+  .actions-table td:nth-child(4) { justify-content: flex-start; }
+  .actions-table td:nth-child(4)::before { content: "⚡ 优先级："; font-weight: 600; color: var(--aws-secondary); flex-shrink: 0; }
+
+  /* 操作按钮放右上角 */
+  .actions-table td:last-child {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: auto !important;
+    padding: 0;
+  }
+  .actions-table td:last-child::before { content: none; }
+}
