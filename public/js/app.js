@@ -1673,26 +1673,33 @@ function getParam(name) {
 
 /* ===== Event Delegation (replaces inline onclick for CSP compliance) ===== */
 /* ===== Participant Name Search Dropdown ===== */
+let _participantSearchDelegated = false;
 function initParticipantNameSearch() {
-  document.querySelectorAll(".participant-search-input").forEach(function(input) {
-    input.addEventListener("input", function() {
-      var val = this.value.trim().toLowerCase();
-      var sugBox = this.parentElement.querySelector(".name-suggestions");
-      if (!sugBox) return;
-      if (!val) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return; }
-      getCachedGlossaryTerms().then(function(terms) {
-        var matches = terms.filter(function(t) {
-          var term = (t.term || "").toLowerCase();
-          var aliases = (t.aliases || "").toLowerCase();
-          return term.indexOf(val) !== -1 || aliases.indexOf(val) !== -1;
-        }).slice(0, 8);
-        if (matches.length === 0) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return; }
-        sugBox.innerHTML = matches.map(function(t) {
-          return '<div class="suggestion-item" data-name="' + escapeAttr(t.term) + '">' + escapeHtml(t.term) + '</div>';
-        }).join("");
-        sugBox.style.display = "block";
-      }).catch(function() { sugBox.style.display = "none"; });
-    });
+  if (_participantSearchDelegated) return;
+  _participantSearchDelegated = true;
+
+  document.addEventListener("input", function(e) {
+    var input = e.target && e.target.closest ? e.target.closest(".participant-search-input") : null;
+    if (!input) return;
+
+    var val = input.value.trim().toLowerCase();
+    var sugBox = input.parentElement.querySelector(".name-suggestions");
+    if (!sugBox) return;
+    if (!val) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return; }
+
+    getCachedGlossaryTerms().then(function(terms) {
+      var matches = terms.filter(function(t) {
+        var term = (t.term || "").toLowerCase();
+        var aliases = (t.aliases || "").toLowerCase();
+        return term.indexOf(val) !== -1 || aliases.indexOf(val) !== -1;
+      }).slice(0, 8);
+
+      if (matches.length === 0) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return; }
+      sugBox.innerHTML = matches.map(function(t) {
+        return '<div class="suggestion-item" data-name="' + escapeAttr(t.term) + '">' + escapeHtml(t.term) + '</div>';
+      }).join("");
+      sugBox.style.display = "block";
+    }).catch(function() { sugBox.style.display = "none"; });
   });
 }
 
