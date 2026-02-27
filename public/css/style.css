@@ -920,7 +920,6 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     justify-content: space-between;
     gap: 8px;
   }
-  .actions-table td.td-priority-actions::before { content: "⚡ 优先级："; font-weight: 600; color: var(--aws-secondary); flex-shrink: 0; }
   .actions-table td.td-priority-actions .row-actions {
     opacity: 1 !important;
     visibility: visible !important;
