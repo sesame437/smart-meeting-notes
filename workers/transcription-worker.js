@@ -163,8 +163,10 @@ async function runFunASR(meetingId, s3Key) {
 
   try {
     console.log(`[FunASR] Sending s3_key to ${FUNASR_URL}/asr`);
+    // s3Key stored in DB may not have prefix; FunASR needs the full key with prefix
+    const fullS3Key = s3Key.startsWith(PREFIX) ? s3Key : `${PREFIX}/${s3Key}`;
     const formData = new FormData();
-    formData.append("s3_key", s3Key);
+    formData.append("s3_key", fullS3Key);
     formData.append("s3_bucket", process.env.S3_BUCKET || "yc-projects-012289836917");
     formData.append("language", "zh");
 
