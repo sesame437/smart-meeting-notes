@@ -63,11 +63,11 @@ function buildHtmlBody(report, meetingName) {
 
   // Summary
   if (report.summary) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <table width="100%" cellpadding="0" cellspacing="0"><tr>
         <td style="border-left:4px solid #FF9900;padding-left:14px;">
           <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#FF9900;text-transform:uppercase;letter-spacing:1px;">会议摘要</p>
-          <p style="margin:0;font-size:14px;color:#333;line-height:1.7;">${esc(report.summary)}</p>
+          <p style="margin:0;font-size:15px;color:#333;line-height:1.8;">${esc(report.summary)}</p>
         </td>
       </tr></table>
     </td></tr>`;
@@ -75,7 +75,7 @@ function buildHtmlBody(report, meetingName) {
 
   // keyTopics (general/tech)
   if (report.keyTopics && report.keyTopics.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">📋 &nbsp;议题讨论</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:6px;overflow:hidden;border:1px solid #e8edf2;">
         <tr style="background:#232F3E;">
@@ -96,7 +96,7 @@ function buildHtmlBody(report, meetingName) {
   // weekly: teamKPI
   if (report.teamKPI) {
     const kpi = report.teamKPI;
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">📊 &nbsp;团队 KPI</p>`;
     if (kpi.overview) {
       body += `<p style="margin:0 0 10px;font-size:13px;color:#555;line-height:1.6;">${esc(kpi.overview)}</p>`;
@@ -124,7 +124,7 @@ function buildHtmlBody(report, meetingName) {
 
   // weekly: announcements
   if (report.announcements && report.announcements.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">📢 &nbsp;公司公告</p>`;
     for (const a of report.announcements) {
       body += `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;"><tr>
@@ -139,7 +139,7 @@ function buildHtmlBody(report, meetingName) {
   // weekly: projectReviews
   if (report.projectReviews && report.projectReviews.length) {
     for (const pr of report.projectReviews) {
-      body += `<tr><td style="padding:0 32px 24px;">
+      body += `<tr><td style="padding:0 36px 28px;">
         <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">🗂 &nbsp;${esc(pr.project)}</p>`;
       if (pr.progress) {
         body += `<p style="margin:0 0 12px;font-size:13px;color:#555;line-height:1.6;padding:10px 14px;background:#f8f9fa;border-radius:6px;">${esc(pr.progress)}</p>`;
@@ -204,7 +204,7 @@ function buildHtmlBody(report, meetingName) {
   if (report.customerInfo || (report.awsAttendees && report.awsAttendees.length)) {
     const ci = report.customerInfo || {};
     const awsAtt = report.awsAttendees || [];
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <table width="100%" cellpadding="0" cellspacing="0"><tr>
         <td style="width:50%;vertical-align:top;padding-right:12px;">
           <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">🏢 &nbsp;客户信息</p>
@@ -221,7 +221,7 @@ function buildHtmlBody(report, meetingName) {
 
   // customer: customerNeeds
   if (report.customerNeeds && report.customerNeeds.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">🎯 &nbsp;客户需求</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:6px;overflow:hidden;border:1px solid #e8edf2;">
         <tr style="background:#232F3E;">
@@ -241,7 +241,7 @@ function buildHtmlBody(report, meetingName) {
 
   // customer: painPoints
   if (report.painPoints && report.painPoints.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">⚡ &nbsp;客户痛点</p>`;
     for (const p of report.painPoints) {
       body += `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:6px;"><tr>
@@ -255,7 +255,7 @@ function buildHtmlBody(report, meetingName) {
 
   // customer: solutionsDiscussed
   if (report.solutionsDiscussed && report.solutionsDiscussed.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">💡 &nbsp;讨论方案</p>`;
     for (const s of report.solutionsDiscussed) {
       body += `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;"><tr>
@@ -271,7 +271,7 @@ function buildHtmlBody(report, meetingName) {
 
   // customer: commitments
   if (report.commitments && report.commitments.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">🤝 &nbsp;承诺事项</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:6px;overflow:hidden;border:1px solid #e8edf2;">
         <tr style="background:#232F3E;">
@@ -295,7 +295,7 @@ function buildHtmlBody(report, meetingName) {
 
   // customer: nextSteps
   if (report.nextSteps && report.nextSteps.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">➡️ &nbsp;下一步行动</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:6px;overflow:hidden;border:1px solid #e8edf2;">
         <tr style="background:#232F3E;">
@@ -317,7 +317,7 @@ function buildHtmlBody(report, meetingName) {
 
   // highlights (general/tech)
   if (report.highlights && report.highlights.length && !report.projectReviews) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">✨ &nbsp;亮点</p>`;
     for (const h of report.highlights) {
       body += `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:6px;"><tr>
@@ -331,7 +331,7 @@ function buildHtmlBody(report, meetingName) {
 
   // lowlights (general/tech)
   if (report.lowlights && report.lowlights.length && !report.projectReviews) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">⚠️ &nbsp;风险 / 问题</p>`;
     for (const l of report.lowlights) {
       body += `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:6px;"><tr>
@@ -345,7 +345,7 @@ function buildHtmlBody(report, meetingName) {
 
   // decisions
   if (report.decisions && report.decisions.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">🔑 &nbsp;关键决策</p>`;
     for (const d of report.decisions) {
       body += `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;"><tr>
@@ -359,7 +359,7 @@ function buildHtmlBody(report, meetingName) {
 
   // actions
   if (report.actions && report.actions.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">✅ &nbsp;行动项</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:6px;overflow:hidden;border:1px solid #e8edf2;">
         <tr style="background:#232F3E;">
@@ -381,7 +381,7 @@ function buildHtmlBody(report, meetingName) {
 
   // participants footer bar
   if (participants.length) {
-    body += `<tr><td style="padding:0 32px 24px;">
+    body += `<tr><td style="padding:0 36px 28px;">
       <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#879596;text-transform:uppercase;letter-spacing:0.5px;">参会人员（${participants.length}人）</p>
       <p style="margin:0;font-size:13px;color:#666;">${participants.map(esc).join(" · ")}</p>
       ${duration ? `<p style="margin:4px 0 0;font-size:12px;color:#879596;">会议时长：${esc(duration)}</p>` : ""}
@@ -390,30 +390,39 @@ function buildHtmlBody(report, meetingName) {
 
   const html = `<!DOCTYPE html>
 <html lang="zh">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:20px 0;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+</head>
+<body style="margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f5;padding:24px 0;">
+<tr><td align="center" style="padding:0 12px;">
+<!--[if mso]><table width="700" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:700px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);">
 
 <!-- Header -->
-<tr><td style="background:#232F3E;padding:24px 32px;">
+<tr><td style="background:#232F3E;padding:20px 32px;">
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td><span style="color:#FF9900;font-size:18px;font-weight:700;letter-spacing:1px;">▲ Meeting Minutes</span></td>
-    <td align="right" style="vertical-align:top;"><span style="background:#FF9900;color:#232F3E;font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;">已完成</span></td>
+    <td style="vertical-align:middle;">
+      <span style="color:#FF9900;font-size:20px;font-weight:700;letter-spacing:1px;">▲ Meeting Minutes</span>
+    </td>
+    <td align="right" style="vertical-align:middle;">
+      <span style="background:#FF9900;color:#232F3E;font-size:12px;font-weight:700;padding:5px 14px;border-radius:14px;white-space:nowrap;">已完成</span>
+    </td>
   </tr></table>
 </td></tr>
 
 <!-- Meta -->
-<tr><td style="background:#2d3d50;padding:14px 32px;">
+<tr><td style="background:#2d3d50;padding:16px 32px;">
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td style="color:#e8edf2;font-size:15px;font-weight:600;">${esc(name)}</td>
-    <td align="right" style="color:#8899aa;font-size:13px;">${esc(date)}${duration ? ` &nbsp;|&nbsp; ${esc(duration)}` : ""}${participants.length ? ` &nbsp;|&nbsp; ${participants.length}人` : ""}</td>
+    <td style="color:#ffffff;font-size:17px;font-weight:700;line-height:1.4;">${esc(name)}</td>
+    <td align="right" style="color:#8fa8be;font-size:13px;white-space:nowrap;padding-left:16px;vertical-align:middle;">${esc(date)}${duration ? ` &nbsp;|&nbsp; ${esc(duration)}` : ""}${participants.length ? ` &nbsp;|&nbsp; ${participants.length}人` : ""}</td>
   </tr></table>
 </td></tr>
 
 <!-- Spacer -->
-<tr><td style="height:24px;"></td></tr>
+<tr><td style="height:28px;"></td></tr>
 
 ${body}
 
@@ -425,6 +434,7 @@ ${body}
 </td></tr>
 
 </table>
+<!--[if mso]></td></tr></table><![endif]-->
 </td></tr>
 </table>
 </body></html>`;
