@@ -981,7 +981,6 @@ function renderMeetingDetail(m) {
 
     if (participants.length > 0) {
       html += `
-        <datalist id="glossary-names-list"></datalist>
         <div class="participant-list">`;
 
       participants.forEach((p, idx) => {
@@ -1002,12 +1001,14 @@ function renderMeetingDetail(m) {
 
         html += `<div class="participant-row">
           <div class="participant-label">${escapeHtml(label)}</div>
-          <input type="text"
-            class="form-control participant-name-input"
-            list="glossary-names-list"
-            data-participant-label="${escapeAttr(rawLabel)}"
-            value="${escapeAttr(savedName)}"
-            placeholder="输入真实姓名（可从词汇表选择）" />
+          <div class="participant-search-wrap">
+            <input type="text"
+              class="form-control participant-name-input participant-search-input"
+              data-participant-label="${escapeAttr(rawLabel)}"
+              value="${escapeAttr(savedName)}"
+              placeholder="输入真实姓名（可从词汇表选择）" />
+            <div class="name-suggestions" style="display:none;"></div>
+          </div>
         </div>`;
       });
 
@@ -1029,15 +1030,8 @@ function renderMeetingDetail(m) {
   // Store report data for inline editing
   storeReportData(m.meetingId, report);
 
-  // Populate glossary datalist for participant name autocomplete
-  const datalist = document.getElementById("glossary-names-list");
-  if (datalist) {
-    getCachedGlossaryTerms().then(terms => {
-      datalist.innerHTML = terms.map(t =>
-        `<option value="${escapeAttr(t.term)}">${escapeHtml(t.term)}</option>`
-      ).join("");
-    }).catch(() => {});
-  }
+  // Bind custom name search dropdown for participant inputs
+  initParticipantNameSearch();
 
   // Bottom bar - 只保留返回按钮
   const bottomBar = document.getElementById("bottom-bar");
@@ -1678,6 +1672,52 @@ function getParam(name) {
 }
 
 /* ===== Event Delegation (replaces inline onclick for CSP compliance) ===== */
+/* ===== Participant Name Search Dropdown ===== */
+function initParticipantNameSearch() {
+  document.querySelectorAll(".participant-search-input").forEach(function(input) {
+    input.addEventListener("input", function() {
+      var val = this.value.trim().toLowerCase();
+      var sugBox = this.parentElement.querySelector(".name-suggestions");
+      if (!sugBox) return;
+      if (!val) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return; }
+      getCachedGlossaryTerms().then(function(terms) {
+        var matches = terms.filter(function(t) {
+          var term = (t.term || "").toLowerCase();
+          var aliases = (t.aliases || "").toLowerCase();
+          return term.indexOf(val) !== -1 || aliases.indexOf(val) !== -1;
+        }).slice(0, 8);
+        if (matches.length === 0) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return; }
+        sugBox.innerHTML = matches.map(function(t) {
+          return '<div class="suggestion-item" data-name="' + escapeAttr(t.term) + '">' + escapeHtml(t.term) + '</div>';
+        }).join("");
+        sugBox.style.display = "block";
+      }).catch(function() { sugBox.style.display = "none"; });
+    });
+  });
+}
+
+// Close all suggestion dropdowns when clicking outside
+document.addEventListener("click", function(e) {
+  if (!e.target.closest(".participant-search-wrap")) {
+    document.querySelectorAll(".name-suggestions").forEach(function(el) {
+      el.style.display = "none";
+      el.innerHTML = "";
+    });
+  }
+  // Handle suggestion item click via event delegation
+  if (e.target.classList.contains("suggestion-item")) {
+    var name = e.target.dataset.name;
+    var wrap = e.target.closest(".participant-search-wrap");
+    if (wrap) {
+      var inp = wrap.querySelector(".participant-search-input");
+      if (inp) inp.value = name;
+    }
+    var sugBox = e.target.closest(".name-suggestions");
+    if (sugBox) { sugBox.style.display = "none"; sugBox.innerHTML = ""; }
+    return;
+  }
+});
+
 document.addEventListener("click", function(e) {
   const el = e.target.closest("[data-action]");
   if (!el) return;
