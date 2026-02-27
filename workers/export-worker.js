@@ -79,15 +79,15 @@ function buildHtmlBody(report, meetingName) {
       <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#232F3E;text-transform:uppercase;letter-spacing:0.5px;">📋 &nbsp;议题讨论</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:6px;overflow:hidden;border:1px solid #e8edf2;">
         <tr style="background:#232F3E;">
-          <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#FF9900;width:20%;">议题</td>
-          <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#FF9900;width:40%;">讨论要点</td>
-          <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#FF9900;width:40%;">结论</td>
+          <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#FF9900;width:18%;">议题</td>
+          <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#FF9900;width:52%;">讨论要点</td>
+          <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#FF9900;width:30%;">结论</td>
         </tr>`;
     for (const t of report.keyTopics) {
       body += `<tr style="border-bottom:1px solid #f0f0f0;">
-        <td style="padding:10px 14px;font-size:13px;color:#333;font-weight:600;width:20%;">${esc(t.topic)}</td>
-        <td style="padding:10px 14px;font-size:13px;color:#555;width:40%;">${esc(t.discussion)}</td>
-        <td style="padding:10px 14px;font-size:13px;color:#333;width:40%;word-break:break-word;">${esc(t.conclusion||"待定")}</td>
+        <td style="padding:10px 14px;font-size:13px;color:#333;font-weight:600;width:18%;">${esc(t.topic)}</td>
+        <td style="padding:10px 14px;font-size:13px;color:#555;width:52%;">${esc(t.discussion)}</td>
+        <td style="padding:10px 14px;font-size:13px;color:#333;width:30%;word-break:break-word;">${esc(t.conclusion||"待定")}</td>
       </tr>`;
     }
     body += `</table></td></tr>`;
@@ -399,7 +399,7 @@ function buildHtmlBody(report, meetingName) {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f5;padding:24px 0;">
 <tr><td align="center" style="padding:0 12px;">
 <!--[if mso]><table width="700" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
-<table width="100%" cellpadding="0" cellspacing="0" style="max-width:700px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:800px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);">
 
 <!-- Header -->
 <tr><td style="background:#232F3E;padding:20px 32px;">
