@@ -399,8 +399,7 @@ function buildHtmlBody(report, meetingName) {
 <!-- Header -->
 <tr><td style="background:#232F3E;padding:24px 32px;">
   <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td><span style="color:#FF9900;font-size:18px;font-weight:700;letter-spacing:1px;">▲ Meeting Minutes</span>
-      <p style="color:#aab7c4;margin:6px 0 0;font-size:13px;">自动生成 · FunASR + Claude on AWS Bedrock</p></td>
+    <td><span style="color:#FF9900;font-size:18px;font-weight:700;letter-spacing:1px;">▲ Meeting Minutes</span></td>
     <td align="right" style="vertical-align:top;"><span style="background:#FF9900;color:#232F3E;font-size:11px;font-weight:700;padding:4px 10px;border-radius:12px;">已完成</span></td>
   </tr></table>
 </td></tr>
@@ -421,8 +420,7 @@ ${body}
 <!-- Footer -->
 <tr><td style="background:#f8f9fa;padding:16px 32px;border-top:1px solid #e8edf2;">
   <p style="margin:0;font-size:11px;color:#879596;text-align:center;">
-    由 Meeting Minutes 自动生成 · <a href="https://minutes.yc-wgr.com" style="color:#879596;">minutes.yc-wgr.com</a><br>
-    转录引擎：FunASR (CAM++ 说话人分离) &nbsp;·&nbsp; 报告引擎：Claude on AWS Bedrock
+    ⚠️ 本纪要由 AI 自动生成，内容仅供参考，请以实际会议内容为准。
   </p>
 </td></tr>
 
@@ -471,10 +469,9 @@ async function processMessage(message) {
     console.log(`[export-worker] Report loaded for ${meetingId}`);
 
     // 2. Build HTML email and send via SES
-    const meetingType = report.meetingType || "会议";
-    const date = report.date || fmtDate(nowISO());
-    const subject = `【会议纪要】${meetingType} - ${date}`;
-    const htmlBody = buildHtmlBody(report, body.meetingName || meetingId);
+    const meetingTitle = body.meetingName || report.title || report.meetingType || meetingId;
+    const subject = `【会议纪要】${meetingTitle}`;
+    const htmlBody = buildHtmlBody(report, meetingTitle);
 
     // Resolve recipient emails: check DynamoDB for custom recipients
     const defaultTo = process.env.SES_TO_EMAIL;
