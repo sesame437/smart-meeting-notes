@@ -1,4 +1,5 @@
 require("dotenv").config();
+const { randomUUID } = require("crypto");
 const {
   TranscribeClient,
   StartTranscriptionJobCommand,
@@ -251,7 +252,7 @@ function parseMessage(body) {
     const s3Event = body.Records[0].s3;
     const s3Key = decodeURIComponent(s3Event.object.key.replace(/\+/g, " "));
     const filename = s3Key.split("/").pop();
-    const meetingId = `meeting-${Date.now()}`;
+    const meetingId = randomUUID();
     const meetingType = parseMeetingTypeFromFilename(filename);
     return { meetingId, s3Key, filename, meetingType, isS3Event: true };
   }
