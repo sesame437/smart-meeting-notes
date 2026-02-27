@@ -438,11 +438,7 @@ async function uploadFile(file) {
   const meetingType  = radioChecked ? radioChecked.value : (selectEl ? selectEl.value : "general");
   formData.append("meetingType", meetingType);
 
-  // Recipient emails
-  const recipientInput = document.getElementById("recipientEmails");
-  if (recipientInput && recipientInput.value.trim()) {
-    formData.append("recipientEmails", recipientInput.value.trim());
-  }
+  // Recipient emails - 统一发到默认收件人，不从前端传入
 
   try {
     const xhr = new XMLHttpRequest();
@@ -1043,14 +1039,11 @@ function renderMeetingDetail(m) {
     }).catch(() => {});
   }
 
-  // Bottom bar
+  // Bottom bar - 只保留返回按钮
   const bottomBar = document.getElementById("bottom-bar");
   if (bottomBar) {
     bottomBar.innerHTML = `
       <a href="index.html" class="btn btn-outline"><i class="fa fa-arrow-left"></i> 返回</a>
-      <div class="btn-group">
-        <button class="btn action-primary-btn" data-action="send-email" data-id="${escapeAttr(m.meetingId)}"><i class="fa fa-envelope"></i> 发送邮件</button>
-      </div>
     `;
   }
 
