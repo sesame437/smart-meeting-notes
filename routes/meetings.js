@@ -460,16 +460,7 @@ router.post("/merge", async (req, res, next) => {
       },
     }));
 
-    // Send to export queue
-    const exportQueueUrl = process.env.SQS_EXPORT_QUEUE;
-    if (exportQueueUrl) {
-      await sendMessage(exportQueueUrl, {
-        meetingId,
-        reportKey: fullReportKey,
-        createdAt: now,
-      });
-    }
-
+    // Note: email is sent manually via POST /:id/send-email
     res.status(201).json({ meetingId, report, skipped });
   } catch (err) {
     next(err);
@@ -649,24 +640,12 @@ router.post("/:id/regenerate", async (req, res, next) => {
         ":c": report,
         ":rk": fullReportKey,
         ":s": "reported",
-        ":stage": "exporting",
+        ":stage": "done",
         ":u": new Date().toISOString(),
       },
     }));
 
-    const exportQueueUrl = process.env.SQS_EXPORT_QUEUE;
-    if (exportQueueUrl) {
-      try {
-        await sendMessage(exportQueueUrl, {
-          meetingId: req.params.id,
-          reportKey: fullReportKey,
-          createdAt: item.createdAt,
-        });
-      } catch (err) {
-        console.warn("[regenerate] Failed to send export queue message:", err.message);
-      }
-    }
-
+    // Note: email is sent manually via POST /:id/send-email
     res.json({ success: true, report });
   } catch (err) {
     next(err);
@@ -736,24 +715,12 @@ router.put("/:id/speaker-map", async (req, res, next) => {
         ":c": report,
         ":rk": fullReportKey,
         ":s": "reported",
-        ":stage": "exporting",
+        ":stage": "done",
         ":u": new Date().toISOString(),
       },
     }));
 
-    const exportQueueUrl = process.env.SQS_EXPORT_QUEUE;
-    if (exportQueueUrl) {
-      try {
-        await sendMessage(exportQueueUrl, {
-          meetingId: req.params.id,
-          reportKey: fullReportKey,
-          createdAt: item.createdAt,
-        });
-      } catch (err) {
-        console.warn("[speaker-map] Failed to send export queue message:", err.message);
-      }
-    }
-
+    // Note: email is sent manually via POST /:id/send-email
     res.json({ success: true, report });
   } catch (err) {
     next(err);
