@@ -441,7 +441,7 @@ router.post("/merge", async (req, res, next) => {
 
     // Upload report to S3
     const reportKey = `reports/${meetingId}/report.json`;
-    const fullReportKey = await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
+    await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
 
     // Save to DynamoDB
     await docClient.send(new PutCommand({
@@ -455,7 +455,7 @@ router.post("/merge", async (req, res, next) => {
         status: "reported",
         stage: "exporting",
         content: report,
-        reportKey: fullReportKey,
+        reportKey: reportKey,
         createdAt: now,
       },
     }));
@@ -629,7 +629,7 @@ router.post("/:id/regenerate", async (req, res, next) => {
     const report = JSON.parse(jsonMatch[0]);
 
     const reportKey = `reports/${req.params.id}/report.json`;
-    const fullReportKey = await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
+    await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
 
     await docClient.send(new UpdateCommand({
       TableName: TABLE,
@@ -638,7 +638,7 @@ router.post("/:id/regenerate", async (req, res, next) => {
       ExpressionAttributeNames: { "#s": "status" },
       ExpressionAttributeValues: {
         ":c": report,
-        ":rk": fullReportKey,
+        ":rk": reportKey,
         ":s": "reported",
         ":stage": "done",
         ":u": new Date().toISOString(),
@@ -704,7 +704,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
     const report = JSON.parse(jsonMatch[0]);
 
     const reportKey = `reports/${req.params.id}/report.json`;
-    const fullReportKey = await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
+    await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
 
     await docClient.send(new UpdateCommand({
       TableName: TABLE,
@@ -713,7 +713,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
       ExpressionAttributeNames: { "#s": "status" },
       ExpressionAttributeValues: {
         ":c": report,
-        ":rk": fullReportKey,
+        ":rk": reportKey,
         ":s": "reported",
         ":stage": "done",
         ":u": new Date().toISOString(),
@@ -780,7 +780,7 @@ router.patch("/:id/report", async (req, res, next) => {
     }
 
     // Write back to S3
-    await uploadFile(item.reportKey.replace(/^meeting-minutes\//, ""), JSON.stringify(report, null, 2), "application/json");
+    await uploadFile(item.reportKey, JSON.stringify(report, null, 2), "application/json");
 
     // Update DynamoDB updatedAt
     await docClient.send(new UpdateCommand({

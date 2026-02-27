@@ -99,10 +99,12 @@ async function readTranscript(transcribeKey, whisperKey) {
 
 async function readFunASRResult(funasrKey) {
   if (!funasrKey) return null;
+  const PREFIX = process.env.S3_PREFIX || "meeting-minutes";
+  const fullKey = funasrKey.startsWith(PREFIX) ? funasrKey : `${PREFIX}/${funasrKey}`;
   try {
     const resp = await s3Client.send(new GetObjectCommand({
       Bucket: process.env.S3_BUCKET || "yc-projects-012289836917",
-      Key: funasrKey,
+      Key: fullKey,
     }));
     const body = await resp.Body.transformToString();
     const data = JSON.parse(body);
@@ -211,7 +213,6 @@ async function processMessage(message) {
     // 4. Upload report to S3
     const reportKey = `reports/${meetingId}/report.json`;
     await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
-    const fullReportKey = `${process.env.S3_PREFIX}/${reportKey}`;
 
     // 5. Update DynamoDB status to "completed", stage to "done" (email sending is now manual)
     await docClient.send(new UpdateCommand({
@@ -221,7 +222,7 @@ async function processMessage(message) {
       ExpressionAttributeNames: { "#s": "status" },
       ExpressionAttributeValues: {
         ":s": "completed",
-        ":rk": fullReportKey,
+        ":rk": reportKey,
         ":u": new Date().toISOString(),
         ":stage": "done",
       },

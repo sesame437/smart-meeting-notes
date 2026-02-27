@@ -44,7 +44,8 @@ async function checkVocabularyExists(vocabName) {
 
 async function runAWSTranscribe(meetingId, s3Key) {
   const jobName = `${meetingId}-transcribe`;
-  const outputKey = `${PREFIX}/transcripts/${meetingId}/transcribe.json`;
+  const outputKey = `transcripts/${meetingId}/transcribe.json`;
+  const s3OutputKey = `${PREFIX}/${outputKey}`;
   const mediaUri = `s3://${BUCKET}/${s3Key}`;
 
   const params = {
@@ -52,7 +53,7 @@ async function runAWSTranscribe(meetingId, s3Key) {
     LanguageCode: "zh-CN",
     Media: { MediaFileUri: mediaUri },
     OutputBucketName: BUCKET,
-    OutputKey: outputKey,
+    OutputKey: s3OutputKey,
   };
 
   // Use custom vocabulary if available
@@ -98,7 +99,8 @@ async function isWhisperAvailable() {
 }
 
 async function runWhisper(meetingId, s3Key, filename) {
-  const outputKey = `${PREFIX}/transcripts/${meetingId}/whisper.json`;
+  const outputKey = `transcripts/${meetingId}/whisper.json`;
+  const s3OutputKey = `${PREFIX}/${outputKey}`;
 
   // Check Whisper service availability
   const available = await isWhisperAvailable();
@@ -137,7 +139,7 @@ async function runWhisper(meetingId, s3Key, filename) {
   // Upload result to S3
   await s3.send(new PutObjectCommand({
     Bucket: BUCKET,
-    Key: outputKey,
+    Key: s3OutputKey,
     Body: JSON.stringify(result, null, 2),
     ContentType: "application/json",
   }));
@@ -160,7 +162,8 @@ async function runFunASR(meetingId, s3Key) {
     return null;
   }
 
-  const outputKey = `${PREFIX}/transcripts/${meetingId}/funasr.json`;
+  const outputKey = `transcripts/${meetingId}/funasr.json`;
+  const s3OutputKey = `${PREFIX}/${outputKey}`;
 
   try {
     console.log(`[FunASR] Sending s3_key to ${FUNASR_URL}/asr`);
@@ -197,7 +200,7 @@ async function runFunASR(meetingId, s3Key) {
     const s3Body = JSON.stringify(result);
     await s3.send(new PutObjectCommand({
       Bucket: process.env.S3_BUCKET || "yc-projects-012289836917",
-      Key: outputKey,
+      Key: s3OutputKey,
       Body: s3Body,
       ContentType: "application/json",
     }));
@@ -254,7 +257,10 @@ function parseMessage(body) {
     const filename = s3Key.split("/").pop();
     const meetingId = randomUUID();
     const meetingType = parseMeetingTypeFromFilename(filename);
-    return { meetingId, s3Key, filename, meetingType, isS3Event: true };
+    // Strip PREFIX from s3Key for consistent storage (S3 events include full key with prefix)
+    const PREFIX_PATH = (process.env.S3_PREFIX || "meeting-minutes") + "/";
+    const bareS3Key = s3Key.startsWith(PREFIX_PATH) ? s3Key.slice(PREFIX_PATH.length) : s3Key;
+    return { meetingId, s3Key: bareS3Key, filename, meetingType, isS3Event: true };
   }
 
   // Internal format
@@ -369,7 +375,8 @@ async function processMessage(message) {
     let speakers = [];
     if (funasrKey) {
       try {
-        const resp = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: funasrKey }));
+        const fullFunasrKey = funasrKey.startsWith(PREFIX) ? funasrKey : `${PREFIX}/${funasrKey}`;
+        const resp = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: fullFunasrKey }));
         const chunks = [];
         for await (const chunk of resp.Body) chunks.push(chunk);
         const funasrResult = JSON.parse(Buffer.concat(chunks).toString("utf-8"));

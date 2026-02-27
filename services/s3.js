@@ -12,7 +12,7 @@ async function uploadFile(key, body, contentType) {
     Body: body,
     ContentType: contentType,
   }));
-  return fullKey;
+  return key;
 }
 
 async function getFile(key) {
