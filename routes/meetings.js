@@ -71,17 +71,25 @@ async function getMeetingById(id) {
   return Items?.[0] || null;
 }
 
-// List meetings - deduplicate by meetingId, keep the latest createdAt per meetingId
+// List meetings - deduplicate by meetingId, prefer item with title, then latest createdAt
 router.get("/", async (_req, res, next) => {
   try {
     const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE }));
     const all = Items || [];
-    // Group by meetingId, keep the one with the latest createdAt
+    // Group by meetingId, prefer item with title, then latest createdAt
     const map = new Map();
     for (const item of all) {
       const existing = map.get(item.meetingId);
-      if (!existing || item.createdAt > existing.createdAt) {
+      if (!existing) {
         map.set(item.meetingId, item);
+      } else {
+        const existingHasTitle = !!(existing.title);
+        const itemHasTitle = !!(item.title);
+        if (itemHasTitle && !existingHasTitle) {
+          map.set(item.meetingId, item); // prefer titled item
+        } else if (existingHasTitle === itemHasTitle && item.createdAt > existing.createdAt) {
+          map.set(item.meetingId, item); // same title status → take newer
+        }
       }
     }
     // Sort by createdAt descending
