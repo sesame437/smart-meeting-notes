@@ -923,9 +923,10 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   }
   .actions-table td:last-child::before { content: none; }
 
-  /* 隐藏编辑/删除按钮 */
-  .row-actions,
-  .section-edit-btn,
+  /* 移动端：编辑/删除按钮常驻显示（不需要 hover 触发） */
+  .row-actions { opacity: 1 !important; visibility: visible !important; }
+  .section-edit-btn { opacity: 1 !important; visibility: visible !important; }
+  /* auto-name 按钮手机上隐藏（操作复杂，保留桌面） */
   .auto-name-btn { display: none !important; }
 
   /* 参与人 - 卡片化 */
