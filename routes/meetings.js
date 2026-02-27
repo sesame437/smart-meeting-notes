@@ -731,9 +731,9 @@ router.put("/:id/speaker-map", async (req, res, next) => {
 router.patch("/:id/report", async (req, res, next) => {
   try {
     const { section, data } = req.body;
-    const validSections = ["summary", "actionItems", "keyDecisions"];
+    const validSections = ["summary", "actionItems", "keyDecisions", "participants", "highlights", "lowlights"];
     if (!validSections.includes(section)) {
-      return res.status(400).json({ error: "Invalid section. Must be one of: summary, actionItems, keyDecisions" });
+      return res.status(400).json({ error: "Invalid section. Must be one of: summary, actionItems, keyDecisions, participants, highlights, lowlights" });
     }
     if (data === undefined || data === null) {
       return res.status(400).json({ error: "data is required" });
@@ -756,12 +756,18 @@ router.patch("/:id/report", async (req, res, next) => {
       summary: "summary",
       actionItems: "actions",
       keyDecisions: "decisions",
+      participants: "participants",
+      highlights: "highlights",
+      lowlights: "lowlights",
     };
     // Also check alternative field names from Bedrock output
     const altFieldMap = {
       summary: "executive_summary",
       actionItems: "actions",
       keyDecisions: "key_decisions",
+      participants: "attendees",
+      highlights: "highlights",
+      lowlights: "lowlights",
     };
     const primaryField = fieldMap[section];
     const altField = altFieldMap[section];

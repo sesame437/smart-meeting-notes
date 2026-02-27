@@ -884,18 +884,36 @@ function renderMeetingDetail(m) {
 
     if (highlights.length) {
       html += `
-        <div class="card">
+        <div class="card" id="section-highlights">
           <div class="card-title"><i class="fa fa-thumb-tack"></i> 亮点</div>
-          <ul>${highlights.map(h => `<li class="highlight-item">${escapeHtml(renderListItem(h))}</li>`).join("")}</ul>
+          <ul>${highlights.map((h, i) => `<li class="highlight-item" id="highlight-row-${i}" style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="hl-text">${escapeHtml(renderListItem(h))}</span>
+            <div class="row-actions">
+              <button class="btn btn-outline btn-sm" data-action="edit-highlight" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-highlight" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </div>
+          </li>`).join("")}</ul>
+          <div style="text-align:right;margin-top:8px;">
+            <button class="btn btn-outline btn-sm" data-action="add-highlight" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加亮点</button>
+          </div>
         </div>
       `;
     }
 
     if (lowlights.length) {
       html += `
-        <div class="card">
+        <div class="card" id="section-lowlights">
           <div class="card-title"><i class="fa fa-exclamation-triangle"></i> 待改进</div>
-          <ul>${lowlights.map(l => `<li class="lowlight-item">${escapeHtml(renderListItem(l))}</li>`).join("")}</ul>
+          <ul>${lowlights.map((l, i) => `<li class="lowlight-item" id="lowlight-row-${i}" style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="hl-text">${escapeHtml(renderListItem(l))}</span>
+            <div class="row-actions">
+              <button class="btn btn-outline btn-sm" data-action="edit-lowlight" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-lowlight" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </div>
+          </li>`).join("")}</ul>
+          <div style="text-align:right;margin-top:8px;">
+            <button class="btn btn-outline btn-sm" data-action="add-lowlight" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加待改进</button>
+          </div>
         </div>
       `;
     }
@@ -1007,6 +1025,10 @@ function renderMeetingDetail(m) {
               value="${escapeAttr(savedName)}"
               placeholder="输入真实姓名（可从词汇表选择）" />
             <div class="name-suggestions" style="display:none;"></div>
+          </div>
+          <div class="row-actions">
+            <button class="btn btn-outline btn-sm" data-action="edit-participant" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+            <button class="btn btn-danger btn-sm" data-action="delete-participant" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
           </div>
         </div>`;
       });
@@ -1562,6 +1584,220 @@ async function deleteDecisionItem(index, meetingId) {
   }
 }
 
+/* ===== Patch Report Section Helper ===== */
+async function patchReportSection(meetingId, section, data) {
+  const res = await fetch("/api/meetings/" + meetingId + "/report", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ section: section, data: data })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+/* ===== Participant Edit/Delete ===== */
+function editParticipant(index, meetingId) {
+  if (!_currentReport) return;
+  var participants = _currentReport.participants || _currentReport.attendees || [];
+  var item = participants[index];
+  if (!item) return;
+  var text = typeof item === "string" ? item : (item.name || JSON.stringify(item));
+  var rows = document.querySelectorAll(".participant-row");
+  var row = rows[index];
+  if (!row) return;
+  var labelEl = row.querySelector(".participant-label");
+  if (!labelEl) return;
+  var origText = labelEl.textContent;
+  labelEl.innerHTML = `<input type="text" class="form-control" id="edit-participant-input-${index}" value="${escapeAttr(text)}" style="border:2px solid #FF9900;width:100%;">`;
+  var input = document.getElementById("edit-participant-input-" + index);
+  input.focus();
+  function save() {
+    var newVal = input.value.trim();
+    if (!newVal) { input.focus(); return; }
+    var arr = JSON.parse(JSON.stringify(participants));
+    if (typeof arr[index] === "object" && arr[index] !== null) {
+      if (arr[index].name !== undefined) arr[index].name = newVal;
+      else arr[index] = newVal;
+    } else {
+      arr[index] = newVal;
+    }
+    patchReportSection(meetingId, "participants", arr)
+      .then(function() { Toast.success("已保存"); fetchMeeting(meetingId); })
+      .catch(function() { Toast.error("保存失败"); labelEl.textContent = origText; });
+  }
+  input.addEventListener("keydown", function(e) { if (e.key === "Enter") { e.preventDefault(); save(); } });
+  input.addEventListener("blur", save);
+}
+
+async function deleteParticipant(index, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该参会人员？",
+    onOk: async function() {
+      var participants = JSON.parse(JSON.stringify(_currentReport.participants || _currentReport.attendees || []));
+      participants.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "participants", participants);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+/* ===== Highlight Edit/Delete/Add ===== */
+function editHighlight(index, meetingId) {
+  if (!_currentReport) return;
+  var highlights = _currentReport.highlights || [];
+  var item = highlights[index];
+  if (!item) return;
+  var text = renderListItem(item);
+  var li = document.getElementById("highlight-row-" + index);
+  if (!li) return;
+  li.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;width:100%;">
+      <input type="text" class="form-control" id="edit-highlight-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
+      <button class="btn action-primary-btn btn-sm" data-action="save-highlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-highlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </div>`;
+  li.style.border = "2px solid #FF9900";
+  li.style.borderRadius = "4px";
+  li.style.padding = "6px";
+}
+
+async function saveHighlight(index, meetingId) {
+  if (!_currentReport) return;
+  var highlights = JSON.parse(JSON.stringify(_currentReport.highlights || []));
+  var newText = document.getElementById("edit-highlight-text-" + index).value.trim();
+  if (typeof highlights[index] === "object" && highlights[index] !== null) {
+    var h = highlights[index];
+    if (h.point !== undefined) h.point = newText;
+    else if (h.text !== undefined) h.text = newText;
+    else if (h.content !== undefined) h.content = newText;
+    else h.point = newText;
+  } else {
+    highlights[index] = newText;
+  }
+  try {
+    await patchReportSection(meetingId, "highlights", highlights);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteHighlight(index, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该亮点？",
+    onOk: async function() {
+      var highlights = JSON.parse(JSON.stringify(_currentReport.highlights || []));
+      highlights.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "highlights", highlights);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addHighlight(meetingId) {
+  var text = prompt("请输入新亮点：");
+  if (!text || !text.trim()) return;
+  var highlights = JSON.parse(JSON.stringify((_currentReport && _currentReport.highlights) || []));
+  highlights.push(text.trim());
+  try {
+    await patchReportSection(meetingId, "highlights", highlights);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
+/* ===== Lowlight Edit/Delete/Add ===== */
+function editLowlight(index, meetingId) {
+  if (!_currentReport) return;
+  var lowlights = _currentReport.lowlights || [];
+  var item = lowlights[index];
+  if (!item) return;
+  var text = renderListItem(item);
+  var li = document.getElementById("lowlight-row-" + index);
+  if (!li) return;
+  li.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;width:100%;">
+      <input type="text" class="form-control" id="edit-lowlight-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
+      <button class="btn action-primary-btn btn-sm" data-action="save-lowlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-lowlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </div>`;
+  li.style.border = "2px solid #FF9900";
+  li.style.borderRadius = "4px";
+  li.style.padding = "6px";
+}
+
+async function saveLowlight(index, meetingId) {
+  if (!_currentReport) return;
+  var lowlights = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
+  var newText = document.getElementById("edit-lowlight-text-" + index).value.trim();
+  if (typeof lowlights[index] === "object" && lowlights[index] !== null) {
+    var l = lowlights[index];
+    if (l.point !== undefined) l.point = newText;
+    else if (l.text !== undefined) l.text = newText;
+    else if (l.content !== undefined) l.content = newText;
+    else l.point = newText;
+  } else {
+    lowlights[index] = newText;
+  }
+  try {
+    await patchReportSection(meetingId, "lowlights", lowlights);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteLowlight(index, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该待改进项？",
+    onOk: async function() {
+      var lowlights = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
+      lowlights.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "lowlights", lowlights);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addLowlight(meetingId) {
+  var text = prompt("请输入新待改进项：");
+  if (!text || !text.trim()) return;
+  var lowlights = JSON.parse(JSON.stringify((_currentReport && _currentReport.lowlights) || []));
+  lowlights.push(text.trim());
+  try {
+    await patchReportSection(meetingId, "lowlights", lowlights);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
 /* ===== Merge Selection ===== */
 function getSelectedMeetingIds() {
   return Array.from(document.querySelectorAll('.merge-checkbox:checked')).map(cb => cb.dataset.id);
@@ -1761,6 +1997,18 @@ document.addEventListener("click", function(e) {
     case "save-decision-item":  saveDecisionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
     case "delete-decision-item":deleteDecisionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
     case "cancel-decision-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-participant":    editParticipant(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-participant":  deleteParticipant(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "edit-highlight":      editHighlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-highlight":      saveHighlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-highlight":    deleteHighlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-highlight":       addHighlight(el.dataset.meetingId); break;
+    case "cancel-highlight-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-lowlight":       editLowlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-lowlight":       saveLowlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-lowlight":     deleteLowlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-lowlight":        addLowlight(el.dataset.meetingId); break;
+    case "cancel-lowlight-edit":fetchMeeting(el.dataset.meetingId); break;
   }
 });
 
