@@ -4,6 +4,15 @@ const { recordActivity } = require("../services/gpu-autoscale");
 const { getFile, uploadFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
 const logger = require("../services/logger");
+const { sendFeishuAlert } = require("../services/feishu-alert");
+
+/**
+ * @typedef {Object} ReportMessage
+ * @property {string} meetingId - crypto.randomUUID() 格式
+ * @property {string} createdAt - ISO 8601 时间戳，必须与 DynamoDB 记录一致
+ * @property {string} [meetingName] - 会议名称（用于邮件标题）
+ */
+
 const { docClient } = require("../db/dynamodb");
 const { UpdateCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
@@ -246,6 +255,7 @@ async function processMessage(message) {
           ":u": new Date().toISOString(),
         },
       }));
+      sendFeishuAlert("report-worker", meetingId, err.message);
     } catch (updateErr) {
       logger.error("report-worker", "update-error-status-failed", { meetingId }, updateErr);
     }

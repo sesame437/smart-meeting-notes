@@ -12,6 +12,18 @@ const { docClient } = require("../db/dynamodb");
 const { receiveMessages, deleteMessage, sendMessage } = require("../services/sqs");
 const { ensureReady, recordActivity } = require("../services/gpu-autoscale");
 const logger = require("../services/logger");
+const { sendFeishuAlert } = require("../services/feishu-alert");
+
+/**
+ * @typedef {Object} TranscriptionMessage
+ * @property {string} meetingId - crypto.randomUUID() 格式
+ * @property {string} s3Key - 裸 key，不带 PREFIX，如 inbox/{meetingId}/{filename}
+ * @property {string} createdAt - ISO 8601 时间戳
+ * @property {string} meetingType - general|tech|weekly|merged
+ * @property {boolean} isS3Event - 是否由 S3 Event 触发
+ * @property {string} [filename] - 原始文件名
+ * @property {string} [customPrompt] - 自定义 Prompt
+ */
 
 const QUEUE_URL = process.env.SQS_TRANSCRIPTION_QUEUE;
 const REPORT_QUEUE_URL = process.env.SQS_REPORT_QUEUE;
@@ -440,6 +452,7 @@ async function processMessage(message) {
         errorMessage: err.message,
         stage: "failed",
       });
+      sendFeishuAlert("transcription-worker", meetingId, err.message);
     } catch (updateErr) {
       logger.error("transcription-worker", "update-error-status-failed", { meetingId }, updateErr);
     }
