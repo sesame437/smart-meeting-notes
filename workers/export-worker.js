@@ -2,6 +2,7 @@ require("dotenv").config();
 const { receiveMessages, deleteMessage } = require("../services/sqs");
 const { getFile } = require("../services/s3");
 const { ses } = require("../services/ses");
+const logger = require("../services/logger");
 const { docClient } = require("../db/dynamodb");
 const { UpdateCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { SendEmailCommand } = require("@aws-sdk/client-ses");
@@ -462,7 +463,7 @@ async function sendEmail({ to, subject, htmlBody }) {
 async function processMessage(message) {
   const body = JSON.parse(message.Body);
   const { meetingId, reportKey, createdAt } = body;
-  console.log(`[export-worker] Processing meeting ${meetingId}`);
+  logger.info("export-worker", "processing-start", { meetingId });
 
   // Update stage to "sending"
   await docClient.send(new UpdateCommand({
@@ -476,7 +477,7 @@ async function processMessage(message) {
     // 1. Read report from S3
     const reportStream = await getFile(reportKey);
     const report = JSON.parse(await streamToString(reportStream));
-    console.log(`[export-worker] Report loaded for ${meetingId}`);
+    logger.info("export-worker", "report-loaded", { meetingId });
 
     // 2. Build HTML email and send via SES
     // Resolve recipient emails and title from DynamoDB
@@ -494,7 +495,7 @@ async function processMessage(message) {
       }
       if (Item && Item.title) dbTitle = Item.title;
     } catch (err) {
-      console.warn(`[export-worker] Failed to read DynamoDB item: ${err.message}`);
+      logger.warn("export-worker", "read-dynamo-item-failed", { meetingId, error: err.message });
     }
 
     const meetingTitle = body.meetingName || dbTitle || report.title || report.meetingType || meetingId;
@@ -514,12 +515,12 @@ async function processMessage(message) {
           Body: { Html: { Data: htmlBody, Charset: "UTF-8" } },
         },
       }));
-      console.log(`[export-worker] Email sent to ${toAddresses.join(", ")} (BCC: ${defaultTo || "none"})`);
+      logger.info("export-worker", "email-sent", { to: toAddresses, bcc: defaultTo || "none" });
     } else if (defaultTo) {
       await sendEmail({ to: defaultTo, subject, htmlBody });
-      console.log(`[export-worker] Email sent to ${defaultTo}`);
+      logger.info("export-worker", "email-sent", { to: defaultTo });
     } else {
-      console.warn("[export-worker] SES_TO_EMAIL not set and no recipientEmails, skipping email");
+      logger.warn("export-worker", "no-recipients-skipping-email", { meetingId });
     }
 
     // 3. Update DynamoDB status to "completed", stage to "done"
@@ -535,9 +536,9 @@ async function processMessage(message) {
         ":stage": "done",
       },
     }));
-    console.log(`[export-worker] Meeting ${meetingId} marked as completed`);
+    logger.info("export-worker", "meeting-completed", { meetingId });
   } catch (err) {
-    console.error(`[export-worker] Failed for meeting ${meetingId}:`, err.message);
+    logger.error("export-worker", "processing-failed", { meetingId }, err);
     try {
       await docClient.send(new UpdateCommand({
         TableName: TABLE,
@@ -552,7 +553,7 @@ async function processMessage(message) {
         },
       }));
     } catch (updateErr) {
-      console.error('[export-worker] Failed to update error status:', updateErr.message);
+      logger.error("export-worker", "update-error-status-failed", { meetingId }, updateErr);
     }
     throw err; // Re-throw so message is NOT deleted from SQS (visibility timeout retry)
   }
@@ -561,7 +562,7 @@ async function processMessage(message) {
 /* ─── polling loop ────────────────────────────────────── */
 
 async function poll() {
-  console.log("[export-worker] Started, polling mm-export-queue...");
+  logger.info("export-worker", "started");
   while (true) {
     try {
       const messages = await receiveMessages(QUEUE_URL);
@@ -570,11 +571,11 @@ async function poll() {
           await processMessage(msg);
           await deleteMessage(QUEUE_URL, msg.ReceiptHandle);
         } catch (err) {
-          console.error(`[export-worker] Failed to process message:`, err);
+          logger.error("export-worker", "process-message-failed", {}, err);
         }
       }
     } catch (err) {
-      console.error("[export-worker] Poll error:", err);
+      logger.error("export-worker", "poll-error", {}, err);
     }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL));
   }

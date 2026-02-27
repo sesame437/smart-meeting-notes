@@ -11,6 +11,7 @@ const { UpdateCommand, PutCommand, GetCommand, QueryCommand } = require("@aws-sd
 const { docClient } = require("../db/dynamodb");
 const { receiveMessages, deleteMessage, sendMessage } = require("../services/sqs");
 const { ensureReady, recordActivity } = require("../services/gpu-autoscale");
+const logger = require("../services/logger");
 
 const QUEUE_URL = process.env.SQS_TRANSCRIPTION_QUEUE;
 const REPORT_QUEUE_URL = process.env.SQS_REPORT_QUEUE;
@@ -60,10 +61,10 @@ async function runAWSTranscribe(meetingId, s3Key) {
   const hasVocab = await checkVocabularyExists(GLOSSARY_TABLE);
   if (hasVocab) {
     params.Settings = { VocabularyName: GLOSSARY_TABLE };
-    console.log(`[Transcribe] Using custom vocabulary: ${GLOSSARY_TABLE}`);
+    logger.info("transcription-worker", "using-custom-vocabulary", { vocabulary: GLOSSARY_TABLE });
   }
 
-  console.log(`[Transcribe] Starting job: ${jobName}`);
+  logger.info("transcription-worker", "transcribe-job-starting", { jobName });
   await transcribeClient.send(new StartTranscriptionJobCommand(params));
 
   // Poll until complete (every 10s, max 30 minutes)
@@ -74,7 +75,7 @@ async function runAWSTranscribe(meetingId, s3Key) {
       TranscriptionJobName: jobName,
     }));
     const status = resp.TranscriptionJob.TranscriptionJobStatus;
-    console.log(`[Transcribe] Job ${jobName} status: ${status} (attempt ${i + 1})`);
+    logger.info("transcription-worker", "transcribe-job-polling", { jobName, status, attempt: i + 1 });
 
     if (status === "COMPLETED") {
       return outputKey;
@@ -105,13 +106,13 @@ async function runWhisper(meetingId, s3Key, filename) {
   // Check Whisper service availability
   const available = await isWhisperAvailable();
   if (!available) {
-    console.warn(`[Whisper] Service not available at ${WHISPER_URL}, skipping Whisper track`);
+    logger.warn("transcription-worker", "whisper-unavailable", { url: WHISPER_URL });
     return null;
   }
 
   // Pass s3_key directly — Whisper instance downloads from S3 itself
   // This avoids routing 617MB through the main EC2 and uses instance store cache
-  console.log(`[Whisper] Sending s3_key to ${WHISPER_URL}/asr (instance will fetch from S3)`);
+  logger.info("transcription-worker", "whisper-sending-s3-key", { url: `${WHISPER_URL}/asr` });
   const formData = new FormData();
   formData.append("s3_key", s3Key);
   formData.append("s3_bucket", BUCKET);
@@ -134,7 +135,7 @@ async function runWhisper(meetingId, s3Key, filename) {
   }
 
   const result = await resp.json();
-  console.log(`[Whisper] Transcription done, language: ${result.language}`);
+  logger.info("transcription-worker", "whisper-done", { language: result.language });
 
   // Upload result to S3
   await s3.send(new PutObjectCommand({
@@ -150,7 +151,7 @@ async function runWhisper(meetingId, s3Key, filename) {
 // --------------- FunASR (Track 3) ---------------
 async function runFunASR(meetingId, s3Key) {
   if (!FUNASR_URL) {
-    console.log("[FunASR] FUNASR_URL not configured, skipping");
+    logger.info("transcription-worker", "funasr-not-configured");
     return null;
   }
   // 健康检查
@@ -158,7 +159,7 @@ async function runFunASR(meetingId, s3Key) {
     const resp = await fetch(`${FUNASR_URL}/health`, { signal: AbortSignal.timeout(5000) });
     if (!resp.ok) throw new Error(`health check failed: ${resp.status}`);
   } catch (err) {
-    console.warn(`[FunASR] Service not available at ${FUNASR_URL}, skipping: ${err.message}`);
+    logger.warn("transcription-worker", "funasr-unavailable", { url: FUNASR_URL, error: err.message });
     return null;
   }
 
@@ -166,7 +167,7 @@ async function runFunASR(meetingId, s3Key) {
   const s3OutputKey = `${PREFIX}/${outputKey}`;
 
   try {
-    console.log(`[FunASR] Sending s3_key to ${FUNASR_URL}/asr`);
+    logger.info("transcription-worker", "funasr-sending-s3-key", { url: `${FUNASR_URL}/asr` });
     // s3Key stored in DB may not have prefix; FunASR needs the full key with prefix
     const fullS3Key = s3Key.startsWith(PREFIX) ? s3Key : `${PREFIX}/${s3Key}`;
     const formData = new FormData();
@@ -205,13 +206,13 @@ async function runFunASR(meetingId, s3Key) {
       ContentType: "application/json",
     }));
 
-    console.log(`[FunASR] Done: ${result.segments?.length || 0} segments, ${result.speaker_count || 0} speakers → ${outputKey}`);
+    logger.info("transcription-worker", "funasr-done", { segments: result.segments?.length || 0, speakers: result.speaker_count || 0, outputKey });
     return outputKey;
   } catch (err) {
     if (err.name === "AbortError") {
-      console.error("[FunASR] Timeout after 30 minutes");
+      logger.error("transcription-worker", "funasr-timeout", { timeoutMinutes: 30 });
     } else {
-      console.error("[FunASR] Failed:", err.message);
+      logger.error("transcription-worker", "funasr-failed", {}, err);
     }
     return null;
   }
@@ -281,13 +282,13 @@ async function processMessage(message) {
 
   // Skip invalid or empty messages
   if (!s3Key) {
-    console.log(`Skipping message with no s3Key, body: ${JSON.stringify(body).slice(0, 200)}`);
+    logger.info("transcription-worker", "skip-no-s3Key", { body: JSON.stringify(body).slice(0, 200) });
     return;
   }
 
   // Skip .keep files
   if (s3Key.endsWith(".keep")) {
-    console.log(`Skipping .keep file: ${s3Key}`);
+    logger.info("transcription-worker", "skip-keep-file", { s3Key });
     return;
   }
 
@@ -316,7 +317,7 @@ async function processMessage(message) {
     }
 
     if (found) {
-      console.log(`[Dedup] Skipping duplicate s3Key: ${s3Key}, existing meetingId: ${foundMeetingId}`);
+      logger.info("transcription-worker", "dedup-skip", { s3Key, existingMeetingId: foundMeetingId });
       return;
     }
   }
@@ -325,7 +326,7 @@ async function processMessage(message) {
   // For retry messages, createdAt comes from SQS body (existing record)
   const createdAt = body.createdAt || new Date().toISOString();
   if (isS3Event) {
-    console.log(`[S3 Event] Creating meeting record: ${meetingId} (type: ${meetingType})`);
+    logger.info("transcription-worker", "s3-event-creating-record", { meetingId, meetingType });
     await docClient.send(new PutCommand({
       TableName: DYNAMODB_TABLE,
       Item: {
@@ -343,8 +344,8 @@ async function processMessage(message) {
   await updateMeetingStatus(meetingId, createdAt, "processing", { stage: "transcribing" });
 
   try {
-    console.log(`Processing transcription for meeting ${meetingId}, audio: ${s3Key}`);
-    console.log(`[Pipeline] Tracks enabled — Transcribe: ${ENABLE_TRANSCRIBE}, Whisper: ${ENABLE_WHISPER}, FunASR: ${ENABLE_FUNASR}`);
+    logger.info("transcription-worker", "processing-start", { meetingId, s3Key });
+    logger.info("transcription-worker", "pipeline-tracks", { transcribe: ENABLE_TRANSCRIBE, whisper: ENABLE_WHISPER, funasr: ENABLE_FUNASR });
 
     // GPU auto-scale: ensure FunASR instance is running before transcription
     if (ENABLE_FUNASR) {
@@ -355,13 +356,13 @@ async function processMessage(message) {
     // Run enabled tracks in parallel
     const [transcribeKey, whisperKey, funasrKey] = await Promise.all([
       ENABLE_TRANSCRIBE
-        ? runAWSTranscribe(meetingId, s3Key).catch((err) => { console.error(`[Transcribe] Failed:`, err.message); return null; })
+        ? runAWSTranscribe(meetingId, s3Key).catch((err) => { logger.error("transcription-worker", "transcribe-track-failed", {}, err); return null; })
         : Promise.resolve(null),
       ENABLE_WHISPER
-        ? runWhisper(meetingId, s3Key, filename).catch((err) => { console.error(`[Whisper] Failed:`, err.message); return null; })
+        ? runWhisper(meetingId, s3Key, filename).catch((err) => { logger.error("transcription-worker", "whisper-track-failed", {}, err); return null; })
         : Promise.resolve(null),
       ENABLE_FUNASR
-        ? runFunASR(meetingId, s3Key).catch((err) => { console.error(`[FunASR] Failed:`, err.message); return null; })
+        ? runFunASR(meetingId, s3Key).catch((err) => { logger.error("transcription-worker", "funasr-track-failed", {}, err); return null; })
         : Promise.resolve(null),
     ]);
 
@@ -369,7 +370,7 @@ async function processMessage(message) {
       throw new Error("All transcription tracks failed");
     }
 
-    console.log(`[Result] Transcribe: ${transcribeKey || "FAILED"}, Whisper: ${whisperKey || "SKIPPED"}, FunASR: ${funasrKey || "SKIPPED"}`);
+    logger.info("transcription-worker", "transcription-result", { transcribeKey: transcribeKey || "FAILED", whisperKey: whisperKey || "SKIPPED", funasrKey: funasrKey || "SKIPPED" });
 
     // Extract unique speakers from FunASR result
     let speakers = [];
@@ -388,7 +389,7 @@ async function processMessage(message) {
           speakers = Array.from(speakerSet).sort();
         }
       } catch (err) {
-        console.warn(`[speakers] Failed to extract speakers from FunASR result:`, err.message);
+        logger.warn("transcription-worker", "extract-speakers-failed", { error: err.message });
       }
     }
 
@@ -416,7 +417,7 @@ async function processMessage(message) {
           resolvedMeetingType = Item.meetingType;
         }
       } catch (err) {
-        console.warn(`Failed to read meetingType from DynamoDB for ${meetingId}:`, err.message);
+        logger.warn("transcription-worker", "read-meetingType-failed", { meetingId, error: err.message });
       }
     }
 
@@ -431,16 +432,16 @@ async function processMessage(message) {
     });
 
     recordActivity();
-    console.log(`Transcription complete for meeting ${meetingId}`);
+    logger.info("transcription-worker", "transcription-complete", { meetingId });
   } catch (err) {
-    console.error(`[transcription-worker] Failed for meeting ${meetingId}:`, err.message);
+    logger.error("transcription-worker", "processing-failed", { meetingId }, err);
     try {
       await updateMeetingStatus(meetingId, createdAt, "failed", {
         errorMessage: err.message,
         stage: "failed",
       });
     } catch (updateErr) {
-      console.error('[transcription-worker] Failed to update error status:', updateErr.message);
+      logger.error("transcription-worker", "update-error-status-failed", { meetingId }, updateErr);
     }
     throw err; // Re-throw so message is NOT deleted from SQS (visibility timeout retry)
   }
@@ -453,7 +454,7 @@ function sleep(ms) {
 }
 
 async function poll() {
-  console.log("Transcription worker started, polling...");
+  logger.info("transcription-worker", "started");
   while (true) {
     try {
       const messages = await receiveMessages(QUEUE_URL);
@@ -463,12 +464,12 @@ async function poll() {
             await processMessage(msg);
             await deleteMessage(QUEUE_URL, msg.ReceiptHandle);
           } catch (err) {
-            console.error(`Failed to process message:`, err);
+            logger.error("transcription-worker", "process-message-failed", {}, err);
           }
         }
       }
     } catch (err) {
-      console.error("Transcription worker error:", err);
+      logger.error("transcription-worker", "poll-error", {}, err);
     }
     await sleep(POLL_INTERVAL);
   }

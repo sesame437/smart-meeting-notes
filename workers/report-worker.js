@@ -3,6 +3,7 @@ const { receiveMessages, deleteMessage } = require("../services/sqs");
 const { recordActivity } = require("../services/gpu-autoscale");
 const { getFile, uploadFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
+const logger = require("../services/logger");
 const { docClient } = require("../db/dynamodb");
 const { UpdateCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
@@ -43,7 +44,7 @@ async function fetchGlossaryTerms() {
     _glossaryCacheAt = Date.now();
     return terms;
   } catch (err) {
-    console.warn("[glossary] Failed to fetch terms:", err.message);
+    logger.warn("report-worker", "fetch-glossary-failed", { error: err.message });
     return [];
   }
 }
@@ -128,7 +129,7 @@ async function readFunASRResult(funasrKey) {
     }
     return data.text || null;
   } catch (err) {
-    console.warn("[FunASR] Failed to read result:", err.message);
+    logger.warn("report-worker", "funasr-read-failed", { error: err.message });
     return null;
   }
 }
@@ -146,7 +147,7 @@ async function getMeetingType(meetingId, createdAt, messageType) {
     }));
     return Item?.meetingType || "general";
   } catch (err) {
-    console.warn(`Failed to read meetingType from DynamoDB for ${meetingId}:`, err.message);
+    logger.warn("report-worker", "read-meetingType-failed", { meetingId, error: err.message });
     return "general";
   }
 }
@@ -154,7 +155,7 @@ async function getMeetingType(meetingId, createdAt, messageType) {
 async function processMessage(message) {
   const body = JSON.parse(message.Body);
   const { meetingId, transcribeKey, whisperKey, createdAt } = body;
-  console.log(`Generating report for meeting ${meetingId}`);
+  logger.info("report-worker", "generating-report", { meetingId });
 
   // Update stage to "generating"
   await docClient.send(new UpdateCommand({
@@ -167,7 +168,7 @@ async function processMessage(message) {
   try {
     // Determine meeting type
     const meetingType = await getMeetingType(meetingId, createdAt, body.meetingType);
-    console.log(`Meeting type: ${meetingType}`);
+    logger.info("report-worker", "meeting-type-resolved", { meetingId, meetingType });
 
     // 1. Read transcript — try Transcribe/Whisper first, then FunASR
     let transcriptText = null;
@@ -176,7 +177,7 @@ async function processMessage(message) {
       try {
         transcriptText = await readTranscript(transcribeKey, whisperKey);
       } catch (err) {
-        console.warn("[report] Transcribe/Whisper unavailable, will use FunASR only:", err.message);
+        logger.warn("report-worker", "transcribe-whisper-unavailable", { error: err.message });
       }
     }
 
@@ -229,9 +230,9 @@ async function processMessage(message) {
     }));
 
     recordActivity();
-    console.log(`Report generated for meeting ${meetingId}`);
+    logger.info("report-worker", "report-generated", { meetingId });
   } catch (err) {
-    console.error(`[report-worker] Failed for meeting ${meetingId}:`, err.message);
+    logger.error("report-worker", "processing-failed", { meetingId }, err);
     try {
       await docClient.send(new UpdateCommand({
         TableName: TABLE,
@@ -246,14 +247,14 @@ async function processMessage(message) {
         },
       }));
     } catch (updateErr) {
-      console.error('[report-worker] Failed to update error status:', updateErr.message);
+      logger.error("report-worker", "update-error-status-failed", { meetingId }, updateErr);
     }
     throw err; // Re-throw so message is NOT deleted from SQS (visibility timeout retry)
   }
 }
 
 async function poll() {
-  console.log("Report worker started, polling...");
+  logger.info("report-worker", "started");
   while (true) {
     try {
       const messages = await receiveMessages(QUEUE_URL);
@@ -262,12 +263,12 @@ async function poll() {
           await processMessage(msg);
           await deleteMessage(QUEUE_URL, msg.ReceiptHandle);
         } catch (err) {
-          console.error(`[report-worker] Failed to process message, will retry:`, err.message);
+          logger.error("report-worker", "process-message-failed", {}, err);
           // 不删除消息 → SQS visibility timeout 后自动重试
         }
       }
     } catch (err) {
-      console.error("Report worker error:", err);
+      logger.error("report-worker", "poll-error", {}, err);
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
   }

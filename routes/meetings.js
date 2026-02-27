@@ -14,6 +14,7 @@ const {
 const { uploadFile, getFile } = require("../services/s3");
 const { sendMessage } = require("../services/sqs");
 const { invokeModel } = require("../services/bedrock");
+const logger = require("../services/logger");
 
 const router = Router();
 const TABLE = process.env.DYNAMODB_TABLE;
@@ -341,7 +342,7 @@ router.post("/:id/retry", async (req, res, next) => {
           },
         }));
       } catch (rollbackErr) {
-        console.error('[retry] Rollback failed:', rollbackErr.message);
+        logger.error("meetings-route", "retry-rollback-failed", {}, rollbackErr);
       }
       return res.status(500).json({ error: '重试入队失败，请稍后再试' });
     }
@@ -392,7 +393,7 @@ router.post("/merge", async (req, res, next) => {
           const text = Buffer.concat(chunks).toString("utf-8");
           content = JSON.parse(text);
         } catch (err) {
-          console.warn(`[merge] Failed to read report for ${m.meetingId}:`, err.message);
+          logger.warn("meetings-route", "merge-read-report-failed", { meetingId: m.meetingId, error: err.message });
         }
       }
 
@@ -421,7 +422,7 @@ router.post("/merge", async (req, res, next) => {
       }));
       glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
     } catch (err) {
-      console.warn("[merge] Failed to fetch glossary:", err.message);
+      logger.warn("meetings-route", "merge-fetch-glossary-failed", { error: err.message });
     }
 
     // Call Bedrock
@@ -508,7 +509,7 @@ async function readTranscriptParts(item) {
         else transcriptParts.push(raw);
       } catch { transcriptParts.push(raw); }
     } catch (err) {
-      console.warn("[transcript] Failed to read transcribeKey:", err.message);
+      logger.warn("meetings-route", "read-transcribeKey-failed", { error: err.message });
     }
   }
 
@@ -522,7 +523,7 @@ async function readTranscriptParts(item) {
       const text = Buffer.concat(chunks).toString("utf-8");
       transcriptParts.push(`[Whisper 转录]\n${text}`);
     } catch (err) {
-      console.warn("[transcript] Failed to read whisperKey:", err.message);
+      logger.warn("meetings-route", "read-whisperKey-failed", { error: err.message });
     }
   }
 
@@ -556,7 +557,7 @@ async function readTranscriptParts(item) {
         transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${data.text}`);
       }
     } catch (err) {
-      console.warn("[transcript] Failed to read funasrKey:", err.message);
+      logger.warn("meetings-route", "read-funasrKey-failed", { error: err.message });
     }
   }
 
@@ -616,7 +617,7 @@ router.post("/:id/regenerate", async (req, res, next) => {
       }));
       glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
     } catch (err) {
-      console.warn("[regenerate] Failed to fetch glossary:", err.message);
+      logger.warn("meetings-route", "regenerate-fetch-glossary-failed", { error: err.message });
     }
 
     const modelId = process.env.BEDROCK_MODEL_ID || undefined;
@@ -691,7 +692,7 @@ router.put("/:id/speaker-map", async (req, res, next) => {
       }));
       glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
     } catch (err) {
-      console.warn("[speaker-map] Failed to fetch glossary:", err.message);
+      logger.warn("meetings-route", "speaker-map-fetch-glossary-failed", { error: err.message });
     }
 
     const modelId = process.env.BEDROCK_MODEL_ID || undefined;

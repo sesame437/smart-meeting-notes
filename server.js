@@ -15,6 +15,7 @@ if (missingEnv.length > 0) {
   process.exit(1);
 }
 
+const logger = require("./services/logger");
 const meetingsRouter = require("./routes/meetings");
 const glossaryRouter = require("./routes/glossary");
 
@@ -54,7 +55,7 @@ app.use((err, req, res, next) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`meeting-minutes server listening on port ${PORT}`);
+  logger.info("server", "listening", { port: PORT });
 });
 
 // 优雅关机：等待 in-flight 请求完成后退出
