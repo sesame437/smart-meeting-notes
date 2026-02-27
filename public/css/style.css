@@ -679,7 +679,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .meeting-meta, .participants-text { font-size: 13px; color: var(--aws-secondary); }
 .meeting-meta { margin-top: 4px; }
 .card.summary-card { border-left: 4px solid var(--aws-orange); }
-.card.decisions-card { border-left: 3px solid var(--aws-dark); background: #f8f9fa; }
+.card.decisions-card { } /* 和其他 card 保持一致，无额外装饰 */
 .card.risks-card { border-left: 4px solid var(--aws-orange); background: #fff8e1; }
 .summary-text { font-size: 15px; line-height: 1.7; color: var(--text); }
 .decisions-card ul { list-style: none; padding: 0; margin: 0; }

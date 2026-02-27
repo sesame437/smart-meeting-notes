@@ -71,11 +71,22 @@ async function getMeetingById(id) {
   return Items?.[0] || null;
 }
 
-// List meetings
+// List meetings - deduplicate by meetingId, keep the latest createdAt per meetingId
 router.get("/", async (_req, res, next) => {
   try {
     const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE }));
-    res.json(Items || []);
+    const all = Items || [];
+    // Group by meetingId, keep the one with the latest createdAt
+    const map = new Map();
+    for (const item of all) {
+      const existing = map.get(item.meetingId);
+      if (!existing || item.createdAt > existing.createdAt) {
+        map.set(item.meetingId, item);
+      }
+    }
+    // Sort by createdAt descending
+    const deduped = Array.from(map.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    res.json(deduped);
   } catch (err) {
     next(err);
   }
