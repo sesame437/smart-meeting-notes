@@ -4,7 +4,6 @@ const { recordActivity } = require("../services/gpu-autoscale");
 const { getFile, uploadFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
 const logger = require("../services/logger");
-const { sendFeishuAlert } = require("../services/feishu-alert");
 
 /**
  * @typedef {Object} ReportMessage
@@ -255,7 +254,6 @@ async function processMessage(message) {
           ":u": new Date().toISOString(),
         },
       }));
-      sendFeishuAlert("report-worker", meetingId, err.message);
     } catch (updateErr) {
       logger.error("report-worker", "update-error-status-failed", { meetingId }, updateErr);
     }

@@ -12,7 +12,6 @@ const { docClient } = require("../db/dynamodb");
 const { receiveMessages, deleteMessage, sendMessage } = require("../services/sqs");
 const { ensureReady, recordActivity } = require("../services/gpu-autoscale");
 const logger = require("../services/logger");
-const { sendFeishuAlert } = require("../services/feishu-alert");
 
 /**
  * @typedef {Object} TranscriptionMessage
@@ -452,7 +451,6 @@ async function processMessage(message) {
         errorMessage: err.message,
         stage: "failed",
       });
-      sendFeishuAlert("transcription-worker", meetingId, err.message);
     } catch (updateErr) {
       logger.error("transcription-worker", "update-error-status-failed", { meetingId }, updateErr);
     }

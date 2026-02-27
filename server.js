@@ -16,7 +16,7 @@ if (missingEnv.length > 0) {
 }
 
 const logger = require("./services/logger");
-const meetingsRouter = require("./routes/meetings");
+const meetingsRouter = require("./routes/meetings/index");
 const glossaryRouter = require("./routes/glossary");
 
 const app = express();
