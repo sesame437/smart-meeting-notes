@@ -888,6 +888,7 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     border-radius: 8px;
     margin-bottom: 10px;
     padding: 12px 14px;
+    padding-right: 80px; /* 给右上角操作按钮留空间 */
     position: relative;
   }
 
@@ -926,8 +927,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   /* 移动端：编辑/删除按钮常驻显示（不需要 hover 触发） */
   .row-actions { opacity: 1 !important; visibility: visible !important; }
   .section-edit-btn { opacity: 1 !important; visibility: visible !important; }
-  /* auto-name 按钮手机上隐藏（操作复杂，保留桌面） */
-  .auto-name-btn { display: none !important; }
+  /* auto-name 按钮手机上保留 */
+  .auto-name-btn { display: inline-flex !important; }
 
   /* 参与人 - 卡片化 */
   .participant-row {
