@@ -1,12 +1,14 @@
 const { Router } = require("express");
-const coreRouter = require("./core");
-const reportRouter = require("./report");
-const emailRouter = require("./email");
+const { validateIdParam } = require("./helpers");
+const registerCore = require("./core");
+const registerReport = require("./report");
+const registerEmail = require("./email");
 
 const router = Router();
+router.param("id", validateIdParam);
 
-router.use(coreRouter);
-router.use(reportRouter);
-router.use(emailRouter);
+registerCore(router);
+registerReport(router);
+registerEmail(router);
 
 module.exports = router;

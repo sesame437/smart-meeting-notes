@@ -31,7 +31,7 @@ jest.mock("../services/bedrock", () => ({
 
 const { getFile, uploadFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
-const router = require("../routes/meetings");
+const router = require("../routes/meetings/index");
 
 function getSpeakerMapPutHandler() {
   const layer = router.stack.find(

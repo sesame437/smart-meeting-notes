@@ -29,7 +29,7 @@ jest.mock("../services/bedrock", () => ({
   invokeModel: jest.fn(),
 }));
 
-const router = require("../routes/meetings");
+const router = require("../routes/meetings/index");
 const { getFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
 

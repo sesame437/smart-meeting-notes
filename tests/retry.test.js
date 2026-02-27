@@ -36,7 +36,7 @@ function createRes() {
 }
 
 function getRetryHandler() {
-  const router = require("../routes/meetings");
+  const router = require("../routes/meetings/index");
   const layer = router.stack.find(
     (l) => l.route && l.route.path === "/:id/retry" && l.route.methods.post
   );

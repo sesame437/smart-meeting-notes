@@ -49,7 +49,7 @@ process.env.DYNAMODB_TABLE = "test-table";
 
 const express = require("express");
 const request = require("supertest");
-const meetingsRouter = require("../routes/meetings");
+const meetingsRouter = require("../routes/meetings/index");
 
 const app = express();
 app.use(express.json());

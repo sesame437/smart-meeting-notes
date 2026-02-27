@@ -30,7 +30,7 @@ jest.mock("../services/bedrock", () => ({
   invokeModel: jest.fn(),
 }));
 
-const router = require("../routes/meetings");
+const router = require("../routes/meetings/index");
 
 function getSpeakerMapPutHandler() {
   const layer = router.stack.find(

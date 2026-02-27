@@ -50,7 +50,7 @@ process.env.AWS_REGION = "us-west-2";
 
 const express = require("express");
 const request = require("supertest");
-const router = require("../routes/meetings");
+const router = require("../routes/meetings/index");
 
 function createApp() {
   const app = express();
