@@ -888,7 +888,6 @@ textarea.form-control { resize: vertical; min-height: 80px; }
     border-radius: 8px;
     margin-bottom: 10px;
     padding: 12px 14px;
-    padding-right: 80px; /* 给右上角操作按钮留空间 */
     position: relative;
   }
 
@@ -914,13 +913,16 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   .actions-table td:nth-child(4) { justify-content: flex-start; }
   .actions-table td:nth-child(4)::before { content: "⚡ 优先级："; font-weight: 600; color: var(--aws-secondary); flex-shrink: 0; }
 
-  /* 操作按钮放右上角 */
+  /* 操作按钮移到卡片底部，独占一行 */
   .actions-table td:last-child {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: auto !important;
-    padding: 0;
+    position: static;
+    width: 100% !important;
+    padding: 8px 0 0 0;
+    margin-top: 6px;
+    border-top: 1px solid var(--aws-border);
+    display: flex !important;
+    justify-content: flex-end;
+    gap: 8px;
   }
   .actions-table td:last-child::before { content: none; }
 
