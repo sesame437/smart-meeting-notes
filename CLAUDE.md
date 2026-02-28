@@ -1,6 +1,11 @@
 # CLAUDE.md — Meeting Minutes AI 操作手册
 > 这是地图，不是手册。细节在 ROADMAP.md、routes/、workers/。
 
+## ⚡ Session 开始必做（每次）
+1. 读 `PROGRESS.md` — 了解当前进度、下一步任务、已知问题
+2. 运行 `bash scripts/health-check.sh` — 确认服务正常、测试全绿再动手
+3. Session 结束后更新 `PROGRESS.md`，记录完成项和新增待办
+
 ## 项目概览
 会议录音转录 + 智能纪要生成服务。上传音频 → FunASR 转录 → Bedrock 生成纪要 → SES 发送邮件。
 
