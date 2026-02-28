@@ -70,7 +70,7 @@ describe("PUT /api/meetings/:id/speaker-map error scenarios", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(404);
-    expect(res.body.error).toBe("Not found");
+    expect(res.body.error).toEqual({ code: "MEETING_NOT_FOUND", message: "Not found" });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -83,7 +83,8 @@ describe("PUT /api/meetings/:id/speaker-map error scenarios", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toMatch(/speakerMap must be an object/i);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.message).toMatch(/speakerMap must be an object/i);
     expect(mockSend).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });
@@ -97,7 +98,8 @@ describe("PUT /api/meetings/:id/speaker-map error scenarios", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toMatch(/empty|不能为空|at least one/i);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.message).toMatch(/empty|不能为空|at least one/i);
     expect(mockSend).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });

@@ -106,7 +106,7 @@ describe("POST /api/meetings/:id/auto-name", () => {
       .send();
 
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe("Not found");
+    expect(res.body.error).toEqual({ code: "MEETING_NOT_FOUND", message: "Not found" });
   });
 
   test("returns 400 if no reportKey", async () => {
@@ -119,7 +119,7 @@ describe("POST /api/meetings/:id/auto-name", () => {
       .send();
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Report not generated yet");
+    expect(res.body.error).toEqual({ code: "REPORT_NOT_GENERATED", message: "Report not generated yet" });
   });
 
   test("returns 400 if report has no summary", async () => {
@@ -131,7 +131,7 @@ describe("POST /api/meetings/:id/auto-name", () => {
       .send();
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("Report has no summary");
+    expect(res.body.error).toEqual({ code: "NO_REPORT_SUMMARY", message: "Report has no summary" });
   });
 
   test("truncates suggestedName to 60 chars", async () => {

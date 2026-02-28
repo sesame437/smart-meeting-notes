@@ -25,17 +25,17 @@ function register(router) {
 
       // Validate meetingIds
       if (!Array.isArray(meetingIds) || meetingIds.length < 2) {
-        return res.status(400).json({ error: "meetingIds must contain at least 2 items" });
+        return res.status(400).json({ error: { code: "INVALID_MEETING_IDS", message: "meetingIds must contain at least 2 items" } });
       }
       if (meetingIds.length > 10) {
-        return res.status(400).json({ error: "meetingIds cannot exceed 10 items" });
+        return res.status(400).json({ error: { code: "MEETING_IDS_LIMIT_EXCEEDED", message: "meetingIds cannot exceed 10 items" } });
       }
 
       // Fetch all meeting records
       const meetings = [];
       for (const id of meetingIds) {
         const item = await getMeetingById(id);
-        if (!item) return res.status(404).json({ error: `Meeting not found: ${id}` });
+        if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: `Meeting not found: ${id}` } });
         meetings.push(item);
       }
 
@@ -73,7 +73,7 @@ function register(router) {
       }
 
       if (mergedParts.length === 0) {
-        return res.status(400).json({ error: "所有会议均无报告内容" });
+        return res.status(400).json({ error: { code: "NO_REPORT_CONTENT", message: "所有会议均无报告内容" } });
       }
 
       const mergedText = mergedParts.join("\n\n");
@@ -97,7 +97,7 @@ function register(router) {
       // Parse report JSON
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        return res.status(500).json({ error: "Failed to parse report from Bedrock" });
+        return res.status(500).json({ error: { code: "BEDROCK_PARSE_FAILED", message: "Failed to parse report from Bedrock" } });
       }
       const report = JSON.parse(jsonMatch[0]);
 
@@ -139,11 +139,11 @@ function register(router) {
       const { speakerMap } = req.body;
       const validationError = validateSpeakerMap(speakerMap);
       if (validationError) {
-        return res.status(400).json({ error: validationError });
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: validationError } });
       }
 
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Not found" });
+      if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
 
       await docClient.send(new UpdateCommand({
         TableName: TABLE,
@@ -165,13 +165,13 @@ function register(router) {
   router.post("/:id/regenerate", async (req, res, next) => {
     try {
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Not found" });
+      if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
 
       const speakerMap = item.speakerMap || null;
 
       const transcriptParts = await readTranscriptParts(item);
       if (transcriptParts.length === 0) {
-        return res.status(400).json({ error: "No transcript found for this meeting" });
+        return res.status(400).json({ error: { code: "NO_TRANSCRIPT", message: "No transcript found for this meeting" } });
       }
 
       const transcriptText = transcriptParts.join("\n\n");
@@ -228,11 +228,11 @@ function register(router) {
       const { speakerMap } = req.body;
       const validationError = validateSpeakerMap(speakerMap);
       if (validationError) {
-        return res.status(400).json({ error: validationError });
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: validationError } });
       }
 
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Not found" });
+      if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
 
       // Save speakerMap to DynamoDB
       await docClient.send(new UpdateCommand({
@@ -247,7 +247,7 @@ function register(router) {
 
       const transcriptParts = await readTranscriptParts(item);
       if (transcriptParts.length === 0) {
-        return res.status(400).json({ error: "No transcript found for this meeting" });
+        return res.status(400).json({ error: { code: "NO_TRANSCRIPT", message: "No transcript found for this meeting" } });
       }
 
       const transcriptText = transcriptParts.join("\n\n");
@@ -303,15 +303,15 @@ function register(router) {
       const { section, data } = req.body;
       const validSections = ["summary", "actionItems", "keyDecisions", "participants", "highlights", "lowlights"];
       if (!validSections.includes(section)) {
-        return res.status(400).json({ error: "Invalid section. Must be one of: summary, actionItems, keyDecisions, participants, highlights, lowlights" });
+        return res.status(400).json({ error: { code: "INVALID_SECTION", message: "Invalid section. Must be one of: summary, actionItems, keyDecisions, participants, highlights, lowlights" } });
       }
       if (data === undefined || data === null) {
-        return res.status(400).json({ error: "data is required" });
+        return res.status(400).json({ error: { code: "DATA_REQUIRED", message: "data is required" } });
       }
 
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Not found" });
-      if (!item.reportKey) return res.status(400).json({ error: "No report exists for this meeting" });
+      if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
+      if (!item.reportKey) return res.status(400).json({ error: { code: "NO_REPORT", message: "No report exists for this meeting" } });
 
       // Read current report from S3
       const stream = await getFile(item.reportKey);
@@ -373,8 +373,8 @@ function register(router) {
   router.post("/:id/auto-name", async (req, res, next) => {
     try {
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Not found" });
-      if (!item.reportKey) return res.status(400).json({ error: "Report not generated yet" });
+      if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
+      if (!item.reportKey) return res.status(400).json({ error: { code: "REPORT_NOT_GENERATED", message: "Report not generated yet" } });
 
       // Read report from S3
       const stream = await getFile(item.reportKey);
@@ -386,7 +386,7 @@ function register(router) {
 
       const summary = (report.summary || report.executive_summary || "").slice(0, 400);
       if (!summary) {
-        return res.status(400).json({ error: "Report has no summary" });
+        return res.status(400).json({ error: { code: "NO_REPORT_SUMMARY", message: "Report has no summary" } });
       }
 
       const dateStr = item.createdAt

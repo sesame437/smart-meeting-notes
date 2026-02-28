@@ -141,7 +141,8 @@ describe("PATCH /api/meetings/:id/report", () => {
       .send({ section: "invalid", data: "foo" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/Invalid section/);
+    expect(res.body.error.code).toBe("INVALID_SECTION");
+    expect(res.body.error.message).toMatch(/Invalid section/);
   });
 
   test("rejects missing data", async () => {
@@ -150,7 +151,8 @@ describe("PATCH /api/meetings/:id/report", () => {
       .send({ section: "summary" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/data is required/);
+    expect(res.body.error.code).toBe("DATA_REQUIRED");
+    expect(res.body.error.message).toMatch(/data is required/);
   });
 
   test("returns 404 for non-existent meeting", async () => {
@@ -173,7 +175,8 @@ describe("PATCH /api/meetings/:id/report", () => {
       .send({ section: "summary", data: "x" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/No report/);
+    expect(res.body.error.code).toBe("NO_REPORT");
+    expect(res.body.error.message).toMatch(/No report/);
   });
 
   test("returns 500 when S3 report read fails", async () => {

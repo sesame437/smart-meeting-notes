@@ -1,5 +1,6 @@
 const { EC2Client, StartInstancesCommand, StopInstancesCommand, DescribeInstancesCommand } = require("@aws-sdk/client-ec2");
 const { DynamoDBClient, ScanCommand } = require("@aws-sdk/client-dynamodb");
+const logger = require("./logger");
 
 const INSTANCE_ID = process.env.FUNASR_INSTANCE_ID || "i-0f69617df5dc59d6b";
 const FUNASR_PRIVATE_IP = process.env.FUNASR_PRIVATE_IP || "172.31.27.101";
@@ -28,14 +29,14 @@ async function getInstanceState() {
 
 // 2. startInstance — start and poll until running (max 3 min, every 10s)
 async function startInstance() {
-  console.log(`[gpu-autoscale] Starting instance ${INSTANCE_ID}...`);
+  logger.info("gpu-autoscale", "starting instance", { instanceId: INSTANCE_ID });
   await ec2.send(new StartInstancesCommand({ InstanceIds: [INSTANCE_ID] }));
 
   const maxAttempts = 18; // 3 min / 10s
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise((r) => setTimeout(r, 10000));
     const state = await getInstanceState();
-    console.log(`[gpu-autoscale] Instance state: ${state} (attempt ${i + 1}/${maxAttempts})`);
+    logger.info("gpu-autoscale", "instance state", { state, attempt: i + 1, maxAttempts });
     if (state === "running") return;
   }
   throw new Error(`[gpu-autoscale] Instance ${INSTANCE_ID} did not reach 'running' within 3 minutes`);
@@ -43,28 +44,28 @@ async function startInstance() {
 
 // 3. stopInstance
 async function stopInstance() {
-  console.log(`[gpu-autoscale] Stopping instance ${INSTANCE_ID}...`);
+  logger.info("gpu-autoscale", "stopping instance", { instanceId: INSTANCE_ID });
   await ec2.send(new StopInstancesCommand({ InstanceIds: [INSTANCE_ID] }));
-  console.log(`[gpu-autoscale] Stop command sent for ${INSTANCE_ID}`);
+  logger.info("gpu-autoscale", "stop command sent", { instanceId: INSTANCE_ID });
 }
 
 // 4. ensureReady — make sure FunASR is reachable, starting instance if needed
 async function ensureReady() {
   // First, try to ping FunASR
   if (await isFunASRReachable()) {
-    console.log("[gpu-autoscale] FunASR already reachable");
+    logger.info("gpu-autoscale", "FunASR already reachable");
     return true;
   }
 
   // Not reachable — check instance state
   const state = await getInstanceState();
-  console.log(`[gpu-autoscale] FunASR not reachable, instance state: ${state}`);
+  logger.info("gpu-autoscale", "FunASR not reachable", { state });
 
   if (state === "stopped") {
     await startInstance();
   } else if (state === "stopping") {
     // Wait for it to fully stop, then start
-    console.log("[gpu-autoscale] Instance is stopping, waiting...");
+    logger.info("gpu-autoscale", "instance is stopping, waiting");
     for (let i = 0; i < 18; i++) {
       await new Promise((r) => setTimeout(r, 10000));
       const s = await getInstanceState();
@@ -82,10 +83,10 @@ async function ensureReady() {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise((r) => setTimeout(r, 10000));
     if (await isFunASRReachable()) {
-      console.log(`[gpu-autoscale] FunASR reachable after ${(i + 1) * 10}s`);
+      logger.info("gpu-autoscale", "FunASR reachable", { waitTimeSeconds: (i + 1) * 10 });
       return true;
     }
-    console.log(`[gpu-autoscale] Waiting for FunASR HTTP... (attempt ${i + 1}/${maxAttempts})`);
+    logger.info("gpu-autoscale", "waiting for FunASR HTTP", { attempt: i + 1, maxAttempts });
   }
   throw new Error(`[gpu-autoscale] FunASR at ${FUNASR_URL} not reachable after 3 minutes`);
 }
@@ -119,21 +120,21 @@ async function autoShutdown() {
   try {
     const activeCount = await checkActiveJobs();
     if (activeCount > 0) {
-      console.log(`[gpu-autoscale] ${activeCount} active jobs found, deferring shutdown`);
+      logger.info("gpu-autoscale", "active jobs found, deferring shutdown", { activeCount });
       recordActivity(); // reset timer
       return;
     }
 
     const state = await getInstanceState();
     if (state !== "running") {
-      console.log(`[gpu-autoscale] Instance already ${state}, skip shutdown`);
+      logger.info("gpu-autoscale", "instance already not running, skip shutdown", { state });
       return;
     }
 
-    console.log("[gpu-autoscale] No active jobs for 30 minutes, shutting down GPU instance");
+    logger.info("gpu-autoscale", "no active jobs for 30 minutes, shutting down GPU instance");
     await stopInstance();
   } catch (err) {
-    console.error("[gpu-autoscale] Auto-shutdown failed:", err.message);
+    logger.error("gpu-autoscale", "auto-shutdown failed", { error: err.message });
   }
 }
 
@@ -155,7 +156,7 @@ async function checkActiveJobs() {
     }));
     return resp.Count || 0;
   } catch (err) {
-    console.error("[gpu-autoscale] checkActiveJobs failed:", err.message);
+    logger.error("gpu-autoscale", "checkActiveJobs failed", { error: err.message });
     return 1; // err on the side of caution — assume something is running
   }
 }

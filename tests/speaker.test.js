@@ -127,7 +127,8 @@ describe("PUT /api/meetings/:id/speaker-map", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toMatch(/key must be a non-empty string/i);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.message).toMatch(/key must be a non-empty string/i);
     expect(mockSend).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });
@@ -145,7 +146,8 @@ describe("PUT /api/meetings/:id/speaker-map", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toMatch(/at most 100 characters/i);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.message).toMatch(/at most 100 characters/i);
     expect(mockSend).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });
@@ -162,7 +164,8 @@ describe("PUT /api/meetings/:id/speaker-map", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toMatch(/cannot be empty/i);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.message).toMatch(/cannot be empty/i);
     expect(mockSend).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });
@@ -181,7 +184,7 @@ describe("PUT /api/meetings/:id/speaker-map", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(404);
-    expect(res.body.error).toBe("Not found");
+    expect(res.body.error).toEqual({ code: "MEETING_NOT_FOUND", message: "Not found" });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -212,7 +215,8 @@ describe("PUT /api/meetings/:id/speaker-map", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toMatch(/No transcript found/i);
+    expect(res.body.error.code).toBe("NO_TRANSCRIPT");
+    expect(res.body.error.message).toMatch(/No transcript found/i);
     expect(getFile).toHaveBeenCalledWith("transcripts/m2/funasr.json");
     expect(next).not.toHaveBeenCalled();
   });

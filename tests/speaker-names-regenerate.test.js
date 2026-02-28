@@ -81,7 +81,8 @@ describe("PUT /api/meetings/:id/speaker-names", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toMatch(/empty/i);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.message).toMatch(/empty/i);
   });
 
   test("returns 400 for non-object speakerMap", async () => {
@@ -93,7 +94,8 @@ describe("PUT /api/meetings/:id/speaker-names", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toMatch(/object/i);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.message).toMatch(/object/i);
   });
 
   test("returns 404 if meeting not found", async () => {
@@ -138,7 +140,8 @@ describe("POST /api/meetings/:id/regenerate", () => {
     await handler(req, res, next);
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toMatch(/No transcript/i);
+    expect(res.body.error.code).toBe("NO_TRANSCRIPT");
+    expect(res.body.error.message).toMatch(/No transcript/i);
   });
 
   test("calls Bedrock with stored speakerMap and returns report", async () => {
