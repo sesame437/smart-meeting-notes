@@ -1,7 +1,6 @@
 const { sendMessage } = require("../../services/sqs");
 const store = require("../../services/meeting-store");
 const {
-  TABLE,
   getMeetingById,
 } = require("./helpers");
 

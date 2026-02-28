@@ -5,7 +5,6 @@ const { sendMessage } = require("../../services/sqs");
 const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
 const {
-  TABLE,
   upload,
   sanitizeFilename,
   getMeetingById,
@@ -75,7 +74,7 @@ function register(router) {
           }
           const text = Buffer.concat(chunks).toString("utf-8");
           item.content = JSON.parse(text);
-        } catch (e) {
+        } catch (_e) {
           // report not ready yet, return item without content
         }
       }

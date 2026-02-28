@@ -4,8 +4,6 @@ const { invokeModel } = require("../../services/bedrock");
 const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
 const {
-  TABLE,
-  GLOSSARY_TABLE,
   HAIKU_MODEL_ID,
   getMeetingById,
   validateSpeakerMap,

@@ -132,8 +132,8 @@ function buildReportProcessMessage({
   s3SendFn,       // mock for S3Client.send (used by readFunASRResult)
   invokeModelFn,
   uploadFileFn,
-  docSendFn,
-  sendMessageFn,
+  _docSendFn,
+  _sendMessageFn,
 }) {
   async function readTranscript(tKey, wKey) {
     const results = await Promise.allSettled([

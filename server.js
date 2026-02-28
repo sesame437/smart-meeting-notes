@@ -98,3 +98,12 @@ function gracefulShutdown(signal) {
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+process.on("unhandledRejection", (reason) => {
+  logger.error("server", "unhandled-rejection", {}, reason instanceof Error ? reason : new Error(String(reason)));
+  process.exit(1);
+});
+process.on("uncaughtException", (err) => {
+  logger.error("server", "uncaught-exception", {}, err);
+  process.exit(1);
+});

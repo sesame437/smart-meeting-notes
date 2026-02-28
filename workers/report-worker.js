@@ -18,7 +18,7 @@ const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { DynamoDBClient, ScanCommand } = require("@aws-sdk/client-dynamodb");
 
 const QUEUE_URL = process.env.SQS_REPORT_QUEUE;
-const EXPORT_QUEUE_URL = process.env.SQS_EXPORT_QUEUE;
+const _EXPORT_QUEUE_URL = process.env.SQS_EXPORT_QUEUE;
 const TABLE = process.env.DYNAMODB_TABLE;
 const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
 const REGION = process.env.AWS_REGION;
@@ -75,7 +75,7 @@ function extractTranscribeText(rawJson) {
     if (transcript) return transcript;
     // 如果解析不到，原样返回（可能已经是纯文本）
     return rawJson;
-  } catch (e) {
+  } catch (_e) {
     // 不是 JSON，已经是纯文本
     return rawJson;
   }

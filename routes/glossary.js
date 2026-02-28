@@ -3,7 +3,6 @@ const crypto = require("crypto");
 const glossaryStore = require("../services/glossary-store");
 
 const router = Router();
-const TABLE = process.env.GLOSSARY_TABLE;
 
 // Param validation middleware: id must be non-empty, max 100 chars
 function validateIdParam(req, res, next) {

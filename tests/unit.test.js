@@ -1,7 +1,5 @@
 "use strict";
 
-const path = require("path");
-const fs = require("fs");
 
 // ─────────────────────────────────────────────────────────
 // Test 1: services/bedrock.js — getMeetingPrompt()

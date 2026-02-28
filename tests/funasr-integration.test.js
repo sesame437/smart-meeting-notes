@@ -87,8 +87,6 @@ global.fetch = jest.fn();
 // We'll use the most pragmatic approach:
 // Extract the function text from the source and recreate it with mocked deps.
 
-const fs = require("fs");
-const path = require("path");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Build testable versions of runFunASR and readFunASRResult

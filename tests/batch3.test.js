@@ -56,14 +56,13 @@ function extractTranscribeText(rawJson) {
     const transcript = data?.results?.transcripts?.[0]?.transcript;
     if (transcript) return transcript;
     return rawJson;
-  } catch (e) {
+  } catch (_e) {
     return rawJson;
   }
 }
 
 // ─── 从 services/bedrock.js 导入（已 mock AWS SDK）───────────────────────────
 
-const { getMeetingPrompt } = require("../services/bedrock");
 
 // truncateTranscript 也未 export，内联重实现（与源码逻辑完全一致）
 function truncateTranscript(text) {
@@ -324,9 +323,6 @@ describe("Suite B — truncateTranscript()", () => {
 
 describe("Suite C — transcription-worker GSI Query 去重逻辑（QueryCommand）", () => {
 
-  const { QueryCommand } = require("@aws-sdk/lib-dynamodb");
-  const mockDocClientSend = require("../db/dynamodb").docClient.send;
-
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -381,12 +377,12 @@ describe("Suite C — transcription-worker GSI Query 去重逻辑（QueryCommand
     ];
     let callCount = 0;
 
-    async function simulateDedupQuery(s3KeyToCheck) {
-      for (const st of statusesToCheck) {
+    async function simulateDedupQuery(_s3KeyToCheck) {
+      for (const _st of statusesToCheck) {
         const result = mockResults[callCount++] || { Items: [] };
         if (result.Items && result.Items.length > 0) {
           // s3Key 匹配（内存 filter）
-          if (result.Items[0].s3Key === s3KeyToCheck) {
+          if (result.Items[0].s3Key === _s3KeyToCheck) {
             return { found: true, meetingId: result.Items[0].meetingId };
           }
         }
@@ -404,9 +400,9 @@ describe("Suite C — transcription-worker GSI Query 去重逻辑（QueryCommand
 
   // ── D5: 所有状态均无匹配 → 允许处理 ─────────────────────────────────────
   test("D5: 四种状态 Query 均返回空 → found=false，允许继续处理", async () => {
-    async function simulateDedupQuery(s3KeyToCheck) {
+    async function simulateDedupQuery(_s3KeyToCheck) {
       const statusesToCheck = ["pending", "processing", "reported", "completed"];
-      for (const st of statusesToCheck) {
+      for (const _st of statusesToCheck) {
         const result = { Items: [] }; // 全部返回空
         if (result.Items && result.Items.length > 0) {
           return { found: true };

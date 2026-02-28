@@ -6,6 +6,7 @@ const logger = require("../services/logger");
 const { docClient } = require("../db/dynamodb");
 const { UpdateCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { SendEmailCommand } = require("@aws-sdk/client-ses");
+const buildHtmlBody = require("./email-templates");
 
 const QUEUE_URL = process.env.SQS_EXPORT_QUEUE;
 const TABLE = process.env.DYNAMODB_TABLE;
@@ -21,21 +22,11 @@ async function streamToString(stream) {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
-function fmtDate(iso) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  return isNaN(d) ? iso : d.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
-}
-
 function nowISO() {
   return new Date().toISOString();
 }
 
-function nowCN() {
-  return new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
-}
-
-/* ─── HTML email body (AWS Cloudscape style) ──────────── */
+/* ─── SES email ───────────────────────────────────────── */
 
 function buildHtmlBody(report, meetingName) {
   const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

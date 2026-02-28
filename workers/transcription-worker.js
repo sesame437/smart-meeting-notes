@@ -110,7 +110,7 @@ async function isWhisperAvailable() {
   }
 }
 
-async function runWhisper(meetingId, s3Key, filename) {
+async function runWhisper(meetingId, s3Key, _filename) {
   const outputKey = `transcripts/${meetingId}/whisper.json`;
   const s3OutputKey = `${PREFIX}/${outputKey}`;
 

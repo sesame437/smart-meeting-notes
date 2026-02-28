@@ -9,8 +9,6 @@
  *   3. transcription-worker S3 key 去重 (ScanCommand) 逻辑
  */
 
-const path = require("path");
-const fs   = require("fs");
 const { randomUUID } = require("crypto");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,9 +240,9 @@ describe("Suite 1 — createdAt 传播", () => {
         },
       }],
     };
-    const before = Date.now();
+    const _before = Date.now();
     const result = parseMessage(body);
-    const after  = Date.now();
+    const _after  = Date.now();
 
     expect(result.isS3Event).toBe(true);
     // meetingId 现在用 UUID 格式（统一规范，不再用 meeting-${Date.now()} 时间戳）

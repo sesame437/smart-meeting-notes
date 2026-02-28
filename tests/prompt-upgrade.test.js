@@ -65,7 +65,7 @@ const truncateTranscriptFn = (() => {
   // Parse the function out of source using a simple regex capture
   const match = bedrockSrc.match(/function truncateTranscript[\s\S]*?\n\}/);
   if (!match) throw new Error("Could not extract truncateTranscript from bedrock.js");
-  // eslint-disable-next-line no-new-func
+   
   const fn = new Function(`return (${match[0]})`);
   return fn();
 })();
@@ -81,7 +81,7 @@ const dynamoMock = require("@aws-sdk/client-dynamodb");
 const mockDynamoSend = dynamoMock.__mockSend;
 
 // Extract fetchGlossaryTerms from source
-const workerSrc = fs.readFileSync(
+const _workerSrc = fs.readFileSync(
   require.resolve("../workers/report-worker"),
   "utf8"
 );
