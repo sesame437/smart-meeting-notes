@@ -122,13 +122,13 @@ describe("Suite B — runWhisper AbortController 超时", () => {
   test("B1: 超时后 abort() 被调用", () => {
     jest.useFakeTimers();
 
-    const abort = jest.fn();
+    const abortFn = jest.fn();
     const savedAbortController = global.AbortController;
     global.AbortController = class {
       constructor() {
         this.signal = { aborted: false };
+        this.abort = abortFn;
       }
-      abort = abort;
     };
 
     // fetchFn 永不 resolve（模拟挂起）
@@ -138,7 +138,7 @@ describe("Suite B — runWhisper AbortController 超时", () => {
     // 前进到超时边界
     jest.advanceTimersByTime(30 * 60 * 1000);
 
-    expect(abort).toHaveBeenCalledTimes(1);
+    expect(abortFn).toHaveBeenCalledTimes(1);
 
     global.AbortController = savedAbortController;
     jest.useRealTimers();
@@ -147,20 +147,20 @@ describe("Suite B — runWhisper AbortController 超时", () => {
   test("B2: 正常完成时不调用 abort()", async () => {
     jest.useFakeTimers();
 
-    const abort = jest.fn();
+    const abortFn2 = jest.fn();
     const savedAbortController = global.AbortController;
     global.AbortController = class {
       constructor() {
         this.signal = {};
+        this.abort = abortFn2;
       }
-      abort = abort;
     };
 
     const fetchFn = jest.fn().mockResolvedValue({ ok: true });
     await runWithTimeout(fetchFn, 30 * 60 * 1000);
 
     // 超时尚未到达，且请求已正常完成
-    expect(abort).not.toHaveBeenCalled();
+    expect(abortFn2).not.toHaveBeenCalled();
 
     global.AbortController = savedAbortController;
     jest.useRealTimers();

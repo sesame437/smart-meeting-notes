@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * prompt-upgrade.test.js
  * Tests for commits d24d685 + 118a744:
