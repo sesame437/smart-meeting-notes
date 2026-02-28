@@ -1,9 +1,8 @@
 const path = require("path");
 const multer = require("multer");
-const { docClient } = require("../../db/dynamodb");
-const { QueryCommand } = require("@aws-sdk/lib-dynamodb");
 const { getFile } = require("../../services/s3");
 const logger = require("../../services/logger");
+const store = require("../../services/meeting-store");
 
 const TABLE = process.env.DYNAMODB_TABLE;
 const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
@@ -49,15 +48,7 @@ function sanitizeFilename(name) {
 }
 
 async function getMeetingById(id) {
-  const { Items } = await docClient.send(new QueryCommand({
-    TableName: TABLE,
-    KeyConditionExpression: "meetingId = :id",
-    ExpressionAttributeValues: {
-      ":id": id,
-    },
-    Limit: 1,
-  }));
-  return Items?.[0] || null;
+  return await store.queryMeetingById(id);
 }
 
 function validateSpeakerMap(speakerMap) {

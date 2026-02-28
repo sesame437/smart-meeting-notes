@@ -1,6 +1,5 @@
-const { docClient } = require("../../db/dynamodb");
-const { UpdateCommand } = require("@aws-sdk/lib-dynamodb");
 const { sendMessage } = require("../../services/sqs");
+const store = require("../../services/meeting-store");
 const {
   TABLE,
   getMeetingById,
@@ -20,15 +19,7 @@ function register(router) {
       }
 
       // Update stage to exporting
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE,
-        Key: { meetingId: req.params.id, createdAt: item.createdAt },
-        UpdateExpression: "SET stage = :stage, updatedAt = :u",
-        ExpressionAttributeValues: {
-          ":stage": "exporting",
-          ":u": new Date().toISOString(),
-        },
-      }));
+      await store.markEmailSent(req.params.id, item.createdAt);
 
       await sendMessage(exportQueueUrl, {
         meetingId: req.params.id,

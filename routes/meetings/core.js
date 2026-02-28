@@ -1,15 +1,9 @@
 const crypto = require("crypto");
 const fs = require("fs");
-const { docClient } = require("../../db/dynamodb");
-const {
-  ScanCommand,
-  PutCommand,
-  UpdateCommand,
-  DeleteCommand,
-} = require("@aws-sdk/lib-dynamodb");
 const { uploadFile, getFile } = require("../../services/s3");
 const { sendMessage } = require("../../services/sqs");
 const logger = require("../../services/logger");
+const store = require("../../services/meeting-store");
 const {
   TABLE,
   upload,
@@ -21,8 +15,7 @@ function register(router) {
   // List meetings - deduplicate by meetingId, prefer item with title, then latest createdAt
   router.get("/", async (_req, res, next) => {
     try {
-      const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE }));
-      const all = Items || [];
+      const all = await store.listMeetings();
       // Group by meetingId, prefer item with title, then latest createdAt
       const map = new Map();
       for (const item of all) {
@@ -59,7 +52,7 @@ function register(router) {
       if (title !== undefined) item.title = title;
       if (meetingType !== undefined) item.meetingType = meetingType;
       if (recipientEmails !== undefined) item.recipientEmails = recipientEmails;
-      await docClient.send(new PutCommand({ TableName: TABLE, Item: item }));
+      await store.createMeeting(item);
       res.status(201).json(item);
     } catch (err) {
       next(err);
@@ -127,15 +120,8 @@ function register(router) {
       expressions.push("updatedAt = :u");
       values[":u"] = new Date().toISOString();
 
-      const { Attributes } = await docClient.send(new UpdateCommand({
-        TableName: TABLE,
-        Key: { meetingId: req.params.id, createdAt: item.createdAt },
-        UpdateExpression: `SET ${expressions.join(", ")}`,
-        ExpressionAttributeNames: Object.keys(names).length ? names : undefined,
-        ExpressionAttributeValues: values,
-        ReturnValues: "ALL_NEW",
-      }));
-      res.json(Attributes);
+      const updatedItem = await store.updateMeeting(req.params.id, item.createdAt, expressions, names, values);
+      res.json(updatedItem);
     } catch (err) {
       next(err);
     }
@@ -147,10 +133,7 @@ function register(router) {
       const item = await getMeetingById(req.params.id);
       if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
 
-      await docClient.send(new DeleteCommand({
-        TableName: TABLE,
-        Key: { meetingId: req.params.id, createdAt: item.createdAt },
-      }));
+      await store.deleteMeeting(req.params.id, item.createdAt);
       res.status(204).end();
     } catch (err) {
       next(err);
@@ -211,7 +194,7 @@ function register(router) {
         meetingType,
         ...(recipientEmails.length ? { recipientEmails } : {}),
       };
-      await docClient.send(new PutCommand({ TableName: TABLE, Item: item }));
+      await store.createMeetingFromUpload(item);
 
       // Send message to transcription queue
       await sendMessage(process.env.SQS_TRANSCRIPTION_QUEUE, {
@@ -244,19 +227,7 @@ function register(router) {
       // Use ConditionExpression to prevent race condition: only update if still failed
       const updateExpr = "SET #s = :s, stage = :stage, updatedAt = :u REMOVE errorMessage";
       try {
-        await docClient.send(new UpdateCommand({
-          TableName: TABLE,
-          Key: { meetingId: req.params.id, createdAt: item.createdAt },
-          UpdateExpression: updateExpr,
-          ConditionExpression: "#s = :failed",
-          ExpressionAttributeNames: { "#s": "status" },
-          ExpressionAttributeValues: {
-            ":s": "processing",
-            ":stage": "transcribing",
-            ":u": new Date().toISOString(),
-            ":failed": "failed",
-          },
-        }));
+        await store.retryMeeting(req.params.id, item.createdAt, updateExpr);
       } catch (condErr) {
         if (condErr.name === 'ConditionalCheckFailedException') {
           return res.status(409).json({ error: { code: "INVALID_STATUS", message: "会议当前不是失败状态，无法重试" } });
@@ -275,18 +246,7 @@ function register(router) {
       } catch (sqsErr) {
         // Rollback: revert status to failed since SQS enqueue failed
         try {
-          await docClient.send(new UpdateCommand({
-            TableName: TABLE,
-            Key: { meetingId: req.params.id, createdAt: item.createdAt },
-            UpdateExpression: "SET #s = :s, stage = :stage, errorMessage = :em, updatedAt = :u",
-            ExpressionAttributeNames: { "#s": "status" },
-            ExpressionAttributeValues: {
-              ":s": "failed",
-              ":stage": "failed",
-              ":em": "SQS 入队失败: " + sqsErr.message,
-              ":u": new Date().toISOString(),
-            },
-          }));
+          await store.rollbackRetry(req.params.id, item.createdAt, "SQS 入队失败: " + sqsErr.message);
         } catch (rollbackErr) {
           logger.error("meetings-route", "retry-rollback-failed", {}, rollbackErr);
         }

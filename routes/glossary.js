@@ -1,12 +1,6 @@
 const { Router } = require("express");
 const crypto = require("crypto");
-const { docClient } = require("../db/dynamodb");
-const {
-  ScanCommand,
-  PutCommand,
-  UpdateCommand,
-  DeleteCommand,
-} = require("@aws-sdk/lib-dynamodb");
+const glossaryStore = require("../services/glossary-store");
 
 const router = Router();
 const TABLE = process.env.GLOSSARY_TABLE;
@@ -24,8 +18,8 @@ router.param("id", validateIdParam);
 // List glossary terms
 router.get("/", async (_req, res, next) => {
   try {
-    const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE }));
-    res.json(Items || []);
+    const items = await glossaryStore.listGlossary();
+    res.json(items);
   } catch (err) {
     next(err);
   }
@@ -42,7 +36,7 @@ router.post("/", async (req, res, next) => {
     if (term !== undefined) item.term = term;
     if (definition !== undefined) item.definition = definition;
     if (aliases !== undefined) item.aliases = aliases;
-    await docClient.send(new PutCommand({ TableName: TABLE, Item: item }));
+    await glossaryStore.createGlossaryItem(item);
     res.status(201).json(item);
   } catch (err) {
     next(err);
@@ -79,15 +73,8 @@ router.put("/:id", async (req, res, next) => {
     expressions.push("updatedAt = :u");
     values[":u"] = new Date().toISOString();
 
-    const { Attributes } = await docClient.send(new UpdateCommand({
-      TableName: TABLE,
-      Key: { termId: req.params.id },
-      UpdateExpression: `SET ${expressions.join(", ")}`,
-      ExpressionAttributeNames: Object.keys(names).length ? names : undefined,
-      ExpressionAttributeValues: values,
-      ReturnValues: "ALL_NEW",
-    }));
-    res.json(Attributes);
+    const updatedItem = await glossaryStore.updateGlossaryItem(req.params.id, expressions, names, values);
+    res.json(updatedItem);
   } catch (err) {
     next(err);
   }
@@ -96,10 +83,7 @@ router.put("/:id", async (req, res, next) => {
 // Delete term
 router.delete("/:id", async (req, res, next) => {
   try {
-    await docClient.send(new DeleteCommand({
-      TableName: TABLE,
-      Key: { termId: req.params.id },
-    }));
+    await glossaryStore.deleteGlossaryItem(req.params.id);
     res.status(204).end();
   } catch (err) {
     next(err);

@@ -1,13 +1,8 @@
 const crypto = require("crypto");
-const { docClient } = require("../../db/dynamodb");
-const {
-  ScanCommand,
-  PutCommand,
-  UpdateCommand,
-} = require("@aws-sdk/lib-dynamodb");
 const { uploadFile, getFile } = require("../../services/s3");
 const { invokeModel } = require("../../services/bedrock");
 const logger = require("../../services/logger");
+const store = require("../../services/meeting-store");
 const {
   TABLE,
   GLOSSARY_TABLE,
@@ -81,11 +76,8 @@ function register(router) {
       // Fetch glossary terms
       let glossaryTerms = [];
       try {
-        const { Items: glossaryItems } = await docClient.send(new ScanCommand({
-          TableName: GLOSSARY_TABLE,
-          ProjectionExpression: "termId",
-        }));
-        glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
+        const glossaryItems = await store.getGlossaryItems();
+        glossaryTerms = glossaryItems.map(i => i.termId).filter(Boolean);
       } catch (err) {
         logger.warn("meetings-route", "merge-fetch-glossary-failed", { error: err.message });
       }
@@ -110,21 +102,18 @@ function register(router) {
       await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
 
       // Save to DynamoDB
-      await docClient.send(new PutCommand({
-        TableName: TABLE,
-        Item: {
-          meetingId,
-          meetingType: "merged",
-          title: `合并报告 — ${new Date().toLocaleDateString("zh-CN")}`,
-          parentIds,
-          customPrompt: customPrompt || "",
-          status: "reported",
-          stage: "exporting",
-          content: report,
-          reportKey: reportKey,
-          createdAt: now,
-        },
-      }));
+      await store.saveReport({
+        meetingId,
+        meetingType: "merged",
+        title: `合并报告 — ${new Date().toLocaleDateString("zh-CN")}`,
+        parentIds,
+        customPrompt: customPrompt || "",
+        status: "reported",
+        stage: "exporting",
+        content: report,
+        reportKey: reportKey,
+        createdAt: now,
+      });
 
       // Note: email is sent manually via POST /:id/send-email
       res.status(201).json({ meetingId, report, skipped });
@@ -145,15 +134,16 @@ function register(router) {
       const item = await getMeetingById(req.params.id);
       if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
 
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE,
-        Key: { meetingId: req.params.id, createdAt: item.createdAt },
-        UpdateExpression: "SET speakerMap = :sm, updatedAt = :u",
-        ExpressionAttributeValues: {
+      await store.updateMeetingReport(
+        req.params.id,
+        item.createdAt,
+        "SET speakerMap = :sm, updatedAt = :u",
+        {},
+        {
           ":sm": speakerMap,
           ":u": new Date().toISOString(),
-        },
-      }));
+        }
+      );
 
       res.json({ success: true });
     } catch (err) {
@@ -180,11 +170,8 @@ function register(router) {
       // Fetch glossary terms
       let glossaryTerms = [];
       try {
-        const { Items: glossaryItems } = await docClient.send(new ScanCommand({
-          TableName: GLOSSARY_TABLE,
-          ProjectionExpression: "termId",
-        }));
-        glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
+        const glossaryItems = await store.getGlossaryItems();
+        glossaryTerms = glossaryItems.map(i => i.termId).filter(Boolean);
       } catch (err) {
         logger.warn("meetings-route", "regenerate-fetch-glossary-failed", { error: err.message });
       }
@@ -201,19 +188,19 @@ function register(router) {
       const reportKey = `reports/${req.params.id}/report.json`;
       await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
 
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE,
-        Key: { meetingId: req.params.id, createdAt: item.createdAt },
-        UpdateExpression: "SET content = :c, reportKey = :rk, #s = :s, stage = :stage, updatedAt = :u",
-        ExpressionAttributeNames: { "#s": "status" },
-        ExpressionAttributeValues: {
+      await store.updateMeetingReport(
+        req.params.id,
+        item.createdAt,
+        "SET content = :c, reportKey = :rk, #s = :s, stage = :stage, updatedAt = :u",
+        { "#s": "status" },
+        {
           ":c": report,
           ":rk": reportKey,
           ":s": "reported",
           ":stage": "done",
           ":u": new Date().toISOString(),
-        },
-      }));
+        }
+      );
 
       // Note: email is sent manually via POST /:id/send-email
       res.json({ success: true, report });
@@ -235,15 +222,16 @@ function register(router) {
       if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
 
       // Save speakerMap to DynamoDB
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE,
-        Key: { meetingId: req.params.id, createdAt: item.createdAt },
-        UpdateExpression: "SET speakerMap = :sm, updatedAt = :u",
-        ExpressionAttributeValues: {
+      await store.updateMeetingReport(
+        req.params.id,
+        item.createdAt,
+        "SET speakerMap = :sm, updatedAt = :u",
+        {},
+        {
           ":sm": speakerMap,
           ":u": new Date().toISOString(),
-        },
-      }));
+        }
+      );
 
       const transcriptParts = await readTranscriptParts(item);
       if (transcriptParts.length === 0) {
@@ -255,11 +243,8 @@ function register(router) {
 
       let glossaryTerms = [];
       try {
-        const { Items: glossaryItems } = await docClient.send(new ScanCommand({
-          TableName: GLOSSARY_TABLE,
-          ProjectionExpression: "termId",
-        }));
-        glossaryTerms = (glossaryItems || []).map(i => i.termId).filter(Boolean);
+        const glossaryItems = await store.getGlossaryItems();
+        glossaryTerms = glossaryItems.map(i => i.termId).filter(Boolean);
       } catch (err) {
         logger.warn("meetings-route", "speaker-map-fetch-glossary-failed", { error: err.message });
       }
@@ -276,19 +261,19 @@ function register(router) {
       const reportKey = `reports/${req.params.id}/report.json`;
       await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
 
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE,
-        Key: { meetingId: req.params.id, createdAt: item.createdAt },
-        UpdateExpression: "SET content = :c, reportKey = :rk, #s = :s, stage = :stage, updatedAt = :u",
-        ExpressionAttributeNames: { "#s": "status" },
-        ExpressionAttributeValues: {
+      await store.updateMeetingReport(
+        req.params.id,
+        item.createdAt,
+        "SET content = :c, reportKey = :rk, #s = :s, stage = :stage, updatedAt = :u",
+        { "#s": "status" },
+        {
           ":c": report,
           ":rk": reportKey,
           ":s": "reported",
           ":stage": "done",
           ":u": new Date().toISOString(),
-        },
-      }));
+        }
+      );
 
       // Note: email is sent manually via POST /:id/send-email
       res.json({ success: true, report });
@@ -353,15 +338,16 @@ function register(router) {
       await uploadFile(item.reportKey, JSON.stringify(report, null, 2), "application/json");
 
       // Update DynamoDB updatedAt
-      await docClient.send(new UpdateCommand({
-        TableName: TABLE,
-        Key: { meetingId: req.params.id, createdAt: item.createdAt },
-        UpdateExpression: "SET content = :c, updatedAt = :u",
-        ExpressionAttributeValues: {
+      await store.updateMeetingReport(
+        req.params.id,
+        item.createdAt,
+        "SET content = :c, updatedAt = :u",
+        {},
+        {
           ":c": report,
           ":u": new Date().toISOString(),
-        },
-      }));
+        }
+      );
 
       res.json({ success: true });
     } catch (err) {
