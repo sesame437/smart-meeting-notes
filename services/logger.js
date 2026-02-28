@@ -8,6 +8,7 @@ function fmt(level, module, event, meta = {}) {
   return JSON.stringify({ timestamp: new Date().toISOString(), level, service: SERVICE, module, event, ...meta });
 }
 
+/* eslint-disable no-console */
 const logger = {
   info:  (module, event, meta) => console.log(fmt("info",  module, event, meta)),
   warn:  (module, event, meta) => console.warn(fmt("warn",  module, event, meta)),
@@ -15,5 +16,6 @@ const logger = {
     { ...meta, ...(err ? { error: err.message, stack: err.stack } : {}) }
   )),
 };
+/* eslint-enable no-console */
 
 module.exports = logger;

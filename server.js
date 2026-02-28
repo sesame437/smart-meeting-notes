@@ -4,6 +4,9 @@ const cors = require("cors");
 const helmet = require("helmet");
 const path = require("path");
 
+const rateLimit = require("express-rate-limit");
+const logger = require("./services/logger");
+
 // 启动时校验必需环境变量
 const REQUIRED_ENV = [
   "S3_BUCKET", "S3_PREFIX", "DYNAMODB_TABLE",
@@ -11,11 +14,9 @@ const REQUIRED_ENV = [
 ];
 const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missingEnv.length > 0) {
-  console.error("❌ 缺少必需环境变量:", missingEnv.join(", "));
+  logger.error("server", "missing-env-vars", { missing: missingEnv });
   process.exit(1);
 }
-
-const logger = require("./services/logger");
 const meetingsRouter = require("./routes/meetings/index");
 const glossaryRouter = require("./routes/glossary");
 
@@ -40,6 +41,29 @@ app.use(helmet({
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// Rate limiting for upload and report generation endpoints
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // limit each IP to 10 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({
+      error: {
+        code: "RATE_LIMIT_EXCEEDED",
+        message: "Too many requests, please try again later"
+      }
+    });
+  },
+});
+app.use("/api/meetings/upload", apiLimiter);
+app.use("/api/meetings/:id/regenerate", apiLimiter);
+app.use("/api/meetings/:id/report", apiLimiter);
+app.use("/api/meetings/:id/speaker-names", apiLimiter);
+app.use("/api/meetings/:id/speaker-map", apiLimiter);
+app.use("/api/meetings/:id/auto-name", apiLimiter);
+app.use("/api/meetings/merge", apiLimiter);
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", service: "meeting-minutes" });
 });
@@ -48,10 +72,10 @@ app.use("/api/meetings", meetingsRouter);
 app.use("/api/glossary", glossaryRouter);
 
 // Unified error handling middleware (must be after all routes)
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   const status = err.status || err.statusCode || 500;
-  console.error("[error]", req.method, req.path, err.message);
-  res.status(status).json({ error: err.message || "Internal server error" });
+  logger.error("server", "unhandled-error", { method: req.method, path: req.path }, err);
+  res.status(status).json({ error: { code: "INTERNAL_ERROR", message: err.message || "Internal server error" } });
 });
 
 const server = app.listen(PORT, () => {
@@ -60,14 +84,14 @@ const server = app.listen(PORT, () => {
 
 // 优雅关机：等待 in-flight 请求完成后退出
 function gracefulShutdown(signal) {
-  console.log(`[server] Received ${signal}, shutting down gracefully...`);
+  logger.info("server", "shutdown-started", { signal });
   server.close(() => {
-    console.log("[server] HTTP server closed");
+    logger.info("server", "shutdown-complete", {});
     process.exit(0);
   });
   // 10 秒超时强制退出
   setTimeout(() => {
-    console.error("[server] Forced shutdown after timeout");
+    logger.error("server", "shutdown-timeout", {});
     process.exit(1);
   }, 10000);
 }

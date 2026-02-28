@@ -487,3 +487,12 @@ async function poll() {
 }
 
 poll();
+
+process.on("unhandledRejection", (reason) => {
+  logger.error("worker", "unhandled-rejection", {}, reason instanceof Error ? reason : new Error(String(reason)));
+  process.exit(1);
+});
+process.on("uncaughtException", (err) => {
+  logger.error("worker", "uncaught-exception", {}, err);
+  process.exit(1);
+});
