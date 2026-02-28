@@ -13,7 +13,7 @@ const HAIKU_MODEL_ID = process.env.HAIKU_MODEL_ID || "us.anthropic.claude-haiku-
 function validateIdParam(req, res, next) {
   const id = req.params.id;
   if (!id || typeof id !== "string" || id.length > 100) {
-    return res.status(400).json({ error: "Invalid id parameter" });
+    return res.status(400).json({ error: { code: "INVALID_ID", message: "Invalid id parameter" } });
   }
   next();
 }

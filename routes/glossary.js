@@ -15,7 +15,7 @@ const TABLE = process.env.GLOSSARY_TABLE;
 function validateIdParam(req, res, next) {
   const id = req.params.id;
   if (!id || typeof id !== "string" || id.length > 100) {
-    return res.status(400).json({ error: "Invalid id parameter" });
+    return res.status(400).json({ error: { code: "INVALID_ID", message: "Invalid id parameter" } });
   }
   next();
 }
@@ -53,7 +53,7 @@ router.post("/", async (req, res, next) => {
 router.put("/:id", async (req, res, next) => {
   try {
     if (req.body.term === undefined || req.body.term === null || req.body.term === "") {
-      return res.status(400).json({ error: "term is required" });
+      return res.status(400).json({ error: { code: "MISSING_TERM", message: "term is required" } });
     }
     const { term, definition, aliases } = req.body;
     const expressions = [];

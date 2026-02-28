@@ -70,7 +70,7 @@ function register(router) {
   router.get("/:id", async (req, res, next) => {
     try {
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Not found" });
+      if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
 
       // If report exists in S3 but not yet in DynamoDB content field, load it
       if (!item.content && item.reportKey) {
@@ -97,7 +97,7 @@ function register(router) {
   router.put("/:id", async (req, res, next) => {
     try {
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Not found" });
+      if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
 
       const { status, content, title, meetingType } = req.body;
       const expressions = [];
@@ -145,7 +145,7 @@ function register(router) {
   router.delete("/:id", async (req, res, next) => {
     try {
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Not found" });
+      if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
 
       await docClient.send(new DeleteCommand({
         TableName: TABLE,
@@ -166,16 +166,16 @@ function register(router) {
           fs.unlinkSync(req.file.path);
         }
         if (err.code === "LIMIT_FILE_SIZE") {
-          return res.status(413).json({ error: "文件大小超过 2GB 限制" });
+          return res.status(413).json({ error: { code: "FILE_TOO_LARGE", message: "文件大小超过 2GB 限制" } });
         }
-        return res.status(400).json({ error: err.message });
+        return res.status(400).json({ error: { code: "UPLOAD_ERROR", message: err.message } });
       }
       next();
     });
   }, async (req, res, next) => {
     try {
       if (!req.file) {
-        return res.status(400).json({ error: "No file provided" });
+        return res.status(400).json({ error: { code: "NO_FILE", message: "No file provided" } });
       }
 
       const meetingId = crypto.randomUUID();
@@ -235,9 +235,9 @@ function register(router) {
   router.post("/:id/retry", async (req, res, next) => {
     try {
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Not found" });
+      if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
       if (item.status !== "failed") {
-        return res.status(400).json({ error: "Only failed meetings can be retried" });
+        return res.status(400).json({ error: { code: "INVALID_STATUS", message: "Only failed meetings can be retried" } });
       }
 
       // Reset status and send back to transcription queue
@@ -259,7 +259,7 @@ function register(router) {
         }));
       } catch (condErr) {
         if (condErr.name === 'ConditionalCheckFailedException') {
-          return res.status(409).json({ error: '会议当前不是失败状态，无法重试' });
+          return res.status(409).json({ error: { code: "INVALID_STATUS", message: "会议当前不是失败状态，无法重试" } });
         }
         throw condErr;
       }
@@ -290,7 +290,7 @@ function register(router) {
         } catch (rollbackErr) {
           logger.error("meetings-route", "retry-rollback-failed", {}, rollbackErr);
         }
-        return res.status(500).json({ error: '重试入队失败，请稍后再试' });
+        return res.status(500).json({ error: { code: "QUEUE_ERROR", message: "重试入队失败，请稍后再试" } });
       }
 
       res.json({ success: true });

@@ -114,7 +114,7 @@ describe("POST /api/meetings/:id/retry", () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(404);
-    expect(res.body).toEqual({ error: "Not found" });
+    expect(res.body).toEqual({ error: { code: "NOT_FOUND", message: "Not found" } });
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
@@ -139,7 +139,7 @@ describe("POST /api/meetings/:id/retry", () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(400);
-    expect(res.body).toEqual({ error: "Only failed meetings can be retried" });
+    expect(res.body).toEqual({ error: { code: "INVALID_STATUS", message: "Only failed meetings can be retried" } });
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
@@ -202,7 +202,7 @@ describe("POST /api/meetings/:id/retry", () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(409);
-    expect(res.body).toEqual({ error: "会议当前不是失败状态，无法重试" });
+    expect(res.body).toEqual({ error: { code: "INVALID_STATUS", message: "会议当前不是失败状态，无法重试" } });
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
@@ -234,7 +234,7 @@ describe("POST /api/meetings/:id/retry", () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(500);
-    expect(res.body).toEqual({ error: "重试入队失败，请稍后再试" });
+    expect(res.body).toEqual({ error: { code: "QUEUE_ERROR", message: "重试入队失败，请稍后再试" } });
 
     // 验证回滚 UpdateCommand：状态回退到 failed
     const rollbackCall = mockSend.mock.calls[2][0];

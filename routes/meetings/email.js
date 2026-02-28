@@ -11,12 +11,12 @@ function register(router) {
   router.post("/:id/send-email", async (req, res, next) => {
     try {
       const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: "Meeting not found" });
-      if (!item.reportKey) return res.status(400).json({ error: "Report not generated yet" });
+      if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Meeting not found" } });
+      if (!item.reportKey) return res.status(400).json({ error: { code: "REPORT_NOT_GENERATED", message: "Report not generated yet" } });
 
       const exportQueueUrl = process.env.SQS_EXPORT_QUEUE;
       if (!exportQueueUrl) {
-        return res.status(500).json({ error: "Export queue not configured" });
+        return res.status(500).json({ error: { code: "QUEUE_NOT_CONFIGURED", message: "Export queue not configured" } });
       }
 
       // Update stage to exporting
