@@ -1,5 +1,5 @@
 const { EC2Client, StartInstancesCommand, StopInstancesCommand, DescribeInstancesCommand } = require("@aws-sdk/client-ec2");
-const { DynamoDBClient, ScanCommand } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBClient, QueryCommand } = require("@aws-sdk/client-dynamodb");
 const logger = require("./logger");
 
 const INSTANCE_ID = process.env.FUNASR_INSTANCE_ID || "i-0f69617df5dc59d6b";
@@ -138,23 +138,36 @@ async function autoShutdown() {
   }
 }
 
-// 7. checkActiveJobs — scan DynamoDB for pending/transcribing tasks
+// 7. checkActiveJobs — query DynamoDB GSI for pending/processing tasks
 // Only count jobs created within the last 2 hours to avoid zombie records blocking shutdown
 async function checkActiveJobs() {
   try {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const resp = await dynamoClient.send(new ScanCommand({
-      TableName: DYNAMODB_TABLE,
-      FilterExpression: "#s IN (:pending, :processing) AND createdAt >= :cutoff",
-      ExpressionAttributeNames: { "#s": "status" },
-      ExpressionAttributeValues: {
-        ":pending": { S: "pending" },
-        ":processing": { S: "processing" },
-        ":cutoff": { S: twoHoursAgo },
-      },
-      Select: "COUNT",
-    }));
-    return resp.Count || 0;
+    const [pendingResp, processingResp] = await Promise.all([
+      dynamoClient.send(new QueryCommand({
+        TableName: DYNAMODB_TABLE,
+        IndexName: "status-createdAt-index",
+        KeyConditionExpression: "#s = :pending AND createdAt >= :cutoff",
+        ExpressionAttributeNames: { "#s": "status" },
+        ExpressionAttributeValues: {
+          ":pending": { S: "pending" },
+          ":cutoff": { S: twoHoursAgo },
+        },
+        Select: "COUNT",
+      })),
+      dynamoClient.send(new QueryCommand({
+        TableName: DYNAMODB_TABLE,
+        IndexName: "status-createdAt-index",
+        KeyConditionExpression: "#s = :processing AND createdAt >= :cutoff",
+        ExpressionAttributeNames: { "#s": "status" },
+        ExpressionAttributeValues: {
+          ":processing": { S: "processing" },
+          ":cutoff": { S: twoHoursAgo },
+        },
+        Select: "COUNT",
+      })),
+    ]);
+    return (pendingResp.Count || 0) + (processingResp.Count || 0);
   } catch (err) {
     logger.error("gpu-autoscale", "checkActiveJobs failed", { error: err.message });
     return 1; // err on the side of caution — assume something is running
