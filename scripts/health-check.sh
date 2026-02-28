@@ -18,16 +18,26 @@ else
   echo "   或检查: pm2 start server.js --name meeting-minutes"
 fi
 
-# 2. 测试基线
+# 2. Full Gate (lint + test)
 echo ""
-echo "[2/3] 测试基线..."
-TEST_RESULT=$(npm test -- --passWithNoTests 2>&1 | tail -4)
+echo "[2/3] Full Gate..."
+
+# lint
+LINT_RESULT=$(npm run lint 2>&1 | grep "problems" | tail -1)
+if echo "$LINT_RESULT" | grep -q " 0 errors"; then
+  echo "✅ Lint: $LINT_RESULT"
+else
+  echo "⚠️  Lint: $LINT_RESULT"
+fi
+
+# test
+TEST_RESULT=$(npm test -- --passWithNoTests 2>&1 | tail -3)
 echo "$TEST_RESULT"
 if echo "$TEST_RESULT" | grep -q "failed"; then
   echo "❌ 有测试失败！请先修复再开始新功能"
   exit 1
 else
-  echo "✅ 测试通过"
+  echo "✅ Tests passed"
 fi
 
 # 3. 当前进度
