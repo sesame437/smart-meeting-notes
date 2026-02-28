@@ -194,7 +194,7 @@ function register(router) {
 
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        return res.status(500).json({ error: "Failed to parse report from Bedrock" });
+        return res.status(500).json({ error: { code: "REPORT_PARSE_FAILED", message: "Failed to parse report from Bedrock" } });
       }
       const report = JSON.parse(jsonMatch[0]);
 
@@ -269,7 +269,7 @@ function register(router) {
 
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        return res.status(500).json({ error: "Failed to parse report from Bedrock" });
+        return res.status(500).json({ error: { code: "REPORT_PARSE_FAILED", message: "Failed to parse report from Bedrock" } });
       }
       const report = JSON.parse(jsonMatch[0]);
 
