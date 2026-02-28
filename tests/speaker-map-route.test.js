@@ -84,7 +84,7 @@ describe("PUT /api/meetings/:id/speaker-map error scenarios", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
-    expect(res.body.error.message).toMatch(/speakerMap must be an object/i);
+    expect(res.body.error.message).toMatch(/expected record|invalid.*type/i);
     expect(mockSend).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });

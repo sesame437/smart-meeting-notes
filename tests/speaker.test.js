@@ -128,7 +128,7 @@ describe("PUT /api/meetings/:id/speaker-map", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
-    expect(res.body.error.message).toMatch(/key must be a non-empty string/i);
+    expect(res.body.error.message).toMatch(/too_small|minimum|String must contain at least/i);
     expect(mockSend).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });
@@ -147,7 +147,7 @@ describe("PUT /api/meetings/:id/speaker-map", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
-    expect(res.body.error.message).toMatch(/at most 100 characters/i);
+    expect(res.body.error.message).toMatch(/too_big|maximum|100|String must contain at most/i);
     expect(mockSend).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });

@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { z } = require("zod");
 const { uploadFile, getFile } = require("../../services/s3");
 const { invokeModel } = require("../../services/bedrock");
 const logger = require("../../services/logger");
@@ -10,16 +11,28 @@ const {
   readTranscriptParts,
 } = require("./helpers");
 
+const mergeSchema = z.object({
+  meetingIds: z.array(z.string().uuid()).min(2),
+  customPrompt: z.string().max(500).optional(),
+});
+
+const speakerNamesSchema = z.object({
+  speakerMap: z.record(z.string().min(1), z.string().max(100)),
+});
+
 function register(router) {
   // Merge multiple meetings into a combined report
   router.post("/merge", async (req, res, next) => {
     try {
-      const { meetingIds, customPrompt } = req.body;
-
-      // Validate meetingIds
-      if (!Array.isArray(meetingIds) || meetingIds.length < 2) {
-        return res.status(400).json({ error: { code: "INVALID_MEETING_IDS", message: "meetingIds must contain at least 2 items" } });
+      // Validate request body with zod
+      const parseResult = mergeSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
       }
+
+      const { meetingIds, customPrompt } = parseResult.data;
+
+      // Additional validation: max 10 items
       if (meetingIds.length > 10) {
         return res.status(400).json({ error: { code: "MEETING_IDS_LIMIT_EXCEEDED", message: "meetingIds cannot exceed 10 items" } });
       }
@@ -123,7 +136,13 @@ function register(router) {
   // Save speaker names only (no Bedrock regeneration)
   router.put("/:id/speaker-names", async (req, res, next) => {
     try {
-      const { speakerMap } = req.body;
+      // Validate request body with zod
+      const parseResult = speakerNamesSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
+      }
+
+      const { speakerMap } = parseResult.data;
       const validationError = validateSpeakerMap(speakerMap);
       if (validationError) {
         return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: validationError } });
@@ -210,7 +229,13 @@ function register(router) {
   // Legacy: Update speaker map and regenerate report (kept for backwards compatibility)
   router.put("/:id/speaker-map", async (req, res, next) => {
     try {
-      const { speakerMap } = req.body;
+      // Validate request body with zod
+      const parseResult = speakerNamesSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
+      }
+
+      const { speakerMap } = parseResult.data;
       const validationError = validateSpeakerMap(speakerMap);
       if (validationError) {
         return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: validationError } });

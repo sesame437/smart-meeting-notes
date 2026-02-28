@@ -47,7 +47,7 @@ describe("multer fileFilter", () => {
   });
 
   test("合法扩展名（.wav）→ 通过（即使 MIME 不在列表中）", async () => {
-    const { accepted, error } = await check("application/octet-stream", "recording.wav");
+    const { accepted: _accepted, error: _error } = await check("application/octet-stream", "recording.wav");
     // application/octet-stream is in allowed mimes, so this passes by mime
     // Let's also test with an unknown mime but valid ext
     const { accepted: a2, error: e2 } = await check("audio/x-unknown", "recording.wav");
@@ -56,7 +56,7 @@ describe("multer fileFilter", () => {
   });
 
   test("不合法扩展名（.exe）→ 拒绝", async () => {
-    const { accepted, error } = await check("application/octet-stream", "virus.exe");
+    const { accepted: _accepted, error: _error } = await check("application/octet-stream", "virus.exe");
     // application/octet-stream IS in allowed mimes, so it passes by mime
     // The fileFilter allows by mime OR ext; .exe with unknown mime is blocked
     // but .exe with application/octet-stream passes by mime.

@@ -1,9 +1,6 @@
 const { docClient } = require("../db/dynamodb")
 const {
   ScanCommand,
-  PutCommand,
-  UpdateCommand,
-  DeleteCommand,
 } = require("@aws-sdk/lib-dynamodb")
 const {
   listGlossary,

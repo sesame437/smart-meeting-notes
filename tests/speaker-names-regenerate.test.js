@@ -95,7 +95,7 @@ describe("PUT /api/meetings/:id/speaker-names", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
-    expect(res.body.error.message).toMatch(/object/i);
+    expect(res.body.error.message).toMatch(/expected record|invalid.*type/i);
   });
 
   test("returns 404 if meeting not found", async () => {

@@ -12,7 +12,7 @@ const REGION = process.env.AWS_REGION || "us-west-2";
 const ec2 = new EC2Client({ region: REGION });
 const dynamoClient = new DynamoDBClient({ region: REGION });
 
-let lastActivityAt = null;
+let _lastActivityAt = null;
 let idleTimer = null;
 
 // 1. getInstanceState
@@ -108,7 +108,7 @@ async function isFunASRReachable() {
 
 // 5. recordActivity — reset 30-min idle countdown
 function recordActivity() {
-  lastActivityAt = Date.now();
+  _lastActivityAt = Date.now();
   if (idleTimer) clearTimeout(idleTimer);
   idleTimer = setTimeout(autoShutdown, IDLE_TIMEOUT_MS);
   // Prevent timer from keeping the process alive

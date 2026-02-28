@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const fs = require("fs");
+const { z } = require("zod");
 const { uploadFile, getFile } = require("../../services/s3");
 const { sendMessage } = require("../../services/sqs");
 const logger = require("../../services/logger");
@@ -9,6 +10,12 @@ const {
   sanitizeFilename,
   getMeetingById,
 } = require("./helpers");
+
+const uploadSchema = z.object({
+  title: z.string().max(200).optional(),
+  meetingType: z.enum(["general", "tech", "weekly", "customer"]).optional(),
+  recipientEmails: z.string().optional(),
+});
 
 function register(router) {
   // List meetings - deduplicate by meetingId, prefer item with title, then latest createdAt
@@ -160,12 +167,22 @@ function register(router) {
         return res.status(400).json({ error: { code: "NO_FILE", message: "No file provided" } });
       }
 
+      // Validate request body with zod
+      const parseResult = uploadSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        // Clean up temp file
+        if (req.file && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
+      }
+
       const meetingId = crypto.randomUUID();
       const filename = sanitizeFilename(req.file.originalname);
       const s3Key = `inbox/${meetingId}/${filename}`;
 
       // Upload to S3
-      const fileBuffer = fs.readFileSync(req.file.path);
+      const fileBuffer = await fs.promises.readFile(req.file.path);
       await uploadFile(s3Key, fileBuffer, req.file.mimetype);
 
       // Clean up temp file
