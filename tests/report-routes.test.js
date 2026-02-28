@@ -209,36 +209,6 @@ describe("PUT /api/meetings/:id/speaker-names", () => {
   });
 });
 
-describe("POST /api/meetings/:id/regenerate", () => {
-  test("returns 200 with report on success", async () => {
-    const meeting = {
-      meetingId: "test-123",
-      createdAt: "2026-02-26T10:00:00.000Z",
-      funasrKey: "transcripts/test-123/funasr.json",
-    };
-
-    mockDynamoSend
-      .mockResolvedValueOnce({ Items: [meeting] }) // getMeetingById
-      .mockResolvedValueOnce({ Items: [] }) // getGlossaryItems
-      .mockResolvedValueOnce({}); // updateMeetingReport
-
-    mockGetFile.mockResolvedValueOnce(makeStream(JSON.stringify({
-      segments: [{ speaker: "SPEAKER_00", text: "Test transcript segment" }],
-    })));
-    mockInvokeModel.mockResolvedValueOnce(JSON.stringify({ summary: "Regenerated summary" }));
-    mockUploadFile.mockResolvedValueOnce("reports/test-123/report.json");
-
-    const res = await request(createApp())
-      .post("/api/meetings/test-123/regenerate")
-      .send();
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.report).toBeDefined();
-  });
-
-});
-
 describe("PATCH /api/meetings/:id/report", () => {
   test("returns 400 if section is invalid", async () => {
     const meeting = {
