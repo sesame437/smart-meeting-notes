@@ -2,19 +2,20 @@
 
 > cc 每次 session 开始必读此文件，结束必更新。
 
-最后更新：2026-02-28
+最后更新：2026-03-01
 
 ---
 
 ## 当前状态
 
 - 服务：port 3300，正常运行
-- 测试：432 passed，0 failed，34 suites
+- 测试：432 passed (Jest) + 8 passed / 2 skipped (Playwright)
 - 覆盖率：Statements 79%，Branches 70%，Functions 77%
 - 架构评分：92/100（v3.0 评分表）
 
 ## 最近完成（最新在前）
 
+- [x] Playwright E2E 测试：home/glossary/report 三个页面核心流程（commit `aef660a`）
 - [x] DynamoDB gpu-autoscale Scan → 并行 QueryCommand，复用 status-createdAt-index GSI（commit `7ff3e1b`）
 - [x] zod 高风险路由校验：upload/merge/speaker-names/speaker-map（commit `b67e739`）
 - [x] workers 单元测试：transcription-worker + report-worker（commit `b67e739`）
@@ -44,5 +45,5 @@
 - 路由：`routes/meetings/`（core/report/email/helpers）、`routes/glossary.js`
 - 服务层：`services/`（meeting-store/glossary-store/s3/bedrock/gpu-autoscale）
 - Workers：`workers/`（transcription/report/export + email-templates/）
-- 测试：`tests/`（432 passed）
+- 测试：`tests/`（Jest 432 passed）、`e2e/`（Playwright 8 passed）
 - 规范：`.claude/rules/`（api/coding/testing/data）
