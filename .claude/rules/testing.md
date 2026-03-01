@@ -47,13 +47,40 @@ it("calls s3.uploadFile with correct params", async () => {})
 - 用 jest.mock() 或 sinon，不用手写 stub
 - 每个测试独立，不依赖执行顺序
 
-## CI 规范
-- 每次 commit 前必须本地跑 npm test
-- 测试失败不得 push
-- 当前测试套件：302 个测试，全部通过为基线
+## E2E 测试（Playwright）
+- 测试文件放 `e2e/` 目录，文件名 `*.spec.js`
+- 运行命令：`npm run test:e2e`（等价于 `playwright test`）
+- 配置文件：`playwright.config.js`，baseURL=http://localhost:3300，headless=true，必须带 `--no-sandbox --disable-setuid-sandbox`（EC2 环境）
+- **测什么**：核心用户流程（页面加载、导航、表单存在、关键 UI 元素）；不测外部服务（S3/SES/Bedrock）
+- **不测什么**：真实文件上传、真实邮件发送、需要 AWS 调用的完整流程
+- 依赖数据库数据的测试用 `test.skip` 条件跳过（CI 环境无数据属正常）
+- 当前基线：**8 passed，2 skipped**（report.spec.js 依赖现有会议数据）
 
-## 验证成功标准（官方最佳实践）
-npm test 必须输出：
-- meeting-minutes：`302 passed, 0 failed`（当前基线）
-- 新增代码后基线只能增加，不能减少
+### E2E 测试写法示例
+```javascript
+const { test, expect } = require("@playwright/test");
+
+test.describe("词库页", () => {
+  test("词库页加载，标题正确", async ({ page }) => {
+    await page.goto("/?tab=glossary");
+    await expect(page).toHaveTitle(/会议纪要/);
+  });
+
+  test("添加术语表单存在", async ({ page }) => {
+    await page.goto("/?tab=glossary");
+    await expect(page.locator("#glossary-term-input")).toBeVisible();
+  });
+});
+```
+
+## CI 规范
+- 每次 commit 前必须本地跑 `npm test`（unit）+ `npm run test:e2e`（e2e）
+- Full Gate = lint + unit test（`bash scripts/health-check.sh`）
+- 测试失败不得 push
+- 当前测试套件基线：**432 unit + 8 e2e，全部通过**
+
+## 验证成功标准
+- unit：`432 passed, 0 failed`（基线只能增加）
+- e2e：`8 passed, 2 skipped`（skipped 属正常，failed 才是问题）
+- 覆盖率：Statements ≥ 79%，不得下降
 - 有任何 failed 不得 commit，不得 push
