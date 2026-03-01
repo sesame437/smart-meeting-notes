@@ -92,5 +92,35 @@
   </div>
 </div>
 
+<!-- Upload Confirmation Dialog -->
+<div id="upload-confirm-modal" class="confirm-overlay" style="display:none;" role="dialog" aria-modal="true">
+  <div class="confirm-box" style="width: 500px;">
+    <div class="confirm-icon">✅</div>
+    <div class="confirm-title">上传成功，请确认会议信息</div>
+    <div class="confirm-body">
+      <div style="text-align: left; margin-top: 16px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 500;">会议名称：</label>
+        <input type="text" id="upload-confirm-title" style="width: 100%; padding: 8px; border: 1px solid #444; background: #1a1a1a; color: #fff; border-radius: 4px; font-size: 14px;" />
+
+        <label style="display: block; margin-top: 16px; margin-bottom: 8px; font-weight: 500;">会议类型：</label>
+        <div class="meeting-type-pills">
+          <input type="radio" name="uploadConfirmMeetingType" id="uc-mt-general" value="general" checked>
+          <label for="uc-mt-general">通用</label>
+          <input type="radio" name="uploadConfirmMeetingType" id="uc-mt-weekly" value="weekly">
+          <label for="uc-mt-weekly">周会</label>
+          <input type="radio" name="uploadConfirmMeetingType" id="uc-mt-tech" value="tech">
+          <label for="uc-mt-tech">技术讨论</label>
+          <input type="radio" name="uploadConfirmMeetingType" id="uc-mt-customer" value="customer">
+          <label for="uc-mt-customer">客户</label>
+        </div>
+      </div>
+    </div>
+    <div class="confirm-actions">
+      <button class="btn btn-sm" id="upload-confirm-cancel-btn" style="background: #333; color: #fff;">取消</button>
+      <button class="btn btn-sm" id="upload-confirm-ok-btn" style="background: #4a9eff; color: #fff;">开始转录</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

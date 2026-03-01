@@ -177,21 +177,17 @@ ${transcriptText}
 
 请以 JSON 格式输出，包含以下字段：
 {
+  "meetingType": "general",
   "summary": "会议总结（2-3句话）",
+  "agenda": ["议程项（如提及）"],
   "keyTopics": [{ "topic": "议题", "discussion": "讨论要点", "conclusion": "结论或待定" }],
-  "highlights": [
-    { "point": "要点描述", "detail": "详情" }
-  ],
-  "lowlights": [
-    { "point": "风险/问题描述", "detail": "详情" }
-  ],
-  "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
-  "actions": [
-    { "task": "任务描述", "owner": "负责人姓名或角色（如主持人、成员A）", "deadline": "截止日期（如提及）", "priority": "high/medium/low" }
-  ],
-  "participants": ["发言人角色（如主持人、成员A、客户代表）"],
-  "duration": "会议时长估计",
-  "meetingType": "会议类型（周会/项目会/评审会等）"
+  "highlights": [{ "point": "要点描述", "detail": "详情" }],
+  "lowlights": [{ "point": "风险/问题描述", "detail": "详情" }],
+  "decisions": [{ "decision": "决策内容", "rationale": "决策原因", "owner": "决策人（如提及）" }],
+  "actions": [{ "task": "任务描述", "owner": "负责人", "deadline": "截止日期（如提及）", "priority": "high/medium/low" }],
+  "risks": [{ "risk": "风险描述", "impact": "high/medium/low", "mitigation": "缓解方向" }],
+  "participants": ["发言人角色"],
+  "nextMeeting": "下次会议时间（如有提及）"
 }
 
 只输出 JSON，不要其他文字。`;

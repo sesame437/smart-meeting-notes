@@ -467,16 +467,72 @@ async function uploadFile(file) {
 
     bar.style.width = "100%";
     text.textContent = "上传完成！";
-    Toast.success("文件已上传，转录已开始");
     setTimeout(() => {
       progress.classList.remove("show");
-      fetchMeetings();
-    }, 1500);
+    }, 500);
+
+    // 弹出确认弹窗
+    showUploadConfirmDialog(result.meetingId, result.title, result.meetingType);
   } catch (err) {
     text.textContent = "上传失败";
     Toast.error(err.message);
     setTimeout(() => progress.classList.remove("show"), 3000);
   }
+}
+
+/* ===== Upload Confirm Dialog ===== */
+function showUploadConfirmDialog(meetingId, title, meetingType) {
+  const modal = document.getElementById("upload-confirm-modal");
+  const titleInput = document.getElementById("upload-confirm-title");
+  const okBtn = document.getElementById("upload-confirm-ok-btn");
+  const cancelBtn = document.getElementById("upload-confirm-cancel-btn");
+
+  // 预填信息
+  titleInput.value = title || "";
+  const typeRadio = document.getElementById(`uc-mt-${meetingType || "general"}`);
+  if (typeRadio) typeRadio.checked = true;
+
+  modal.style.display = "flex";
+
+  // 移除旧的事件监听器（避免重复绑定）
+  const newOkBtn = okBtn.cloneNode(true);
+  const newCancelBtn = cancelBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+  cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+  // 确认：更新信息并开始转录
+  newOkBtn.addEventListener("click", async () => {
+    const newTitle = titleInput.value.trim();
+    const newType = document.querySelector('input[name="uploadConfirmMeetingType"]:checked')?.value || "general";
+
+    modal.style.display = "none";
+
+    try {
+      // 更新会议信息
+      await API.put(`/api/meetings/${meetingId}`, { title: newTitle, meetingType: newType });
+
+      // 开始转录
+      await API.post(`/api/meetings/${meetingId}/start-transcription`);
+
+      Toast.success("转录已开始");
+      fetchMeetings();
+    } catch (err) {
+      Toast.error("启动转录失败: " + err.message);
+    }
+  });
+
+  // 取消：删除记录
+  newCancelBtn.addEventListener("click", async () => {
+    modal.style.display = "none";
+
+    try {
+      await API.delete(`/api/meetings/${meetingId}`);
+      Toast.success("已取消上传");
+      fetchMeetings();
+    } catch (err) {
+      Toast.error("删除记录失败: " + err.message);
+    }
+  });
 }
 
 /* ===== Meeting Detail ===== */

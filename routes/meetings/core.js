@@ -204,7 +204,7 @@ function register(router) {
         meetingId,
         title: req.body.title || filename.replace(/\.[^.]+$/, ""),
         createdAt: new Date().toISOString(),
-        status: "pending",
+        status: "uploaded", // 新状态：等待用户确认
         s3Key,
         filename,
         meetingType,
@@ -212,20 +212,44 @@ function register(router) {
       };
       await store.createMeetingFromUpload(item);
 
-      // Send message to transcription queue
-      await sendMessage(process.env.SQS_TRANSCRIPTION_QUEUE, {
-        meetingId,
-        s3Key,
-        filename,
-        meetingType,
-      });
+      // 不再自动发送转录消息，等待前端确认
 
-      res.status(201).json({ meetingId, status: "pending" });
+      res.status(201).json({ meetingId, status: "uploaded", title: item.title, meetingType });
     } catch (err) {
       // Clean up temp file on error
       if (req.file && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
+      next(err);
+    }
+  });
+
+  // Start transcription after user confirmation
+  router.post("/:id/start-transcription", async (req, res, next) => {
+    try {
+      const item = await getMeetingById(req.params.id);
+      if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
+      if (item.status !== "uploaded") {
+        return res.status(400).json({ error: { code: "INVALID_STATUS", message: "会议状态不是 uploaded，无法开始转录" } });
+      }
+
+      // Update status to pending
+      const updateExpr = "SET #s = :s, updatedAt = :u";
+      const names = { "#s": "status" };
+      const values = { ":s": "pending", ":u": new Date().toISOString() };
+      await store.updateMeeting(req.params.id, item.createdAt, [updateExpr], names, values);
+
+      // Send message to transcription queue
+      await sendMessage(process.env.SQS_TRANSCRIPTION_QUEUE, {
+        meetingId: item.meetingId,
+        s3Key: item.s3Key,
+        filename: item.filename,
+        meetingType: item.meetingType || "general",
+        createdAt: item.createdAt,
+      });
+
+      res.json({ success: true, status: "pending" });
+    } catch (err) {
       next(err);
     }
   });
