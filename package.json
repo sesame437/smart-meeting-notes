@@ -9,6 +9,7 @@
     "worker:report": "node workers/report-worker.js",
     "worker:export": "node workers/export-worker.js",
     "test": "jest",
+    "test:e2e": "playwright test",
     "lint": "eslint . --ext .js --ignore-pattern node_modules --ignore-pattern public"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.2",
     "eslint": "^10.0.2",
     "jest": "^30.2.0",
     "supertest": "^7.2.2"
