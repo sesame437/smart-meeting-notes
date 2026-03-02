@@ -1,0 +1,27 @@
+:root {
+  --color-bg: #232F3E;
+  --color-surface: #1a2332;
+  --color-orange: #FF9900;
+  --color-text: #ffffff;
+  --color-muted: #879596;
+  --color-border: rgba(255,255,255,0.1);
+  --color-success: #2e7d32;
+  --color-danger: #d32f2f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+#app {
+  min-height: 100vh;
+}

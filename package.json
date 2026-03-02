@@ -5,13 +5,16 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "worker:transcription": "node workers/transcription-worker.js",
     "worker:report": "node workers/report-worker.js",
     "worker:export": "node workers/export-worker.js",
     "test": "jest",
     "test:e2e": "playwright test",
     "test:integration": "RUN_INTEGRATION_TESTS=true jest --testPathPatterns=integration",
-    "lint": "eslint . --ext .js --ignore-pattern node_modules --ignore-pattern public"
+    "lint": "eslint . --ext .js --ignore-pattern node_modules --ignore-pattern public --ignore-pattern dist --ignore-pattern src --ignore-pattern vite.config.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.700.0",
@@ -30,13 +33,18 @@
     "font-awesome": "^4.7.0",
     "helmet": "^8.0.0",
     "multer": "^2.0.2",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.29",
+    "vue-router": "^4.6.4",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
+    "@vitejs/plugin-vue": "^6.0.4",
     "eslint": "^10.0.2",
     "jest": "^30.2.0",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "vite": "^7.3.1"
   }
 }
