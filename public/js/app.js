@@ -15,6 +15,10 @@ function escapeAttr(str) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+function getParam(name) {
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name);
+}
 
 /* ===== Random Fun Messages ===== */
 const FunMessages = {
@@ -2554,6 +2558,73 @@ document.addEventListener("change", function(e) {
     updateMergeSelection();
   }
 });
+
+
+/* ===== Merge Modal Functions ===== */
+function getSelectedMeetingIds() {
+  return Array.from(document.querySelectorAll('.merge-checkbox:checked')).map(cb => cb.dataset.id);
+}
+
+function updateMergeSelection() {
+  const ids = getSelectedMeetingIds();
+  let bar = document.getElementById('merge-action-bar');
+  if (ids.length >= 2) {
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'merge-action-bar';
+      bar.className = 'merge-action-bar';
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML = `
+      <span>已选 <strong>${ids.length}</strong> 个会议</span>
+      <button class="btn action-primary-btn" data-action="open-merge-modal">合并生成报告</button>
+    `;
+    bar.style.display = 'flex';
+  } else {
+    if (bar) bar.style.display = 'none';
+  }
+}
+
+function openMergeModal() {
+  const ids = getSelectedMeetingIds();
+  if (ids.length < 2) { Toast.error("请至少选择 2 个会议"); return; }
+  const selectedMeetings = ids.map(id => {
+    const m = allMeetings.find(mt => mt.meetingId === id);
+    return m ? escapeHtml(m.title || m.meetingId) : id;
+  });
+  let overlay = document.getElementById('merge-modal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'merge-modal';
+    overlay.className = 'modal-overlay';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:560px;">
+      <h3><i class="fa fa-object-group"></i> 合并生成报告</h3>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:600;color:#232F3E;margin-bottom:8px;">已选会议（${ids.length}）</div>
+        <ul style="list-style:none;padding:0;max-height:150px;overflow-y:auto;">
+          ${selectedMeetings.map(t => `<li style="padding:4px 0;font-size:13px;border-bottom:1px solid #e8edf2;">${t}</li>`).join('')}
+        </ul>
+      </div>
+      <div class="form-group">
+        <label for="merge-custom-prompt">自定义提示词（可选）</label>
+        <textarea id="merge-custom-prompt" class="form-control" rows="3" placeholder="例：总结本周项目进展，重点关注风险和 action items"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" data-action="close-merge-modal">取消</button>
+        <button class="btn action-primary-btn" id="merge-submit-btn" data-action="submit-merge"><i class="fa fa-magic"></i> 生成报告</button>
+      </div>
+    </div>
+  `;
+  overlay.classList.add('show');
+}
+
+function closeMergeModal() {
+  const overlay = document.getElementById('merge-modal');
+  if (overlay) overlay.classList.remove('show');
+}
 
 /* ===== Init (moved from inline script to avoid CSP violation) ===== */
 document.addEventListener("DOMContentLoaded", function() {
