@@ -981,13 +981,22 @@ function renderMeetingDetail(m) {
   if (report.announcements && report.announcements.length) {
     let annHtml = `<div class="report-section">
       <h3 class="section-title">📢 公司公告</h3>`;
-    for (const a of report.announcements) {
-      annHtml += `<div class="decision-card" style="margin-bottom:8px;">
-        <strong>${esc(a.title)}</strong>
-        ${a.detail ? `<br><span style="color:#555;font-size:13px;">${esc(a.detail)}</span>` : ''}
-        ${a.owner ? `<br><span style="color:#879596;font-size:12px;">发布：${esc(a.owner)}</span>` : ''}
+    report.announcements.forEach((a, i) => {
+      annHtml += `<div class="decision-card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:start;" id="announcement-row-${i}">
+        <div style="flex:1;">
+          <strong>${esc(a.title)}</strong>
+          ${a.detail ? `<br><span style="color:#555;font-size:13px;">${esc(a.detail)}</span>` : ''}
+          ${a.owner ? `<br><span style="color:#879596;font-size:12px;">发布：${esc(a.owner)}</span>` : ''}
+        </div>
+        <div class="row-actions" style="margin-left:8px;">
+          <button class="btn btn-outline btn-sm" data-action="edit-announcement" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" data-action="delete-announcement" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+        </div>
       </div>`;
-    }
+    });
+    annHtml += `<div style="text-align:right;margin-top:8px;">
+      <button class="btn btn-outline btn-sm" data-action="add-announcement" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加公告</button>
+    </div>`;
     annHtml += `</div>`;
     html += annHtml;
   }
@@ -1017,12 +1026,24 @@ function renderMeetingDetail(m) {
       }
       // followUps
       if (pr.followUps && pr.followUps.length) {
+        const prIndex = report.projectReviews.indexOf(pr);
         prHtml += `<table class="report-table" style="margin-top:10px;">
-          <thead><tr><th>跟进事项</th><th>负责人</th><th>截止</th></tr></thead><tbody>`;
-        for (const f of pr.followUps) {
-          prHtml += `<tr><td>${esc(f.task)}</td><td>${esc(f.owner||'-')}</td><td>${formatDeadline(f.deadline||'-')}</td></tr>`;
-        }
+          <thead><tr><th>跟进事项</th><th>负责人</th><th>截止</th><th style="width:100px;">操作</th></tr></thead><tbody>`;
+        pr.followUps.forEach((f, fIndex) => {
+          prHtml += `<tr id="followup-row-${prIndex}-${fIndex}">
+            <td>${esc(f.task)}</td>
+            <td>${esc(f.owner||'-')}</td>
+            <td>${formatDeadline(f.deadline||'-')}</td>
+            <td style="text-align:center;">
+              <button class="btn btn-outline btn-sm" data-action="edit-followup" data-pr-index="${prIndex}" data-index="${fIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-followup" data-pr-index="${prIndex}" data-index="${fIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </td>
+          </tr>`;
+        });
         prHtml += `</tbody></table>`;
+        prHtml += `<div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="add-followup" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加跟进</button>
+        </div>`;
       }
       prHtml += `</div>`;
       html += prHtml;
@@ -1979,6 +2000,180 @@ async function addLowlight(meetingId) {
   }
 }
 
+/* ===== Announcement Edit/Delete/Add ===== */
+function editAnnouncement(index, meetingId) {
+  if (!_currentReport) return;
+  var announcements = _currentReport.announcements || [];
+  var item = announcements[index];
+  if (!item) return;
+  var div = document.getElementById("announcement-row-" + index);
+  if (!div) return;
+  div.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+      <input type="text" class="form-control" id="edit-announcement-title-${index}" value="${escapeAttr(item.title || '')}" placeholder="标题（必填）" style="border:2px solid #FF9900;">
+      <textarea class="form-control" id="edit-announcement-detail-${index}" placeholder="详情（选填）" style="border:2px solid #FF9900;" rows="2">${escapeAttr(item.detail || '')}</textarea>
+      <input type="text" class="form-control" id="edit-announcement-owner-${index}" value="${escapeAttr(item.owner || '')}" placeholder="发布人（选填）" style="border:2px solid #FF9900;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-announcement" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-announcement-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
+    </div>`;
+  div.style.border = "2px solid #FF9900";
+  div.style.borderRadius = "4px";
+  div.style.padding = "10px";
+}
+
+async function saveAnnouncement(index, meetingId) {
+  if (!_currentReport) return;
+  var announcements = JSON.parse(JSON.stringify(_currentReport.announcements || []));
+  var title = document.getElementById("edit-announcement-title-" + index).value.trim();
+  var detail = document.getElementById("edit-announcement-detail-" + index).value.trim();
+  var owner = document.getElementById("edit-announcement-owner-" + index).value.trim();
+  if (!title) {
+    Toast.error("标题不能为空");
+    return;
+  }
+  announcements[index] = { title: title, detail: detail || undefined, owner: owner || undefined };
+  try {
+    await patchReportSection(meetingId, "announcements", announcements);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteAnnouncement(index, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该公告？",
+    onOk: async function() {
+      var announcements = JSON.parse(JSON.stringify(_currentReport.announcements || []));
+      announcements.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "announcements", announcements);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addAnnouncement(meetingId) {
+  if (!_currentReport) return;
+  var title = prompt("请输入公告标题：");
+  if (!title || !title.trim()) return;
+  var detail = prompt("请输入详情（可选，直接回车跳过）：");
+  var owner = prompt("请输入发布人（可选，直接回车跳过）：");
+  var announcements = JSON.parse(JSON.stringify(_currentReport.announcements || []));
+  announcements.push({
+    title: title.trim(),
+    detail: detail && detail.trim() ? detail.trim() : undefined,
+    owner: owner && owner.trim() ? owner.trim() : undefined
+  });
+  try {
+    await patchReportSection(meetingId, "announcements", announcements);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
+/* ===== FollowUp Edit/Delete/Add ===== */
+function editFollowUp(prIndex, fIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var pr = _currentReport.projectReviews[prIndex];
+  if (!pr || !pr.followUps) return;
+  var item = pr.followUps[fIndex];
+  if (!item) return;
+  var tr = document.getElementById("followup-row-" + prIndex + "-" + fIndex);
+  if (!tr) return;
+  tr.innerHTML = `
+    <td colspan="4" style="padding:10px;">
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input type="text" class="form-control" id="edit-followup-task-${prIndex}-${fIndex}" value="${escapeAttr(item.task || '')}" placeholder="任务（必填）" style="border:2px solid #FF9900;">
+        <input type="text" class="form-control" id="edit-followup-owner-${prIndex}-${fIndex}" value="${escapeAttr(item.owner || '')}" placeholder="负责人（选填）" style="border:2px solid #FF9900;">
+        <input type="text" class="form-control" id="edit-followup-deadline-${prIndex}-${fIndex}" value="${escapeAttr(item.deadline || '')}" placeholder="截止日期（选填）" style="border:2px solid #FF9900;">
+        <div style="display:flex;gap:8px;">
+          <button class="btn action-primary-btn btn-sm" data-action="save-followup" data-pr-index="${prIndex}" data-index="${fIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+          <button class="btn btn-outline btn-sm" data-action="cancel-followup-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+        </div>
+      </div>
+    </td>`;
+  tr.style.border = "2px solid #FF9900";
+}
+
+async function saveFollowUp(prIndex, fIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var pr = projectReviews[prIndex];
+  if (!pr || !pr.followUps) return;
+  var task = document.getElementById("edit-followup-task-" + prIndex + "-" + fIndex).value.trim();
+  var owner = document.getElementById("edit-followup-owner-" + prIndex + "-" + fIndex).value.trim();
+  var deadline = document.getElementById("edit-followup-deadline-" + prIndex + "-" + fIndex).value.trim();
+  if (!task) {
+    Toast.error("任务不能为空");
+    return;
+  }
+  pr.followUps[fIndex] = { task: task, owner: owner || undefined, deadline: deadline || undefined };
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteFollowUp(prIndex, fIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该跟进事项？",
+    onOk: async function() {
+      var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+      var pr = projectReviews[prIndex];
+      if (!pr || !pr.followUps) return;
+      pr.followUps.splice(fIndex, 1);
+      try {
+        await patchReportSection(meetingId, "projectReviews", projectReviews);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addFollowUp(prIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var task = prompt("请输入跟进事项：");
+  if (!task || !task.trim()) return;
+  var owner = prompt("请输入负责人（可选，直接回车跳过）：");
+  var deadline = prompt("请输入截止日期（可选，直接回车跳过）：");
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var pr = projectReviews[prIndex];
+  if (!pr) return;
+  if (!pr.followUps) pr.followUps = [];
+  pr.followUps.push({
+    task: task.trim(),
+    owner: owner && owner.trim() ? owner.trim() : undefined,
+    deadline: deadline && deadline.trim() ? deadline.trim() : undefined
+  });
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
 /* ===== Merge Selection ===== */
 function getSelectedMeetingIds() {
   return Array.from(document.querySelectorAll('.merge-checkbox:checked')).map(cb => cb.dataset.id);
@@ -2190,6 +2385,16 @@ document.addEventListener("click", function(e) {
     case "delete-lowlight":     deleteLowlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
     case "add-lowlight":        addLowlight(el.dataset.meetingId); break;
     case "cancel-lowlight-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-announcement":   editAnnouncement(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-announcement":   saveAnnouncement(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-announcement": deleteAnnouncement(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-announcement":    addAnnouncement(el.dataset.meetingId); break;
+    case "cancel-announcement-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-followup":       editFollowUp(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-followup":       saveFollowUp(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-followup":     deleteFollowUp(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-followup":        addFollowUp(parseInt(el.dataset.prIndex), el.dataset.meetingId); break;
+    case "cancel-followup-edit":fetchMeeting(el.dataset.meetingId); break;
   }
 });
 
