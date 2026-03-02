@@ -1027,14 +1027,10 @@ function renderMeetingDetail(m) {
       prHtml += `<div id="pr-lowlights-container-${prIndex}"></div>`;
 
       // risks
-      if (pr.risks && pr.risks.length) {
-        prHtml += `<div id="pr-risks-container-${prIndex}"></div>`;
-      }
+      prHtml += `<div id="pr-risks-container-${prIndex}"></div>`;
 
       // followUps
-      if (pr.followUps && pr.followUps.length) {
-        prHtml += `<div id="pr-followUps-container-${prIndex}"></div>`;
-      }
+      prHtml += `<div id="pr-followups-container-${prIndex}"></div>`;
       prHtml += `</div>`;
       html += prHtml;
     }
@@ -1266,15 +1262,12 @@ function renderMeetingDetail(m) {
           `pr-highlights-container-${prIndex}`,
           pr.highlights || [],
           {
-            fields: [
-              { key: 'point', label: '亮点', type: 'text', required: true },
-              { key: 'detail', label: '详情', type: 'textarea' }
-            ],
+            fields: [{ key: 'text', label: '亮点', type: 'text', required: true }],
             addLabel: '添加亮点',
             emptyText: '暂无亮点'
           },
           m.meetingId,
-          'pr-highlights',
+          'highlights',
           prIndex
         );
       }
@@ -1285,24 +1278,21 @@ function renderMeetingDetail(m) {
           `pr-lowlights-container-${prIndex}`,
           pr.lowlights || [],
           {
-            fields: [
-              { key: 'point', label: '待改进', type: 'text', required: true },
-              { key: 'detail', label: '详情', type: 'textarea' }
-            ],
+            fields: [{ key: 'text', label: '待改进', type: 'text', required: true }],
             addLabel: '添加待改进',
             emptyText: '暂无待改进项'
           },
           m.meetingId,
-          'pr-lowlights',
+          'lowlights',
           prIndex
         );
       }
 
       // Risks
-      if (pr.risks && pr.risks.length && document.getElementById(`pr-risks-container-${prIndex}`)) {
+      if (document.getElementById(`pr-risks-container-${prIndex}`)) {
         renderEditableList(
           `pr-risks-container-${prIndex}`,
-          pr.risks,
+          pr.risks || [],
           {
             fields: [
               { key: 'risk', label: '风险', type: 'text', required: true },
@@ -1312,27 +1302,27 @@ function renderMeetingDetail(m) {
             emptyText: '暂无风险'
           },
           m.meetingId,
-          'pr-risks',
+          'risks',
           prIndex
         );
       }
 
       // FollowUps
-      if (pr.followUps && pr.followUps.length && document.getElementById(`pr-followUps-container-${prIndex}`)) {
+      if (document.getElementById(`pr-followups-container-${prIndex}`)) {
         renderEditableList(
-          `pr-followUps-container-${prIndex}`,
-          pr.followUps,
+          `pr-followups-container-${prIndex}`,
+          pr.followUps || [],
           {
             fields: [
               { key: 'task', label: '跟进事项', type: 'text', required: true },
               { key: 'owner', label: '负责人', type: 'text' },
-              { key: 'deadline', label: '截止日期', type: 'text' }
+              { key: 'deadline', label: '截止', type: 'text' }
             ],
             addLabel: '添加跟进',
             emptyText: '暂无跟进事项'
           },
           m.meetingId,
-          'pr-followUps',
+          'followUps',
           prIndex
         );
       }
