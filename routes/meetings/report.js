@@ -298,7 +298,7 @@ function register(router) {
   router.patch("/:id/report", async (req, res, next) => {
     try {
       const { section, data } = req.body;
-      const validSections = ["summary", "actionItems", "keyDecisions", "participants", "highlights", "lowlights"];
+      const validSections = ["summary", "actionItems", "keyDecisions", "participants", "highlights", "lowlights", "announcements", "projectReviews", "decisions", "actions"];
       if (!validSections.includes(section)) {
         return res.status(400).json({ error: { code: "INVALID_SECTION", message: "Invalid section. Must be one of: summary, actionItems, keyDecisions, participants, highlights, lowlights" } });
       }
@@ -326,6 +326,10 @@ function register(router) {
         participants: "participants",
         highlights: "highlights",
         lowlights: "lowlights",
+        announcements: "announcements",
+        projectReviews: "projectReviews",
+        decisions: "decisions",
+        actions: "actions",
       };
       // Also check alternative field names from Bedrock output
       const altFieldMap = {
