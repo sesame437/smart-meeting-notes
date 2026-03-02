@@ -75,11 +75,11 @@ function renderDetailBlocks(m) {
   const highlights   = report.highlights   || [];
   const lowlights    = report.lowlights    || [];
   const actions      = report.actions      || [];
-  const decisions    = report.decisions    || report.key_decisions || [];
+  const decisions    = report.decisions    || [];
   const risks        = report.risks        || report.issues || [];
-  const participants = report.participants || report.attendees || [];
-  const topics       = report.topics       || report.agenda_items || [];
-  const summary      = report.summary      || report.executive_summary || "No summary available yet.";
+  const participants = report.participants || [];
+  const topics       = report.topics       || [];
+  const summary      = report.summary      || "No summary available yet.";
   const duration     = report.duration     || m.duration || "-";
 
   // weekly-specific fields
@@ -208,41 +208,6 @@ describe("renderDetailBlocks() – detail page data extraction & null safety", (
   test("content.null → falls back gracefully without crash", () => {
     const blocks = renderDetailBlocks({ content: null });
     expect(blocks.actions).toEqual([]);
-  });
-
-  test("decisions falls back to key_decisions alias", () => {
-    const blocks = renderDetailBlocks({
-      content: { key_decisions: ["Decision A"] }
-    });
-    expect(blocks.decisions).toEqual(["Decision A"]);
-  });
-
-  test("risks falls back to issues alias", () => {
-    const blocks = renderDetailBlocks({
-      content: { issues: ["Issue 1"] }
-    });
-    expect(blocks.risks).toEqual(["Issue 1"]);
-  });
-
-  test("participants falls back to attendees alias", () => {
-    const blocks = renderDetailBlocks({
-      content: { attendees: ["Alice", "Bob"] }
-    });
-    expect(blocks.participants).toEqual(["Alice", "Bob"]);
-  });
-
-  test("topics falls back to agenda_items alias", () => {
-    const blocks = renderDetailBlocks({
-      content: { agenda_items: ["Topic 1"] }
-    });
-    expect(blocks.topics).toEqual(["Topic 1"]);
-  });
-
-  test("summary falls back to executive_summary alias", () => {
-    const blocks = renderDetailBlocks({
-      content: { executive_summary: "Exec summary text" }
-    });
-    expect(blocks.summary).toBe("Exec summary text");
   });
 
   test("duration falls back to m.duration when not in report", () => {

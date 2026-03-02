@@ -369,7 +369,7 @@ function register(router) {
       }
       const report = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
 
-      const summary = (report.summary || report.executive_summary || "").slice(0, 400);
+      const summary = (report.summary || "").slice(0, 400);
       if (!summary) {
         return res.status(400).json({ error: { code: "NO_REPORT_SUMMARY", message: "Report has no summary" } });
       }

@@ -152,25 +152,6 @@ describe("POST /api/meetings/:id/auto-name", () => {
     expect(res.body.suggestedName.length).toBe(60);
   });
 
-  test("uses executive_summary when summary is missing", async () => {
-    mockDynamoSend.mockResolvedValueOnce({ Items: [meetingItem] });
-    mockGetFile.mockResolvedValueOnce(makeStream(JSON.stringify({
-      executive_summary: "讨论了技术架构",
-    })));
-    mockBedrockSend.mockResolvedValueOnce({
-      body: new TextEncoder().encode(JSON.stringify({
-        content: [{ text: "技术讨论-架构设计-20260226" }],
-      })),
-    });
-
-    const res = await request(createApp())
-      .post(`/api/meetings/${meetingId}/auto-name`)
-      .send();
-
-    expect(res.status).toBe(200);
-    expect(res.body.suggestedName).toBe("技术讨论-架构设计-20260226");
-  });
-
   test("calls Bedrock with haiku model", async () => {
     const { InvokeModelCommand } = require("@aws-sdk/client-bedrock-runtime");
     mockDynamoSend.mockResolvedValueOnce({ Items: [meetingItem] });

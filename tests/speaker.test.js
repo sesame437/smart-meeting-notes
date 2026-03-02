@@ -94,7 +94,7 @@ describe("PUT /api/meetings/:id/speaker-map", () => {
       }),
     ]));
 
-    invokeModel.mockResolvedValue('{"summary":"ok","actionItems":[]}');
+    invokeModel.mockResolvedValue('{"summary":"ok","actions":[]}');
     uploadFile.mockResolvedValue("reports/m1/report.json");
 
     const handler = getSpeakerMapPutHandler();

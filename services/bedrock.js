@@ -85,6 +85,8 @@ ${transcriptText}
     { "task": "行动项", "owner": "负责人姓名或角色（如主持人、成员A）", "deadline": "截止日期（如提及）", "priority": "high / medium / low", "project": "关联项目（如有）" }
   ],
   "participants": ["发言人角色（如主持人、成员A、客户代表）"],
+  "highlights": [{ "point": "亮点", "detail": "详情" }],
+  "lowlights": [{ "point": "问题/风险", "detail": "详情" }],
   "nextMeeting": "下次会议时间（如有提及）"
 }
 只输出 JSON。`;
@@ -105,6 +107,7 @@ ${transcriptText}
   "actions": [{ "task": "技术任务", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low", "estimate": "工时估计" }],
   "knowledgeBase": [{ "title": "知识点标题", "content": "可直接用于文档的技术总结" }],
   "participants": ["参会人列表"],
+  "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
   "techStack": ["涉及的技术/工具/框架"]
 }
 只输出 JSON。`;
@@ -161,7 +164,11 @@ ${transcriptText}
       "priority": "high / medium / low"
     }
   ],
-  "participants": ["所有参会人员"]
+  "participants": ["所有参会人员"],
+  "highlights": [{ "point": "亮点", "detail": "详情" }],
+  "lowlights": [{ "point": "问题/风险", "detail": "详情" }],
+  "actions": [{ "task": "行动项", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low" }],
+  "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }]
 }
 
 转录文本：${transcriptText}
@@ -180,7 +187,7 @@ ${transcriptText}
   "meetingType": "general",
   "summary": "会议总结（2-3句话）",
   "agenda": ["议程项（如提及）"],
-  "keyTopics": [{ "topic": "议题", "discussion": "讨论要点", "conclusion": "结论或待定" }],
+  "topics": [{ "topic": "议题", "discussion": "讨论要点", "conclusion": "结论或待定" }],
   "highlights": [{ "point": "要点描述", "detail": "详情" }],
   "lowlights": [{ "point": "风险/问题描述", "detail": "详情" }],
   "decisions": [{ "decision": "决策内容", "rationale": "决策原因", "owner": "决策人（如提及）" }],

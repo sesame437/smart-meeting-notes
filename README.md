@@ -119,7 +119,7 @@ npm run worker:export
 | `POST` | `/api/meetings/:id/retry` | 重试失败的转录/报告任务 |
 | `POST` | `/api/meetings/:id/regenerate` | 使用当前 speakerMap 重新生成报告 |
 | `PUT` | `/api/meetings/:id/speaker-names` | 保存说话人映射（不触发重新生成） |
-| `PATCH` | `/api/meetings/:id/report` | 编辑报告指定字段（summary / actionItems / keyDecisions） |
+| `PATCH` | `/api/meetings/:id/report` | 编辑报告指定字段（summary / actions / decisions / highlights / lowlights 等） |
 | `POST` | `/api/meetings/:id/auto-name` | AI 自动生成会议标题 |
 | `POST` | `/api/meetings/:id/send-email` | 触发邮件发送 |
 | `POST` | `/api/meetings/merge` | 合并多个会议生成综合报告（2-10 个） |

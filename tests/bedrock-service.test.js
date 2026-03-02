@@ -57,7 +57,7 @@ describe("bedrock-service", () => {
 
       expect(result).toContain("会议纪要助手")
       expect(result).toContain('"summary"')
-      expect(result).toContain('"keyTopics"')
+      expect(result).toContain('"topics"')
     })
 
     it("should include speaker mapping when speakerMap provided", () => {

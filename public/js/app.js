@@ -703,7 +703,7 @@ async function fetchMeeting(id) {
 function renderListItem(item) {
   if (typeof item === "string") return item;
   if (typeof item === "object" && item !== null) {
-    return item.point || item.text || item.content || item.description
+    return item.point || item.content || item.description
       || item.action || item.decision || item.risk || item.issue
       || item.item || item.name || JSON.stringify(item);
   }
@@ -723,8 +723,8 @@ function renderMeetingDetail(m) {
   const decisions   = report.decisions   || []; // key_decisions is legacy, report-worker normalizes on ingest
   const risks       = report.risks       || report.issues || [];
   const participants= report.participants || [];
-  const topics      = report.topics      || report.agenda_items || [];
-  const summary     = report.summary     || report.executive_summary || "暂无摘要";
+  const topics      = report.topics      || [];
+  const summary     = report.summary     || "暂无摘要";
   const duration    = report.duration    || m.duration || "-";
 
   // ---- Pipeline Stage Indicator ----
@@ -1950,7 +1950,7 @@ function handleUnifiedEdit(el) {
     items = _currentReport.lowlights || [];
     fieldConfig = [{key: 'point', label: '内容', type: 'text', required: true}];
   } else if (section === 'participants') {
-    items = _currentReport.participants || _currentReport.attendees || [];
+    items = _currentReport.participants || [];
     fieldConfig = [{key: 'name', label: '姓名', type: 'text', required: true}];
   } else if (section === 'actions') {
     items = _currentReport.actions || [];
@@ -2125,7 +2125,7 @@ async function handleUnifiedSave(el) {
   } else if (section === 'lowlights') {
     items = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
   } else if (section === 'participants') {
-    items = JSON.parse(JSON.stringify(_currentReport.participants || _currentReport.attendees || []));
+    items = JSON.parse(JSON.stringify(_currentReport.participants || []));
   } else if (section === 'actions') {
     items = JSON.parse(JSON.stringify(_currentReport.actions || []));
     targetSection = 'actions';
@@ -2210,7 +2210,7 @@ function handleUnifiedDelete(el) {
     } else if (section === 'lowlights') {
       items = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
     } else if (section === 'participants') {
-      items = JSON.parse(JSON.stringify(_currentReport.participants || _currentReport.attendees || []));
+      items = JSON.parse(JSON.stringify(_currentReport.participants || []));
     } else if (section === 'actions') {
       items = JSON.parse(JSON.stringify(_currentReport.actions || []));
       targetSection = 'actions';
@@ -2402,7 +2402,7 @@ function handleUnifiedAdd(el) {
     } else if (section === 'lowlights') {
       items = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
     } else if (section === 'participants') {
-      items = JSON.parse(JSON.stringify(_currentReport.participants || _currentReport.attendees || []));
+      items = JSON.parse(JSON.stringify(_currentReport.participants || []));
     } else if (section === 'actions') {
       items = JSON.parse(JSON.stringify(_currentReport.actions || []));
       targetSection = 'actions';
