@@ -10,6 +10,7 @@
     "worker:export": "node workers/export-worker.js",
     "test": "jest",
     "test:e2e": "playwright test",
+    "test:integration": "RUN_INTEGRATION_TESTS=true jest --testPathPatterns=integration",
     "lint": "eslint . --ext .js --ignore-pattern node_modules --ignore-pattern public"
   },
   "dependencies": {
