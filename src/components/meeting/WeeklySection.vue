@@ -1,200 +1,138 @@
 <template>
-  <div class="weekly-section">
-    <!-- Team KPI -->
-    <section v-if="report.teamKPI" class="section">
-      <h2>团队 KPI</h2>
-      <div class="kpi-overview">
-        <p>{{ report.teamKPI.overview || '暂无总体情况' }}</p>
-      </div>
-      <div v-if="report.teamKPI.individuals && report.teamKPI.individuals.length > 0" class="kpi-table">
-        <table>
-          <thead>
-            <tr>
-              <th>成员</th>
-              <th>KPI 要点</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(ind, i) in report.teamKPI.individuals" :key="i">
-              <td>{{ ind.name }}</td>
-              <td>{{ ind.kpi }}</td>
-              <td><span :class="['status-badge', getStatusClass(ind.status)]">{{ getStatusText(ind.status) }}</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+  <div class="weekly-layout">
+    <!-- 左侧导航 -->
+    <WeeklySidebar :sections="sidebarSections" />
 
-    <!-- Announcements -->
-    <section class="section">
-      <h2>公告</h2>
-      <EditableList
-        :items="report.announcements || []"
-        :fields="[
-          { key: 'title', label: '标题', type: 'text' },
-          { key: 'detail', label: '内容', type: 'textarea' },
-          { key: 'owner', label: '发布人', type: 'text' }
-        ]"
-        section="announcements"
-        :meeting-id="meetingId"
-        empty-text="暂无公告"
-        add-label="+ 添加公告"
-      />
-    </section>
+    <!-- 移动端顶部 Tab -->
+    <div class="mobile-tabs">
+      <a
+        v-for="section in sidebarSections"
+        :key="section.id"
+        :href="`#${section.id}`"
+        class="mobile-tab"
+      >
+        {{ section.label }}
+      </a>
+    </div>
 
-    <!-- Project Reviews -->
-    <section v-if="report.projectReviews && report.projectReviews.length > 0" class="section">
-      <h2>项目进展</h2>
-      <ProjectReview
-        v-for="(review, index) in report.projectReviews"
-        :key="index"
-        :review="review"
-        :index="index"
-        :meeting-id="meetingId"
-      />
-    </section>
+    <!-- 内容区 -->
+    <div class="weekly-content">
+      <!-- Team KPI -->
+      <section v-if="report.teamKPI" id="team-kpi" class="section">
+        <h2>团队 KPI</h2>
+        <TeamKPICard :team-k-p-i="report.teamKPI" />
+      </section>
 
-    <!-- Next Meeting -->
-    <section v-if="report.nextMeeting" class="section">
-      <h2>下次会议</h2>
-      <div class="static-content">{{ report.nextMeeting }}</div>
-    </section>
+      <!-- Announcements -->
+      <section id="announcements" class="section">
+        <h2>公告</h2>
+        <EditableList
+          :items="report.announcements || []"
+          :fields="[
+            { key: 'title', label: '标题', type: 'text' },
+            { key: 'detail', label: '内容', type: 'textarea' },
+            { key: 'owner', label: '发布人', type: 'text' }
+          ]"
+          section="announcements"
+          :meeting-id="meetingId"
+          empty-text="暂无公告"
+          add-label="+ 添加公告"
+        />
+      </section>
+
+      <!-- Project Reviews -->
+      <section v-if="report.projectReviews && report.projectReviews.length > 0" id="projects" class="section">
+        <h2>项目进展</h2>
+        <ProjectAccordion
+          v-for="(review, index) in report.projectReviews"
+          :key="index"
+          :id="`project-${index}`"
+          :review="review"
+          :index="index"
+          :meeting-id="meetingId"
+        />
+      </section>
+
+      <!-- General Highlights -->
+      <section id="highlights" class="section">
+        <h2>整体亮点</h2>
+        <EditableList
+          :items="report.highlights || []"
+          :fields="[
+            { key: 'point', label: '标题', type: 'text' },
+            { key: 'detail', label: '详情', type: 'textarea' }
+          ]"
+          section="highlights"
+          :meeting-id="meetingId"
+          empty-text="暂无亮点"
+          add-label="+ 添加亮点"
+        />
+      </section>
+
+      <!-- General Lowlights -->
+      <section id="lowlights" class="section">
+        <h2>整体问题</h2>
+        <EditableList
+          :items="report.lowlights || []"
+          :fields="[
+            { key: 'point', label: '标题', type: 'text' },
+            { key: 'detail', label: '详情', type: 'textarea' }
+          ]"
+          section="lowlights"
+          :meeting-id="meetingId"
+          empty-text="暂无问题"
+          add-label="+ 添加问题"
+        />
+      </section>
+
+      <!-- Next Meeting -->
+      <section v-if="report.nextMeeting" id="next-meeting" class="section">
+        <h2>下次会议</h2>
+        <div class="static-content">{{ report.nextMeeting }}</div>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import EditableList from '@/components/common/EditableList.vue'
-import ProjectReview from '@/components/meeting/ProjectReview.vue'
+import TeamKPICard from './TeamKPICard.vue'
+import ProjectAccordion from './ProjectAccordion.vue'
+import WeeklySidebar from './WeeklySidebar.vue'
 
-defineProps({
-  report: {
-    type: Object,
-    required: true
-  },
-  meetingId: {
-    type: String,
-    required: true
-  }
+const props = defineProps({
+  report: { type: Object, required: true },
+  meetingId: { type: String, required: true }
 })
 
-function getStatusClass(status) {
-  const map = {
-    'on-track': 'status-success',
-    'at-risk': 'status-warning',
-    'completed': 'status-done'
+const sidebarSections = computed(() => {
+  const sections = []
+  if (props.report.teamKPI) sections.push({ id: 'team-kpi', label: '团队 KPI', type: 'section' })
+  sections.push({ id: 'announcements', label: '公告', type: 'section' })
+  if (props.report.projectReviews?.length > 0) {
+    props.report.projectReviews.forEach((review, index) => {
+      sections.push({ id: `project-${index}`, label: review.project || `项目 ${index + 1}`, type: 'project', status: 'on-track' })
+    })
   }
-  return map[status] || 'status-pending'
-}
-
-function getStatusText(status) {
-  const map = {
-    'on-track': '按计划',
-    'at-risk': '有风险',
-    'completed': '已完成'
-  }
-  return map[status] || status
-}
+  sections.push({ id: 'highlights', label: '整体亮点', type: 'section' })
+  sections.push({ id: 'lowlights', label: '整体问题', type: 'section' })
+  if (props.report.nextMeeting) sections.push({ id: 'next-meeting', label: '下次会议', type: 'section' })
+  return sections
+})
 </script>
+
 <style scoped>
-.weekly-section {
-  margin-top: 2rem;
-}
+.weekly-layout { position: relative; margin-top: 2rem; }
+.weekly-content { margin-left: 180px; }
+.mobile-tabs { display: none; }
+.section { margin-bottom: 2rem; }
+.section h2 { color: var(--color-orange); font-size: 1.2rem; margin-bottom: 1rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem; }
+.static-content { padding: 1rem; background: var(--color-surface); border-radius: 4px; border: 1px solid var(--color-border); white-space: pre-wrap; }
 
-.section {
-  margin-bottom: 2rem;
-}
-
-.section h2 {
-  color: var(--color-orange);
-  font-size: 1.2rem;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: 0.5rem;
-}
-
-.kpi-overview {
-  padding: 1rem;
-  background: var(--color-surface);
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  margin-bottom: 1rem;
-  white-space: pre-wrap;
-}
-
-.kpi-table {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--color-surface);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-thead {
-  background: rgba(255, 153, 0, 0.1);
-}
-
-th {
-  padding: 0.75rem;
-  text-align: left;
-  color: var(--color-orange);
-  font-weight: 600;
-  font-size: 0.875rem;
-  border-bottom: 2px solid var(--color-border);
-}
-
-td {
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text);
-  font-size: 0.875rem;
-}
-
-tbody tr:last-child td {
-  border-bottom: none;
-}
-
-tbody tr:hover {
-  background: rgba(255, 153, 0, 0.05);
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.status-success {
-  background: rgba(46, 125, 50, 0.2);
-  color: #2e7d32;
-}
-
-.status-warning {
-  background: rgba(255, 153, 0, 0.2);
-  color: var(--color-orange);
-}
-
-.status-done {
-  background: rgba(46, 125, 50, 0.2);
-  color: #2e7d32;
-}
-
-.status-pending {
-  background: rgba(135, 149, 150, 0.2);
-  color: var(--color-muted);
-}
-
-.static-content {
-  padding: 1rem;
-  background: var(--color-surface);
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  white-space: pre-wrap;
+@media (max-width: 767px) {
+  .weekly-content { margin-left: 0; }
+  .mobile-tabs { display: flex; gap: 0.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 1rem; padding: 0.5rem 0; border-bottom: 2px solid var(--color-border); }
+  .mobile-tab { padding: 0.5rem 1rem; background: var(--color-surface); color: var(--color-text); text-decoration: none; border-radius: 4px; white-space: nowrap; font-size: 0.875rem; }
 }
 </style>
