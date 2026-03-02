@@ -3,6 +3,7 @@ const { receiveMessages, deleteMessage } = require("../services/sqs");
 const { recordActivity } = require("../services/gpu-autoscale");
 const { getFile, uploadFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
+const { extractJsonFromLLMResponse } = require("../services/report-builder");
 const logger = require("../services/logger");
 
 /**
@@ -213,11 +214,7 @@ async function processMessage(message) {
     const responseText = await invokeModel(finalTranscript, meetingType, glossaryTerms);
 
     // 3. Parse the JSON response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error(`Failed to parse report JSON from Bedrock response for meeting ${meetingId}`);
-    }
-    const report = JSON.parse(jsonMatch[0]);
+    const report = extractJsonFromLLMResponse(responseText);
 
     // 4. Upload report to S3
     const reportKey = `reports/${meetingId}/report.json`;

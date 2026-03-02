@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const { z } = require("zod");
 const { uploadFile, getFile } = require("../../services/s3");
 const { invokeModel } = require("../../services/bedrock");
+const { extractJsonFromLLMResponse } = require("../../services/report-builder");
 const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
 const {
@@ -98,11 +99,7 @@ function register(router) {
       const responseText = await invokeModel(mergedText, "merged", glossaryTerms, modelId, null, customPrompt || null);
 
       // Parse report JSON
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return res.status(500).json({ error: { code: "BEDROCK_PARSE_FAILED", message: "Failed to parse report from Bedrock" } });
-      }
-      const report = JSON.parse(jsonMatch[0]);
+      const report = extractJsonFromLLMResponse(responseText);
 
       // Create merged meeting record
       const meetingId = crypto.randomUUID();
@@ -196,11 +193,7 @@ function register(router) {
       const modelId = process.env.BEDROCK_MODEL_ID || undefined;
       const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, modelId, speakerMap);
 
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return res.status(500).json({ error: { code: "REPORT_PARSE_FAILED", message: "Failed to parse report from Bedrock" } });
-      }
-      const report = JSON.parse(jsonMatch[0]);
+      const report = extractJsonFromLLMResponse(responseText);
 
       const reportKey = `reports/${req.params.id}/report.json`;
       await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
@@ -275,11 +268,7 @@ function register(router) {
       const modelId = process.env.BEDROCK_MODEL_ID || undefined;
       const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, modelId, speakerMap);
 
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return res.status(500).json({ error: { code: "REPORT_PARSE_FAILED", message: "Failed to parse report from Bedrock" } });
-      }
-      const report = JSON.parse(jsonMatch[0]);
+      const report = extractJsonFromLLMResponse(responseText);
 
       const reportKey = `reports/${req.params.id}/report.json`;
       await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
