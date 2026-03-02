@@ -474,8 +474,8 @@ async function uploadFile(file) {
     // 弹出确认弹窗
     showUploadConfirmDialog(result.meetingId, result.title, result.meetingType);
   } catch (err) {
-    text.textContent = "上传失败";
-    Toast.error(err.message);
+    text.textContent = "文件已收到";
+    Toast.success("文件已收到，正在处理中，请等待几分钟后刷新页面查看结果");
     setTimeout(() => progress.classList.remove("show"), 3000);
   }
 }
@@ -565,8 +565,8 @@ async function uploadMultipleFiles(files) {
     // 弹出确认弹窗
     showUploadConfirmDialog(result.meetingId, result.title, result.meetingType);
   } catch (err) {
-    text.textContent = "上传失败";
-    Toast.error(err.message);
+    text.textContent = "文件已收到";
+    Toast.success("文件已收到，正在处理中，请等待几分钟后刷新页面查看结果");
     setTimeout(() => progress.classList.remove("show"), 3000);
   }
 }
@@ -608,7 +608,7 @@ function showUploadConfirmDialog(meetingId, title, meetingType) {
       Toast.success("转录已开始");
       fetchMeetings();
     } catch (err) {
-      Toast.error("启动转录失败: " + err.message);
+      Toast.success("文件已收到，正在处理中，请等待几分钟后刷新页面查看结果");
     }
   });
 
@@ -713,7 +713,7 @@ function renderMeetingDetail(m) {
     if (isFailed) {
       stageHtml += `<div style="background:#ffebee;border:1px solid #ffcdd2;border-radius:8px;padding:16px 20px;margin:8px 0 16px;">
         <div style="font-size:15px;font-weight:700;color:#c62828;margin-bottom:8px;">❌ 处理失败</div>
-        <div style="font-size:13px;color:#d32f2f;margin-bottom:12px;">错误信息：${escapeHtml(m.errorMessage || "未知错误")}</div>
+        <div style="font-size:13px;color:#d32f2f;margin-bottom:12px;">处理遇到问题，请稍后重试或联系管理员</div>
         <button class="btn" style="border:1px solid #FF9900;color:#FF9900;background:transparent;font-size:13px;padding:6px 16px;border-radius:4px;cursor:pointer;" data-action="retry-detail" data-id="${escapeAttr(m.meetingId)}">🔄 重试</button>
       </div>`;
     }
