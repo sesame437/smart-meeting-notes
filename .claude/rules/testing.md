@@ -84,3 +84,37 @@ test.describe("词库页", () => {
 - e2e：`8 passed, 2 skipped`（skipped 属正常，failed 才是问题）
 - 覆盖率：Statements ≥ 79%，不得下降
 - 有任何 failed 不得 commit，不得 push
+
+---
+
+## E2E 测试同步规范（2026-03-03 新增）
+
+### 铁律：功能代码与 E2E 测试必须同步提交
+
+**禁止：** 前端路由/组件/交互改了，E2E 还用旧选择器/旧路径
+**要求：** 每个涉及前端改动的 Batch，AGENT PROMPT 必须包含：
+- 新功能对应的 E2E 用例（新增或更新）
+- 运行 `npm run test:e2e` 并截图验证（截图必须能看到真实数据）
+
+### Agent Prompt E2E 验收模板（强制）
+```
+Batch N 完成条件（前端改动时）：
+1. npm run build 通过
+2. npm test ≥ N passed
+3. npm run lint 0 warnings
+4. npm run test:e2e —— 新功能必须有对应用例，pass 数不得少于上一 Batch
+5. 截图验证：对所有改动的页面截图，保存到 /tmp/e2e-<page>.png，截图必须有真实数据（不能是空白/loading 状态）
+```
+
+### 今朝验收 checklist（agent 完成后必须执行）
+- [ ] 跑 `npm run test:e2e`，确认 pass 数
+- [ ] Playwright 截图所有改动页面，确认有真实数据
+- [ ] 无 console error
+- [ ] API 返回正常（不是空数组/404）
+- [ ] 功能可以实际操作（不只是页面能打开）
+- [ ] 全部通过后才汇报给凯
+
+### skip 不算通过
+- E2E 测试 skip 是警告信号，不是"没问题"
+- skip 的原因必须检查：是数据问题还是选择器失效？
+- 新功能对应的用例不允许 skip
