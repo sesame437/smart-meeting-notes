@@ -1,3 +1,31 @@
+/* ===== Random Fun Messages ===== */
+const FunMessages = {
+  uploading: [
+    "音频收到啦，稍等片刻～",
+    "正在认真听录音，请喝杯茶 ☕",
+    "AI 正在开小差……不对，在努力工作 🤖",
+    "文件已就位，后台全力处理中 ⚡",
+    "比你想的快，比你想的慢，正在处理 🎯",
+    "已收到！正在施展魔法 ✨"
+  ],
+  processing: [
+    "音频收到啦，稍等片刻～",
+    "正在认真听录音，请喝杯茶 ☕",
+    "AI 正在开小差……不对，在努力工作 🤖",
+    "文件已就位，后台全力处理中 ⚡",
+    "比你想的快，比你想的慢，正在处理 🎯",
+    "已收到！正在施展魔法 ✨"
+  ],
+  error: [
+    "这次遇到点小麻烦，稍后再试试？🔧"
+  ],
+
+  random(category) {
+    const messages = this[category] || this.uploading;
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+};
+
 /* ===== API Helpers ===== */
 const API = {
   async request(url, opts = {}) {
@@ -426,7 +454,8 @@ async function uploadFile(file) {
 
   progress.classList.add("show");
   bar.style.width = "0%";
-  text.textContent = "上传中...";
+  const uploadingMsg = FunMessages.random("uploading");
+  text.textContent = uploadingMsg;
 
   const formData = new FormData();
   formData.append("file", file);
@@ -448,7 +477,7 @@ async function uploadFile(file) {
       if (e.lengthComputable) {
         const pct = Math.round((e.loaded / e.total) * 100);
         bar.style.width = pct + "%";
-        text.textContent = `上传中... ${pct}%`;
+        text.textContent = `${uploadingMsg} ${pct}%`;
       }
     });
 
@@ -474,8 +503,9 @@ async function uploadFile(file) {
     // 弹出确认弹窗
     showUploadConfirmDialog(result.meetingId, result.title, result.meetingType);
   } catch (err) {
-    text.textContent = "文件已收到";
-    Toast.success("文件已收到，正在处理中，请等待几分钟后刷新页面查看结果");
+    const processingMsg = FunMessages.random("processing");
+    text.textContent = processingMsg;
+    Toast.success(processingMsg + "，请等待几分钟后刷新页面查看结果");
     setTimeout(() => progress.classList.remove("show"), 3000);
   }
 }
@@ -513,7 +543,8 @@ async function uploadMultipleFiles(files) {
 
   progress.classList.add("show");
   bar.style.width = "0%";
-  text.textContent = "上传中...";
+  const uploadingMsg = FunMessages.random("uploading");
+  text.textContent = uploadingMsg;
 
   const formData = new FormData();
   for (const file of files) {
@@ -534,7 +565,7 @@ async function uploadMultipleFiles(files) {
       if (e.lengthComputable) {
         const pct = Math.round((e.loaded / e.total) * 100);
         bar.style.width = pct + "%";
-        text.textContent = `上传中... ${pct}%`;
+        text.textContent = `${uploadingMsg} ${pct}%`;
       }
     });
 
@@ -552,7 +583,8 @@ async function uploadMultipleFiles(files) {
     });
 
     bar.style.width = "100%";
-    text.textContent = "合并中...";
+    const mergingMsg = FunMessages.random("processing");
+    text.textContent = mergingMsg;
 
     // 等待几秒显示合并状态
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -565,8 +597,9 @@ async function uploadMultipleFiles(files) {
     // 弹出确认弹窗
     showUploadConfirmDialog(result.meetingId, result.title, result.meetingType);
   } catch (err) {
-    text.textContent = "文件已收到";
-    Toast.success("文件已收到，正在处理中，请等待几分钟后刷新页面查看结果");
+    const processingMsg = FunMessages.random("processing");
+    text.textContent = processingMsg;
+    Toast.success(processingMsg + "，请等待几分钟后刷新页面查看结果");
     setTimeout(() => progress.classList.remove("show"), 3000);
   }
 }
@@ -608,7 +641,8 @@ function showUploadConfirmDialog(meetingId, title, meetingType) {
       Toast.success("转录已开始");
       fetchMeetings();
     } catch (err) {
-      Toast.success("文件已收到，正在处理中，请等待几分钟后刷新页面查看结果");
+      const processingMsg = FunMessages.random("processing");
+      Toast.success(processingMsg + "，请等待几分钟后刷新页面查看结果");
     }
   });
 
