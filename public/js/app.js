@@ -393,17 +393,17 @@ function initUpload() {
   area.addEventListener("drop", e => {
     e.preventDefault();
     area.classList.remove("dragover");
-    let file = e.dataTransfer.files[0];
-    if (!file && e.dataTransfer.items) {
-      const item = e.dataTransfer.items[0];
-      if (item && item.kind === "file") file = item.getAsFile();
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      uploadMultipleFiles(files);
     }
-    if (file) uploadFile(file);
   });
 
   input.addEventListener("change", () => {
-    const file = input.files[0];
-    if (file) uploadFile(file);
+    const files = Array.from(input.files);
+    if (files.length > 0) {
+      uploadMultipleFiles(files);
+    }
     input.value = "";
   });
 }
@@ -466,6 +466,97 @@ async function uploadFile(file) {
     });
 
     bar.style.width = "100%";
+    text.textContent = "上传完成！";
+    setTimeout(() => {
+      progress.classList.remove("show");
+    }, 500);
+
+    // 弹出确认弹窗
+    showUploadConfirmDialog(result.meetingId, result.title, result.meetingType);
+  } catch (err) {
+    text.textContent = "上传失败";
+    Toast.error(err.message);
+    setTimeout(() => progress.classList.remove("show"), 3000);
+  }
+}
+
+async function uploadMultipleFiles(files) {
+  // 1 个文件：走单文件路由
+  if (files.length === 1) {
+    await uploadFile(files[0]);
+    return;
+  }
+
+  // 多个文件：走批量上传路由
+  const validTypes = [
+    "video/mp4", "audio/mpeg", "audio/mp3", "audio/mp4", "video/quicktime",
+    "audio/ogg", "application/ogg", "audio/x-ogg", "video/ogg", "application/x-ogg", "audio/vorbis"
+  ];
+
+  // 验证所有文件
+  for (const file of files) {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!validTypes.includes(file.type) && !["mp4", "mp3", "m4a", "ogg", "oga", "ogv"].includes(ext)) {
+      Toast.error(`文件 ${file.name} 格式不支持`);
+      return;
+    }
+  }
+
+  if (files.length > 10) {
+    Toast.error("最多支持 10 个文件");
+    return;
+  }
+
+  const progress = document.getElementById("upload-progress");
+  const bar      = document.getElementById("progress-bar");
+  const text     = document.getElementById("progress-text");
+
+  progress.classList.add("show");
+  bar.style.width = "0%";
+  text.textContent = "上传中...";
+
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("files", file);
+  }
+
+  // 获取会议类型
+  const radioChecked = document.querySelector('input[name="meetingType"]:checked');
+  const selectEl     = document.getElementById("meetingType");
+  const meetingType  = radioChecked ? radioChecked.value : (selectEl ? selectEl.value : "general");
+  formData.append("meetingType", meetingType);
+
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/meetings/upload-multiple");
+
+    xhr.upload.addEventListener("progress", e => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        bar.style.width = pct + "%";
+        text.textContent = `上传中... ${pct}%`;
+      }
+    });
+
+    const result = await new Promise((resolve, reject) => {
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          const body = JSON.parse(xhr.responseText || "{}");
+          reject(new Error(body.error || `Upload failed (${xhr.status})`));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error"));
+      xhr.send(formData);
+    });
+
+    bar.style.width = "100%";
+    text.textContent = "合并中...";
+
+    // 等待几秒显示合并状态
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     text.textContent = "上传完成！";
     setTimeout(() => {
       progress.classList.remove("show");
