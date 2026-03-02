@@ -1262,7 +1262,7 @@ function renderMeetingDetail(m) {
           `pr-highlights-container-${prIndex}`,
           pr.highlights || [],
           {
-            fields: [{ key: 'text', label: '亮点', type: 'text', required: true }],
+            fields: [{ key: 'point', label: '亮点', type: 'text', required: true }, { key: 'detail', label: '详情', type: 'textarea' }],
             addLabel: '添加亮点',
             emptyText: '暂无亮点'
           },
@@ -1278,7 +1278,7 @@ function renderMeetingDetail(m) {
           `pr-lowlights-container-${prIndex}`,
           pr.lowlights || [],
           {
-            fields: [{ key: 'text', label: '待改进', type: 'text', required: true }],
+            fields: [{ key: 'point', label: '待改进', type: 'text', required: true }, { key: 'detail', label: '详情', type: 'textarea' }],
             addLabel: '添加待改进',
             emptyText: '暂无待改进项'
           },
