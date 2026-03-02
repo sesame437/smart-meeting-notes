@@ -15,6 +15,7 @@
 
 ## 最近完成（最新在前）
 
+- [x] Vue Batch 4 完成：ProjectReview + SpeakerMap + WeeklySection + GlossaryView 完整实现（commit `8bfde1f`）
 - [x] zod 校验补全 + E2E 测试 + lint warnings 清零（3合1）：glossary/meetings 路由 zod 校验 + e2e/edit.spec.js + eslint no-unused-vars 规则完善
 - [x] 数据字段全面统一：11个旧别名全部清零（actionItems/keyDecisions/agenda_items/executive_summary等）（commit `4189fd9`）
 - [x] data.md 补全：DynamoDB表结构、Report JSON完整定义（按会议类型）、字段命名铁律（commit `916c1f2`）
@@ -28,7 +29,7 @@
 ## 下一步（按优先级）
 
 ### 🔴 高优先级
-- [ ] **Vue 3 + Vite 迁移**（Batch 1-5）：先用 BN2 出 Mock 给凯确认视觉，再动代码
+- [ ] **Vue 3 + Vite 迁移 Batch 5**：HomeView 功能完善（搜索/筛选/排序）+ 部署生产环境
 
 ### 🟢 低优先级
 - [ ] listMeetings GSI：需凯确认 DynamoDB schema 变更后执行
@@ -49,3 +50,4 @@
 - 测试：`tests/`（Jest 454 passed）、`e2e/`（Playwright 8 passed + 新增 edit.spec.js）
 - 规范：`.claude/rules/`（api/coding/testing/data/vue）
 - Spec：`.spec/features/unified-edit-ux.md`
+- Vue 组件：`src/components/`（common/meeting/upload）、`src/views/`（Home/Meeting/Glossary）
