@@ -57,6 +57,7 @@ const apiLimiter = rateLimit({
   },
 });
 app.use("/api/meetings/upload", apiLimiter);
+app.use("/api/meetings/upload-multiple", apiLimiter);
 app.use("/api/meetings/:id/regenerate", apiLimiter);
 app.use("/api/meetings/:id/report", apiLimiter);
 app.use("/api/meetings/:id/speaker-names", apiLimiter);

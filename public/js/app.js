@@ -169,7 +169,7 @@ function renderFilteredMeetings() {
   }
   if (searchQuery) {
     filtered = filtered.filter(m => {
-      const title = (m.title || m.meetingId || '').toLowerCase();
+      const title = (m.title || "未命名会议").toLowerCase();
       return title.includes(searchQuery);
     });
   }
@@ -241,7 +241,7 @@ function statusBadge(status) {
 
 /* Card view for meeting list */
 function meetingCard(m) {
-  const title  = escapeHtml(m.title || m.meetingId);
+  const title  = escapeHtml(m.title || "未命名会议");
   const time   = m.createdAt ? new Date(m.createdAt).toLocaleString("zh-CN") : "-";
   const status = m.status || "pending";
   const id     = m.meetingId;
@@ -255,8 +255,8 @@ function meetingCard(m) {
     : "";
 
   // Failed state: show error message and retry button
-  const errorMsg = (status === "failed" && m.errorMessage)
-    ? `<div style="font-size:12px;color:#d32f2f;margin-top:4px;">${escapeHtml(m.errorMessage.length > 50 ? m.errorMessage.slice(0, 50) + '…' : m.errorMessage)}</div>`
+  const errorMsg = (status === "failed")
+    ? `<div style="font-size:12px;color:#d32f2f;margin-top:4px;">处理遇到问题，请稍后重试 🔧</div>`
     : "";
   const retryBtn = status === "failed"
     ? `<button class="btn btn-sm" style="border:1px solid #FF9900;color:#FF9900;background:transparent;margin-left:8px;" data-action="retry-meeting" data-id="${escapeAttr(id)}">🔄 重试</button>`
@@ -277,7 +277,7 @@ function meetingCard(m) {
     <div class="item-time">${time}</div>
     <div>${statusBadge(status)}${stageText ? `<div style="font-size:12px;color:#879596;margin-top:4px;">${stageText}</div>` : ""}${errorMsg}</div>
     <div class="row-actions">
-      <button class="btn btn-outline btn-sm" data-action="start-card-edit" data-id="${escapeAttr(id)}" data-title="${escapeAttr(m.title || m.meetingId)}" data-type="${escapeAttr(mType)}" title="编辑"><i class="fa fa-pencil"></i></button>
+      <button class="btn btn-outline btn-sm" data-action="start-card-edit" data-id="${escapeAttr(id)}" data-title="${escapeAttr(m.title || "未命名会议")}" data-type="${escapeAttr(mType)}" title="编辑"><i class="fa fa-pencil"></i></button>
       
       ${retryBtn}
       <button class="btn btn-danger btn-sm" data-action="delete-meeting" data-id="${escapeAttr(id)}" title="删除"><i class="fa fa-trash"></i></button>
@@ -336,7 +336,7 @@ async function saveCardEdit(id) {
 
 /* Table row fallback */
 function meetingRow(m) {
-  const title = escapeHtml(m.title || m.meetingId);
+  const title = escapeHtml(m.title || "未命名会议");
   const time = m.createdAt ? new Date(m.createdAt).toLocaleString("zh-CN") : "-";
   const status = m.status || "pending";
 
