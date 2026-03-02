@@ -39,7 +39,12 @@ app.use(helmet({
   },
 }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public"), { maxAge: 0, etag: false, lastModified: false }));
+// In production serve Vue SPA (dist/); in development serve legacy public/
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "dist")));
+} else {
+  app.use(express.static(path.join(__dirname, "public"), { maxAge: 0, etag: false, lastModified: false }));
+}
 
 // Rate limiting for upload and report generation endpoints
 const apiLimiter = rateLimit({
@@ -72,12 +77,12 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/meetings", meetingsRouter);
 app.use("/api/glossary", glossaryRouter);
 
-// Serve Vue SPA in production
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "dist")));
-  app.get("*", (req, res) => {
-    if (!req.path.startsWith("/api")) {
-      res.sendFile(path.join(__dirname, "dist/index.html"));
+// SPA fallback — serve Vue index.html for all non-API routes in production
+if (process.env.NODE_ENV === 'production') {
+  const path = require('path');
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(__dirname, 'dist/index.html'));
     }
   });
 }
