@@ -688,12 +688,11 @@ async function fetchMeeting(id) {
   }
   try {
     const m = await API.get(`/api/meetings/${id}`);
-    content.dataset.loaded = "1";
     renderMeetingDetail(m);
-  } catch (_) {
-    if (!content.dataset.loaded) {
-      content.innerHTML = '<div class="empty-state">加载会议详情失败</div>';
-    }
+    content.dataset.loaded = "1";
+  } catch (err) {
+    console.error("fetchMeeting error:", err);
+    content.innerHTML = '<div class="empty-state">加载会议详情失败，请刷新页面重试</div>';
   }
 }
 
