@@ -1,12 +1,15 @@
 const crypto = require("crypto");
 const fs = require("fs");
+const path = require("path");
 const { z } = require("zod");
 const { uploadFile, getFile } = require("../../services/s3");
 const { sendMessage } = require("../../services/sqs");
 const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
+const { mergeAudioFiles } = require("../../services/ffmpeg");
 const {
   upload,
+  uploadMultiple,
   sanitizeFilename,
   getMeetingById,
 } = require("./helpers");
@@ -221,6 +224,120 @@ function register(router) {
         fs.unlinkSync(req.file.path);
       }
       next(err);
+    }
+  });
+
+  // Upload multiple files, merge them, then start transcription
+  router.post("/upload-multiple", (req, res, next) => {
+    uploadMultiple(req, res, (err) => {
+      if (err) {
+        // Clean up temp files if they exist
+        if (req.files && Array.isArray(req.files)) {
+          for (const file of req.files) {
+            if (fs.existsSync(file.path)) {
+              try {
+                fs.unlinkSync(file.path);
+              } catch (cleanupErr) {
+                logger.warn("meetings-route", "cleanup-temp-file-failed", { error: cleanupErr.message });
+              }
+            }
+          }
+        }
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(413).json({ error: { code: "FILE_TOO_LARGE", message: "文件大小超过 2GB 限制" } });
+        }
+        if (err.code === "LIMIT_FILE_COUNT") {
+          return res.status(400).json({ error: { code: "TOO_MANY_FILES", message: "文件数量超过 10 个限制" } });
+        }
+        return res.status(400).json({ error: { code: "UPLOAD_ERROR", message: err.message } });
+      }
+      next();
+    });
+  }, async (req, res, next) => {
+    const tempFiles = [];
+    let mergedFilePath;
+
+    try {
+      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+        return res.status(400).json({ error: { code: "NO_FILES", message: "No files provided" } });
+      }
+
+      // 收集所有临时文件路径，用于清理
+      tempFiles.push(...req.files.map(f => f.path));
+
+      // Validate request body with zod
+      const parseResult = uploadSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
+      }
+
+      logger.info("meetings-route", "upload-multiple-start", {
+        fileCount: req.files.length,
+        totalSize: req.files.reduce((sum, f) => sum + f.size, 0),
+      });
+
+      // 合并音频文件
+      const meetingId = crypto.randomUUID();
+      mergedFilePath = path.join("/tmp", `merged-${meetingId}.ogg`);
+      const inputFiles = req.files.map(f => f.path);
+
+      await mergeAudioFiles(inputFiles, mergedFilePath);
+      tempFiles.push(mergedFilePath);
+
+      // 读取合并后的文件
+      const fileBuffer = await fs.promises.readFile(mergedFilePath);
+
+      // 使用第一个文件的原始名称（去掉扩展名）+ ".ogg"
+      const originalBasename = path.basename(req.files[0].originalname, path.extname(req.files[0].originalname));
+      const filename = sanitizeFilename(`${originalBasename}-merged.ogg`);
+      const s3Key = `inbox/${meetingId}/${filename}`;
+
+      // Upload to S3
+      await uploadFile(s3Key, fileBuffer, "audio/ogg");
+
+      logger.info("meetings-route", "upload-multiple-s3-success", { meetingId, s3Key });
+
+      // Parse and validate recipient emails
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      let recipientEmails = [];
+      if (req.body.recipientEmails) {
+        recipientEmails = req.body.recipientEmails
+          .split(",")
+          .map(e => e.trim())
+          .filter(e => emailRegex.test(e));
+      }
+
+      // Create meeting record in DynamoDB
+      const meetingType = req.body.meetingType || "general";
+      const item = {
+        meetingId,
+        title: req.body.title || filename.replace(/\.[^.]+$/, ""),
+        createdAt: new Date().toISOString(),
+        status: "uploaded",
+        s3Key,
+        filename,
+        meetingType,
+        ...(recipientEmails.length ? { recipientEmails } : {}),
+      };
+      await store.createMeetingFromUpload(item);
+
+      logger.info("meetings-route", "upload-multiple-complete", { meetingId });
+
+      res.status(201).json({ meetingId, status: "uploaded", title: item.title, meetingType });
+    } catch (err) {
+      logger.error("meetings-route", "upload-multiple-failed", { error: err.message });
+      next(err);
+    } finally {
+      // 清理所有临时文件
+      for (const filePath of tempFiles) {
+        if (filePath && fs.existsSync(filePath)) {
+          try {
+            await fs.promises.unlink(filePath);
+          } catch (cleanupErr) {
+            logger.warn("meetings-route", "cleanup-temp-file-failed", { file: filePath, error: cleanupErr.message });
+          }
+        }
+      }
     }
   });
 

@@ -40,7 +40,7 @@ jest.mock("@aws-sdk/client-bedrock-runtime", () => ({
 }));
 
 jest.mock("multer", () => {
-  const m = () => ({ single: () => (_req, _res, next) => next() });
+  const m = () => ({ single: () => (_req, _res, next) => next(), array: () => (_req, _res, next) => next() });
   m.diskStorage = jest.fn();
   return m;
 });

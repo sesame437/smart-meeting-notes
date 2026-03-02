@@ -21,7 +21,7 @@ const upload = multer({
   dest: "/tmp",
   limits: {
     fileSize: 2 * 1024 * 1024 * 1024, // 2GB
-    files: 1,
+    files: 10, // 支持最多 10 个文件
   },
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
@@ -151,6 +151,10 @@ module.exports = {
   HAIKU_MODEL_ID,
   validateIdParam,
   upload,
+  // uploadMultiple 用于多文件上传路由（动态生成）
+  get uploadMultiple() {
+    return upload.array("files", 10);
+  },
   sanitizeFilename,
   getMeetingById,
   validateSpeakerMap,

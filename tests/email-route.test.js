@@ -25,7 +25,7 @@ jest.mock("../services/sqs", () => ({
 
 // Mock multer (需要，因为 router 会加载 helpers.js)
 jest.mock("multer", () => {
-  const m = () => ({ single: () => (_req, _res, next) => next() });
+  const m = () => ({ single: () => (_req, _res, next) => next(), array: () => (_req, _res, next) => next() });
   m.diskStorage = jest.fn();
   return m;
 });
