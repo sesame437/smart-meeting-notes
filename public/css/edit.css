@@ -1,0 +1,266 @@
+/* ===== Unified Edit Framework — AWS Dark + Orange Theme ===== */
+
+/* Editable Row */
+.editable-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  margin: 4px 0;
+}
+
+.editable-row-content {
+  flex: 1;
+  min-width: 0;
+  word-wrap: break-word;
+}
+
+.editable-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.editable-row:hover .editable-row-actions {
+  opacity: 1;
+}
+
+/* Mobile: Actions Always Visible */
+@media (max-width: 640px) {
+  .editable-row-actions {
+    opacity: 1 !important;
+  }
+  .editable-row {
+    padding: 8px 0;
+  }
+}
+
+/* Edit Form Inline */
+.edit-form-inline {
+  background: #2a3441;
+  border: 1px solid #FF9900;
+  border-radius: 6px;
+  padding: 12px;
+  margin: 4px 0;
+}
+
+.edit-form-inline input,
+.edit-form-inline textarea {
+  width: 100%;
+  background: #232F3E;
+  border: 1px solid #FF9900;
+  border-radius: 4px;
+  color: #FFFFFF;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  margin-bottom: 8px;
+}
+
+.edit-form-inline input:focus,
+.edit-form-inline textarea:focus {
+  outline: none;
+  border-color: #FF9900;
+  box-shadow: 0 0 0 2px rgba(255, 153, 0, 0.2);
+}
+
+.edit-form-inline textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.edit-form-inline label {
+  display: block;
+  color: #FFFFFF;
+  font-size: 13px;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+/* Edit Actions */
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.edit-actions button {
+  padding: 6px 16px;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.edit-actions .btn-save {
+  background: #FF9900;
+  color: #232F3E;
+  border: none;
+  font-weight: 600;
+}
+
+.edit-actions .btn-save:hover {
+  background: #e68a00;
+}
+
+.edit-actions .btn-cancel {
+  background: transparent;
+  color: #FFFFFF;
+  border: 1px solid #555;
+}
+
+.edit-actions .btn-cancel:hover {
+  border-color: #FF9900;
+  color: #FF9900;
+}
+
+@media (max-width: 640px) {
+  .edit-actions {
+    flex-direction: row;
+  }
+  .edit-actions button {
+    flex: 1;
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* Confirm Dialog Overlay */
+.confirm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Confirm Dialog */
+.confirm-dialog {
+  background: #232F3E;
+  border: 1px solid #FF9900;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 320px;
+  width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.confirm-dialog-title {
+  color: #FFFFFF;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.confirm-dialog-message {
+  color: #CCCCCC;
+  font-size: 14px;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.confirm-dialog-actions button {
+  padding: 8px 20px;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+
+.confirm-dialog-actions .btn-confirm {
+  background: #d32f2f;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.confirm-dialog-actions .btn-confirm:hover {
+  background: #b71c1c;
+}
+
+.confirm-dialog-actions .btn-cancel {
+  background: transparent;
+  color: #FFFFFF;
+  border: 1px solid #555;
+}
+
+.confirm-dialog-actions .btn-cancel:hover {
+  border-color: #FF9900;
+  color: #FF9900;
+}
+
+@media (max-width: 640px) {
+  .confirm-dialog-actions button {
+    flex: 1;
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* Add Button */
+.add-item-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px dashed #FF9900;
+  color: #FF9900;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 8px;
+  transition: all 0.15s;
+}
+
+.add-item-btn:hover {
+  background: rgba(255, 153, 0, 0.1);
+  border-style: solid;
+}
+
+@media (max-width: 640px) {
+  .add-item-btn {
+    width: 100%;
+    justify-content: center;
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* Empty State */
+.empty-state {
+  color: #888;
+  font-size: 14px;
+  font-style: italic;
+  padding: 12px 0;
+}
