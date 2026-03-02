@@ -1,4 +1,4 @@
-# 数据规范
+# 数据规范（权威文件，所有数据结构以此为准）
 
 ## S3 Key 格式（铁律）
 存入 DynamoDB 的 S3 Key 一律存裸 key（不带 PREFIX）
@@ -7,15 +7,13 @@
 |------|---------|
 | s3Key | inbox/{meetingId}/{filename} |
 | reportKey | reports/{meetingId}/report.json |
-| transcribeKey | transcripts/{meetingId}/transcribe.json |
+| transcriptKey | transcripts/{meetingId}/transcribe.json |
 | funasrKey | transcripts/{meetingId}/funasr.json |
 
-- uploadFile(bareKey) 传裸 key，内部加 PREFIX
-- getFile(bareKey) 传裸 key，内部加 PREFIX
-- 业务代码不拼 PREFIX，不知道 PREFIX 的存在
+- uploadFile(bareKey) / getFile(bareKey) 内部加 PREFIX，业务代码不感知 PREFIX
 
 ## meetingId 格式
-统一用 crypto.randomUUID()（UUID v4），禁止用 `meeting-${Date.now()}`
+统一用 crypto.randomUUID()（UUID v4），禁止 `meeting-${Date.now()}`
 
 ## DynamoDB 表结构
 表名：`meeting-minutes-meetings`（PK: meetingId, SK: createdAt）
@@ -31,24 +29,24 @@
 | s3Key | String | 原始音频裸 key |
 | reportKey | String | 报告 JSON 裸 key |
 | transcriptKey | String | 转录文本裸 key |
-| content | Object | report JSON 副本（与 S3 同步） |
-| speakerMap | Object | {label: realName} |
+| content | Object | report JSON 副本（与 S3 实时同步） |
+| speakerMap | Object | {rawLabel: realName} |
 | duration | String | 时长 |
 | errorMessage | String | 失败原因 |
 | updatedAt | String | ISO 8601 UTC |
 | emailSentAt | String | ISO 8601 UTC，null 表示未发 |
 
-## Report JSON 完整结构（S3 存储 + DynamoDB.content）
+## Report JSON 完整结构（S3 + DynamoDB.content 权威定义）
 
-### 通用字段（所有会议类型）
+### 通用字段（所有类型均有）
 ```json
 {
   "summary": "2-3句话摘要",
-  "participants": ["参会人1"],
-  "highlights": [{ "point": "标题", "detail": "详情" }],
-  "lowlights":  [{ "point": "标题", "detail": "详情" }],
-  "actions":    [{ "task": "任务", "owner": "负责人", "deadline": "截止", "priority": "优先级" }],
-  "decisions":  [{ "decision": "决策内容" }]
+  "participants": ["参会人1", "参会人2"],
+  "highlights": [{ "point": "亮点标题", "detail": "详情" }],
+  "lowlights":  [{ "point": "问题标题", "detail": "影响" }],
+  "actions":    [{ "task": "任务", "owner": "负责人", "deadline": "截止", "priority": "high|medium|low" }],
+  "decisions":  [{ "decision": "决策内容", "rationale": "原因" }]
 }
 ```
 
@@ -56,22 +54,24 @@
 ```json
 {
   "teamKPI": {
-    "summary": "KPI总结",
-    "indicators": [{ "name": "成员", "kpi": "内容", "status": "completed|at-risk|normal" }]
+    "overview": "KPI总体情况",
+    "individuals": [{ "name": "成员", "kpi": "KPI要点", "status": "on-track|at-risk|completed" }]
   },
-  "announcements": [{ "title": "标题", "detail": "详情", "owner": "发布人" }],
+  "announcements": [{ "title": "标题", "detail": "内容", "owner": "发布人" }],
   "projectReviews": [{
     "project": "项目名",
-    "progress": "进展",
+    "progress": "本周进展",
     "highlights": [{ "point": "亮点", "detail": "详情" }],
     "lowlights":  [{ "point": "问题", "detail": "影响" }],
     "risks":      [{ "risk": "风险", "mitigation": "应对", "impact": "high|medium|low" }],
-    "followUps":  [{ "task": "跟进", "owner": "负责人", "deadline": "截止", "status": "in-progress|done|blocked" }]
-  }]
+    "followUps":  [{ "task": "跟进事项", "owner": "负责人", "deadline": "截止", "status": "new|in-progress|blocked|done" }],
+    "challenges": [{ "challenge": "挑战", "detail": "背景和当前状态" }]
+  }],
+  "nextMeeting": "下次会议时间（如有）"
 }
 ```
 
-### tech/general 额外字段
+### tech / general 额外字段
 ```json
 {
   "topics": [{ "topic": "议题", "discussion": "讨论要点", "conclusion": "结论" }]
@@ -81,24 +81,37 @@
 ### customer 额外字段
 ```json
 {
-  "customerInfo": { "name": "客户名", "industry": "行业" },
-  "customerNeeds": ["需求1"],
-  "painPoints":    ["痛点1"],
-  "solutionsDiscussed": ["方案1"],
-  "commitments":   [{ "item": "承诺", "owner": "负责人", "deadline": "截止" }],
-  "nextSteps":     [{ "action": "下一步", "owner": "负责人", "deadline": "截止" }]
+  "customerInfo": { "company": "客户公司", "attendees": ["客户参会人"] },
+  "awsAttendees": ["AWS参会人"],
+  "customerNeeds": [{ "need": "需求描述", "priority": "high|medium|low", "background": "背景" }],
+  "painPoints":    [{ "point": "痛点", "detail": "详情" }],
+  "solutionsDiscussed": [{ "solution": "方案", "awsServices": ["服务名"], "customerFeedback": "反馈" }],
+  "commitments":   [{ "party": "AWS|客户", "commitment": "承诺", "owner": "负责人", "deadline": "截止" }],
+  "nextSteps":     [{ "task": "下一步", "owner": "负责人", "deadline": "截止", "priority": "high|medium|low" }]
 }
 ```
 
-## ⚠️ 字段命名铁律（禁止使用旧别名）
-| ✅ 正确 | ❌ 禁止（旧别名） |
-|--------|----------------|
-| actions | actionItems |
-| decisions | keyDecisions / key_decisions |
-| highlights[].point | highlights[].text |
-| lowlights[].point | lowlights[].text |
+### merged 额外字段
+```json
+{
+  "keyTopics":    [{ "topic": "主题", "detail": "分析", "source": "来源会议" }],
+  "risks":        [{ "risk": "风险", "impact": "影响", "mitigation": "措施" }],
+  "sourceMeetings": ["会议标题1", "会议标题2"]
+}
+```
+注：merged 的 highlights/lowlights/actions/decisions 各条目额外含 `source` 字段。
 
-前端直接用 `report.actions`，禁止写 `report.actions || report.actionItems` 双轨兜底。
+## ⚠️ 字段命名铁律（禁止使用旧别名）
+| ✅ 正确 | ❌ 禁止 | 说明 |
+|--------|--------|------|
+| actions | actionItems | PATCH API 和前端统一用 actions |
+| decisions | keyDecisions / key_decisions | 统一用 decisions |
+| highlights[].point | highlights[].text | Bedrock 输出是 point，不是 text |
+| lowlights[].point | lowlights[].text | 同上 |
+| teamKPI.individuals | teamKPI.indicators | Bedrock 和前端都用 individuals |
+
+前端禁止写 `report.actions || report.actionItems` 双轨兜底，统一用 `report.actions`。
+历史数据迁移兼容仅在 report-worker.js 读取时做一次性转换，不扩散到前端。
 
 ## SQS 消息格式
 ```json
@@ -106,10 +119,11 @@
 ```
 
 ## Status 流转
-pending → processing → transcribed → reported → done（任意失败 → failed + errorMessage）
+pending → processing → transcribed → reported → done
+任意步骤失败 → failed（同时写 errorMessage 字段）
 
 ## speakerMap
-- Key：任意非空字符串（原始说话人 label）
+- Key：原始说话人 label（任意非空字符串）
 - Value：真实姓名，最长 100 字符
 
 ## 日期格式

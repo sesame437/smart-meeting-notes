@@ -107,13 +107,13 @@ describe("PATCH /api/meetings/:id/report", () => {
     expect(saved.decisions).toHaveLength(2);
   });
 
-  test("updates actionItems successfully", async () => {
+  test("updates actions successfully", async () => {
     setupMeeting();
     const newActions = [{ task: "Only task", owner: "Carol", deadline: "2026-04-01", priority: "low" }];
 
     const res = await request(app)
       .patch("/api/meetings/test-123/report")
-      .send({ section: "actionItems", data: newActions });
+      .send({ section: "actions", data: newActions });
 
     expect(res.status).toBe(200);
     const saved = JSON.parse(uploadedContent);
@@ -122,12 +122,12 @@ describe("PATCH /api/meetings/:id/report", () => {
     expect(saved.summary).toBe("Old summary text");
   });
 
-  test("updates keyDecisions successfully", async () => {
+  test("updates decisions successfully", async () => {
     setupMeeting();
 
     const res = await request(app)
       .patch("/api/meetings/test-123/report")
-      .send({ section: "keyDecisions", data: ["New decision only"] });
+      .send({ section: "decisions", data: ["New decision only"] });
 
     expect(res.status).toBe(200);
     const saved = JSON.parse(uploadedContent);

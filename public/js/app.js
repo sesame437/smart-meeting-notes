@@ -720,9 +720,9 @@ function renderMeetingDetail(m) {
   const highlights  = report.highlights  || [];
   const lowlights   = report.lowlights   || [];
   const actions     = report.actions     || [];
-  const decisions   = report.decisions   || report.key_decisions || [];
+  const decisions   = report.decisions   || []; // key_decisions is legacy, report-worker normalizes on ingest
   const risks       = report.risks       || report.issues || [];
-  const participants= report.participants|| report.attendees || [];
+  const participants= report.participants || [];
   const topics      = report.topics      || report.agenda_items || [];
   const summary     = report.summary     || report.executive_summary || "暂无摘要";
   const duration    = report.duration    || m.duration || "-";
@@ -1087,7 +1087,7 @@ function renderMeetingDetail(m) {
 
   // ---- Action Items ----
   html += `
-    <div class="card" id="section-actionItems">
+    <div class="card" id="section-actions">
       <div class="card-title">
         <span><i class="fa fa-check-square-o"></i> 待办事项</span>
       </div>
@@ -1097,7 +1097,7 @@ function renderMeetingDetail(m) {
 
   // ---- Key Decisions ----
   html += `
-    <div class="card decisions-card" id="section-keyDecisions">
+    <div class="card decisions-card" id="section-decisions">
       <div class="card-title">
         <span><i class="fa fa-gavel"></i> 关键决策</span>
       </div>
@@ -1952,16 +1952,16 @@ function handleUnifiedEdit(el) {
   } else if (section === 'participants') {
     items = _currentReport.participants || _currentReport.attendees || [];
     fieldConfig = [{key: 'name', label: '姓名', type: 'text', required: true}];
-  } else if (section === 'actions' || section === 'actionItems') {
-    items = _currentReport.actions || _currentReport.actionItems || [];
+  } else if (section === 'actions') {
+    items = _currentReport.actions || [];
     fieldConfig = [
       {key: 'task', label: '任务', type: 'text', required: true},
       {key: 'owner', label: '负责人', type: 'text'},
       {key: 'deadline', label: '截止日期', type: 'text'},
       {key: 'priority', label: '优先级', type: 'text'}
     ];
-  } else if (section === 'decisions' || section === 'keyDecisions') {
-    items = _currentReport.decisions || _currentReport.key_decisions || [];
+  } else if (section === 'decisions') {
+    items = _currentReport.decisions || [];
     fieldConfig = [{key: 'decision', label: '决策内容', type: 'text', required: true}];
   } else if (section === 'announcements') {
     items = _currentReport.announcements || [];
@@ -2126,11 +2126,11 @@ async function handleUnifiedSave(el) {
     items = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
   } else if (section === 'participants') {
     items = JSON.parse(JSON.stringify(_currentReport.participants || _currentReport.attendees || []));
-  } else if (section === 'actions' || section === 'actionItems') {
-    items = JSON.parse(JSON.stringify(_currentReport.actions || _currentReport.actionItems || []));
-    targetSection = 'actionItems';
-  } else if (section === 'decisions' || section === 'keyDecisions') {
-    items = JSON.parse(JSON.stringify(_currentReport.decisions || _currentReport.key_decisions || []));
+  } else if (section === 'actions') {
+    items = JSON.parse(JSON.stringify(_currentReport.actions || []));
+    targetSection = 'actions';
+  } else if (section === 'decisions') {
+    items = JSON.parse(JSON.stringify(_currentReport.decisions || []));
     targetSection = 'decisions';
   } else if (section === 'announcements') {
     items = JSON.parse(JSON.stringify(_currentReport.announcements || []));
@@ -2190,9 +2190,9 @@ function handleUnifiedDelete(el) {
     lowlights: '确认要删除该待改进项？',
     participants: '确认要删除该参会人员？',
     actions: '确认要删除该待办事项？',
-    actionItems: '确认要删除该待办事项？',
+    actions: '确认要删除该待办事项？',
     decisions: '确认要删除该决策？',
-    keyDecisions: '确认要删除该决策？',
+    decisions: '确认要删除该决策？',
     announcements: '确认要删除该公告？',
     'pr-highlights': '确认要删除该项目亮点？',
     'pr-lowlights': '确认要删除该项目待改进项？',
@@ -2211,11 +2211,11 @@ function handleUnifiedDelete(el) {
       items = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
     } else if (section === 'participants') {
       items = JSON.parse(JSON.stringify(_currentReport.participants || _currentReport.attendees || []));
-    } else if (section === 'actions' || section === 'actionItems') {
-      items = JSON.parse(JSON.stringify(_currentReport.actions || _currentReport.actionItems || []));
-      targetSection = 'actionItems';
-    } else if (section === 'decisions' || section === 'keyDecisions') {
-      items = JSON.parse(JSON.stringify(_currentReport.decisions || _currentReport.key_decisions || []));
+    } else if (section === 'actions') {
+      items = JSON.parse(JSON.stringify(_currentReport.actions || []));
+      targetSection = 'actions';
+    } else if (section === 'decisions') {
+      items = JSON.parse(JSON.stringify(_currentReport.decisions || []));
       targetSection = 'decisions';
     } else if (section === 'announcements') {
       items = JSON.parse(JSON.stringify(_currentReport.announcements || []));
@@ -2273,14 +2273,14 @@ function handleUnifiedAdd(el) {
     fieldConfig = [{key: 'point', label: '内容', type: 'text', required: true}];
   } else if (section === 'participants') {
     fieldConfig = [{key: 'name', label: '姓名', type: 'text', required: true}];
-  } else if (section === 'actions' || section === 'actionItems') {
+  } else if (section === 'actions') {
     fieldConfig = [
       {key: 'task', label: '任务', type: 'text', required: true},
       {key: 'owner', label: '负责人', type: 'text'},
       {key: 'deadline', label: '截止日期', type: 'text'},
       {key: 'priority', label: '优先级', type: 'text'}
     ];
-  } else if (section === 'decisions' || section === 'keyDecisions') {
+  } else if (section === 'decisions') {
     fieldConfig = [{key: 'decision', label: '决策内容', type: 'text', required: true}];
   } else if (section === 'announcements') {
     fieldConfig = [
@@ -2403,11 +2403,11 @@ function handleUnifiedAdd(el) {
       items = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
     } else if (section === 'participants') {
       items = JSON.parse(JSON.stringify(_currentReport.participants || _currentReport.attendees || []));
-    } else if (section === 'actions' || section === 'actionItems') {
-      items = JSON.parse(JSON.stringify(_currentReport.actions || _currentReport.actionItems || []));
-      targetSection = 'actionItems';
-    } else if (section === 'decisions' || section === 'keyDecisions') {
-      items = JSON.parse(JSON.stringify(_currentReport.decisions || _currentReport.key_decisions || []));
+    } else if (section === 'actions') {
+      items = JSON.parse(JSON.stringify(_currentReport.actions || []));
+      targetSection = 'actions';
+    } else if (section === 'decisions') {
+      items = JSON.parse(JSON.stringify(_currentReport.decisions || []));
       targetSection = 'decisions';
     } else if (section === 'announcements') {
       items = JSON.parse(JSON.stringify(_currentReport.announcements || []));

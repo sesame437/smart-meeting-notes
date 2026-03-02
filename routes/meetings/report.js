@@ -298,9 +298,9 @@ function register(router) {
   router.patch("/:id/report", async (req, res, next) => {
     try {
       const { section, data } = req.body;
-      const validSections = ["summary", "actionItems", "keyDecisions", "participants", "highlights", "lowlights", "announcements", "projectReviews", "decisions", "actions"];
+      const validSections = ["summary", "actions", "decisions", "participants", "highlights", "lowlights", "announcements", "projectReviews"];
       if (!validSections.includes(section)) {
-        return res.status(400).json({ error: { code: "INVALID_SECTION", message: "Invalid section. Must be one of: summary, actionItems, keyDecisions, participants, highlights, lowlights" } });
+        return res.status(400).json({ error: { code: "INVALID_SECTION", message: "Invalid section" } });
       }
       if (data === undefined || data === null) {
         return res.status(400).json({ error: { code: "DATA_REQUIRED", message: "data is required" } });
@@ -321,34 +321,17 @@ function register(router) {
       // Update the corresponding field
       const fieldMap = {
         summary: "summary",
-        actionItems: "actions",
-        keyDecisions: "decisions",
+        actions: "actions",
+        decisions: "decisions",
         participants: "participants",
         highlights: "highlights",
         lowlights: "lowlights",
         announcements: "announcements",
         projectReviews: "projectReviews",
-        decisions: "decisions",
-        actions: "actions",
-      };
-      // Also check alternative field names from Bedrock output
-      const altFieldMap = {
-        summary: "executive_summary",
-        actionItems: "actions",
-        keyDecisions: "key_decisions",
-        participants: "attendees",
-        highlights: "highlights",
-        lowlights: "lowlights",
       };
       const primaryField = fieldMap[section];
-      const altField = altFieldMap[section];
-      if (report[primaryField] !== undefined) {
-        report[primaryField] = data;
-      } else if (report[altField] !== undefined) {
-        report[altField] = data;
-      } else {
-        report[primaryField] = data;
-      }
+      // Always write to the canonical field name
+      report[primaryField] = data;
 
       // Write back to S3
       await uploadFile(item.reportKey, JSON.stringify(report, null, 2), "application/json");
