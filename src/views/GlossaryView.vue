@@ -44,8 +44,11 @@ const store = useGlossaryStore()
 const activeTab = ref('术语')
 
 const filteredItems = computed(() => {
-  if (!activeTab.value) return store.items
-  return store.items.filter(item => item.category === activeTab.value)
+  if (activeTab.value === "人员") {
+    return store.items.filter(item => item.category === "人员")
+  }
+  // 术语 tab：排除人员分类
+  return store.items.filter(item => item.category !== "人员")
 })
 
 async function addTerm(data) {

@@ -2,7 +2,7 @@
 
 > cc 每次 session 开始必读此文件，结束必更新。
 
-最后更新：2026-03-02
+最后更新：2026-03-02（今朝自主完成）
 
 ---
 
@@ -16,7 +16,11 @@
 
 ## 最近完成（最新在前）
 
-- [x] **Speaker 识别 × 词汇表人员打通**（2 Batch 完成，当前 commit）
+- [x] **周会 UI 重设计 + SpeakerRow 拆分**（3 Batch 完成，commit `df7c8e0`）
+  - Batch 0（前置）：SpeakerRow 拆分（295→154行），提取 SpeakerSearchDropdown（commit `f171b5a`）
+  - Batch 1（骨架）：TeamKPICard + ProjectAccordion + WeeklySidebar 三个新组件（commit `2a2911b`）
+  - Batch 2（组装）：WeeklySection 重构（138行）+ 移动端适配 + 左侧导航（commit `df7c8e0`）
+- [x] **Speaker 识别 × 词汇表人员打通**（2 Batch 完成）
   - Batch 1（后端）：glossary category 过滤 + Bedrock 提取 speakerKeypoints（commit `ca8fd92`）
   - Batch 2（前端）：SpeakerMap keypoints 显示 + 词汇表人员 tab + 实时搜索（commit `798b6f8`）
 - [x] Vue Batch 5 完成：Toast + ConfirmDialog + UploadArea + server.js 生产模式
