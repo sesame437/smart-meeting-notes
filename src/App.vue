@@ -12,11 +12,12 @@
     <main class="main-content">
       <router-view />
     </main>
+    <Toast />
   </div>
 </template>
 
 <script setup>
-// 顶层 App 组件，只含导航栏和路由出口
+import Toast from '@/components/common/Toast.vue'
 </script>
 
 <style scoped>

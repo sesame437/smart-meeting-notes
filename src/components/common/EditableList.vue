@@ -61,12 +61,20 @@
     <button v-if="!showAddForm && editingIndex === null" @click="startAdd" class="btn-add">
       {{ addLabel || '添加' }}
     </button>
+
+    <ConfirmDialog
+      message="确定删除这条记录吗？"
+      :visible="showConfirmDialog"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { useMeetingStore } from '@/stores/meeting'
+import ConfirmDialog from './ConfirmDialog.vue'
 
 const props = defineProps({
   items: Array,
@@ -85,6 +93,8 @@ const editingIndex = ref(null)
 const editingData = ref({})
 const showAddForm = ref(false)
 const newItemData = ref({})
+const showConfirmDialog = ref(false)
+const pendingDeleteIndex = ref(null)
 
 function startEdit(index) {
   editingIndex.value = index
@@ -118,9 +128,14 @@ async function saveEdit(index) {
   }
 }
 
-async function deleteItem(index) {
-  if (!window.confirm('确定删除这条记录吗?')) return
+function deleteItem(index) {
+  pendingDeleteIndex.value = index
+  showConfirmDialog.value = true
+}
+
+async function confirmDelete() {
   try {
+    const index = pendingDeleteIndex.value
     const updatedItems = props.items.filter((_, i) => i !== index)
 
     if (props.prIndex !== undefined) {
@@ -134,9 +149,16 @@ async function deleteItem(index) {
     emit('save')
     editingIndex.value = null
     editingData.value = {}
+    showConfirmDialog.value = false
+    pendingDeleteIndex.value = null
   } catch (err) {
     alert('删除失败: ' + err.message)
   }
+}
+
+function cancelDelete() {
+  showConfirmDialog.value = false
+  pendingDeleteIndex.value = null
 }
 
 function startAdd() {

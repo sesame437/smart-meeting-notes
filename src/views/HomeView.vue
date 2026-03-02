@@ -2,11 +2,14 @@
   <div class="home-view">
     <div class="page-header">
       <h1>会议列表</h1>
-      <button class="upload-btn" disabled title="上传功能将在 Batch 4 实现">
-        <span class="btn-icon">+</span>
-        上传录音
+      <button class="upload-btn" @click="showUpload = !showUpload">
+        <span class="btn-icon">{{ showUpload ? '−' : '+' }}</span>
+        {{ showUpload ? '收起' : '上传录音' }}
       </button>
     </div>
+
+    <!-- 上传区域 -->
+    <UploadArea v-if="showUpload" />
 
     <!-- Loading 骨架屏 -->
     <div v-if="store.loading" class="meeting-list">
@@ -32,11 +35,13 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useMeetingStore } from '@/stores/meeting'
 import MeetingCard from '@/components/meeting/MeetingCard.vue'
+import UploadArea from '@/components/upload/UploadArea.vue'
 
 const store = useMeetingStore()
+const showUpload = ref(false)
 
 onMounted(async () => {
   try {

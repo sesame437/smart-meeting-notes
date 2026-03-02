@@ -72,6 +72,16 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/meetings", meetingsRouter);
 app.use("/api/glossary", glossaryRouter);
 
+// Serve Vue SPA in production
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "dist")));
+  app.get("*", (req, res) => {
+    if (!req.path.startsWith("/api")) {
+      res.sendFile(path.join(__dirname, "dist/index.html"));
+    }
+  });
+}
+
 // Unified error handling middleware (must be after all routes)
 app.use((err, req, res, _next) => {
   const status = err.status || err.statusCode || 500;

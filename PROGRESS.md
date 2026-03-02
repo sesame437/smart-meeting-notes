@@ -12,9 +12,11 @@
 - 测试：454 passed (Jest) + 8 passed / 7 skipped (Playwright)
 - 架构评分：92/100（v3.0 评分表）
 - Lint：0 errors, 0 warnings
+- Vue SPA：dist/ 可部署，server.js 已配置生产模式 serve
 
 ## 最近完成（最新在前）
 
+- [x] Vue Batch 5 完成：Toast + ConfirmDialog + UploadArea + server.js 生产模式（当前 commit）
 - [x] Vue Batch 4 完成：ProjectReview + SpeakerMap + WeeklySection + GlossaryView 完整实现（commit `8bfde1f`）
 - [x] zod 校验补全 + E2E 测试 + lint warnings 清零（3合1）：glossary/meetings 路由 zod 校验 + e2e/edit.spec.js + eslint no-unused-vars 规则完善
 - [x] 数据字段全面统一：11个旧别名全部清零（actionItems/keyDecisions/agenda_items/executive_summary等）（commit `4189fd9`）
@@ -29,7 +31,8 @@
 ## 下一步（按优先级）
 
 ### 🔴 高优先级
-- [ ] **Vue 3 + Vite 迁移 Batch 5**：HomeView 功能完善（搜索/筛选/排序）+ 部署生产环境
+- [ ] **Vue 3 + Vite 激活**：验证 dist/ 生产环境可用性，决定是否切换默认前端
+- [ ] **HomeView 增强**：搜索/筛选/排序功能
 
 ### 🟢 低优先级
 - [ ] listMeetings GSI：需凯确认 DynamoDB schema 变更后执行
@@ -40,7 +43,7 @@
 - `listMeetings()` 仍是全表 Scan，等凯确认 GSI 方案
 - SES 固定用 us-west-2（qiankai@amazon.com 在此 region 验证），不要改 region
 - S3 Key 存裸格式（无 PREFIX），service 层统一拼接，不要在 routes 层拼
-- Vue 迁移前必须先出 BN2 Mock 图给凯确认视觉方向
+- Vue 前端已完成基础功能，dist/ 已构建，当前 public/ 仍为默认前端（备用）
 
 ## 关键文件位置
 
