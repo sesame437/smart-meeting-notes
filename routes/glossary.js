@@ -31,9 +31,13 @@ function validateIdParam(req, res, next) {
 router.param("id", validateIdParam);
 
 // List glossary terms
-router.get("/", async (_req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
-    const items = await glossaryStore.listGlossary();
+    let items = await glossaryStore.listGlossary();
+    // Filter by category if provided
+    if (req.query.category) {
+      items = items.filter(item => item.category === req.query.category);
+    }
     res.json(items);
   } catch (err) {
     next(err);

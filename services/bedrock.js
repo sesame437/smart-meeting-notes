@@ -13,9 +13,9 @@ function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speak
   let speakerNote = "";
   if (speakerMap && Object.keys(speakerMap).length > 0) {
     const mapping = Object.entries(speakerMap).map(([k, v]) => `${k}: ${v}`).join(", ");
-    speakerNote = `以下是参会人真实姓名映射，请在纪要中使用真实姓名：{${mapping}}\n\n`;
+    speakerNote = `以下是参会人真实姓名映射，请在纪要中使用真实姓名：{${mapping}}\n\n同时，请在 JSON 输出的 speakerKeypoints 字段中，为每位说话人提取最多3条核心发言要点。\n\n`;
   } else if (transcriptText.includes("[SPEAKER_")) {
-    speakerNote = `转录文本中包含说话人标签（如 [SPEAKER_0]、[SPEAKER_1]），请根据每位说话人的发言内容、语气和角色推断其身份（如"主持人"、"成员A"、"客户代表"等），在纪要中使用推断的角色名称而非 SPEAKER_X 编号。若无法推断具体身份，可使用"成员A/B/C"等匿名标注。\n\n`;
+    speakerNote = `转录文本中包含说话人标签（如 [SPEAKER_0]、[SPEAKER_1]），请根据每位说话人的发言内容、语气和角色推断其身份（如"主持人"、"成员A"、"客户代表"等），在纪要中使用推断的角色名称而非 SPEAKER_X 编号。若无法推断具体身份，可使用"成员A/B/C"等匿名标注。\n\n同时，请在 JSON 输出的 speakerKeypoints 字段中，为每位说话人（SPEAKER_0、SPEAKER_1 等）提取最多3条核心发言要点。\n\n`;
   }
 
   const glossaryNote = glossaryTerms.length > 0
@@ -42,7 +42,8 @@ ${transcriptText}
   "decisions": [{ "decision": "决策", "rationale": "原因", "source": "来源会议" }],
   "risks": [{ "risk": "风险", "impact": "影响", "mitigation": "措施" }],
   "participants": ["跨会议参与人汇总"],
-  "sourceMeetings": ["会议标题列表"]
+  "sourceMeetings": ["会议标题列表"],
+  "speakerKeypoints": {}
 }
 只输出 JSON。`;
   }
@@ -87,7 +88,11 @@ ${transcriptText}
   "participants": ["发言人角色（如主持人、成员A、客户代表）"],
   "highlights": [{ "point": "亮点", "detail": "详情" }],
   "lowlights": [{ "point": "问题/风险", "detail": "详情" }],
-  "nextMeeting": "下次会议时间（如有提及）"
+  "nextMeeting": "下次会议时间（如有提及）",
+  "speakerKeypoints": {
+    "SPEAKER_0": ["该说话人的核心发言要点1", "要点2", "要点3"],
+    "SPEAKER_1": ["该说话人的核心发言要点1", "要点2"]
+  }
 }
 只输出 JSON。`;
   }
@@ -108,7 +113,11 @@ ${transcriptText}
   "knowledgeBase": [{ "title": "知识点标题", "content": "可直接用于文档的技术总结" }],
   "participants": ["参会人列表"],
   "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
-  "techStack": ["涉及的技术/工具/框架"]
+  "techStack": ["涉及的技术/工具/框架"],
+  "speakerKeypoints": {
+    "SPEAKER_0": ["该说话人的核心发言要点1", "要点2", "要点3"],
+    "SPEAKER_1": ["该说话人的核心发言要点1", "要点2"]
+  }
 }
 只输出 JSON。`;
   }
@@ -168,12 +177,16 @@ ${transcriptText}
   "highlights": [{ "point": "亮点", "detail": "详情" }],
   "lowlights": [{ "point": "问题/风险", "detail": "详情" }],
   "actions": [{ "task": "行动项", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low" }],
-  "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }]
+  "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
+  "speakerKeypoints": {
+    "SPEAKER_0": ["该说话人的核心发言要点1", "要点2", "要点3"],
+    "SPEAKER_1": ["该说话人的核心发言要点1", "要点2"]
+  }
 }
 
 转录文本：${transcriptText}
 
-只输出 JSON。`;
+注意：speakerKeypoints 字段仅当转录文本中包含 [SPEAKER_X] 标签时提取，每位说话人最多3条核心发言要点。若无说话人标签，则输出空对象 {}。只输出 JSON。`;
   }
 
   // general (default)
@@ -194,7 +207,11 @@ ${transcriptText}
   "actions": [{ "task": "任务描述", "owner": "负责人", "deadline": "截止日期（如提及）", "priority": "high/medium/low" }],
   "risks": [{ "risk": "风险描述", "impact": "high/medium/low", "mitigation": "缓解方向" }],
   "participants": ["发言人角色"],
-  "nextMeeting": "下次会议时间（如有提及）"
+  "nextMeeting": "下次会议时间（如有提及）",
+  "speakerKeypoints": {
+    "SPEAKER_0": ["该说话人的核心发言要点1", "要点2", "要点3"],
+    "SPEAKER_1": ["该说话人的核心发言要点1", "要点2"]
+  }
 }
 
 只输出 JSON，不要其他文字。`;

@@ -62,6 +62,41 @@ describe("GET /api/glossary", () => {
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBe(0);
   });
+
+  test("filters by category when query param provided", async () => {
+    mockDynamoSend.mockResolvedValueOnce({
+      Items: [
+        { termId: "t1", term: "张三", definition: "产品经理", category: "人员" },
+        { termId: "t2", term: "GenAI", definition: "Generative AI", category: "术语" },
+        { termId: "t3", term: "李四", definition: "开发工程师", category: "人员" },
+      ],
+    });
+
+    const res = await request(createApp())
+      .get("/api/glossary?category=人员");
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBe(2);
+    expect(res.body[0].term).toBe("张三");
+    expect(res.body[1].term).toBe("李四");
+  });
+
+  test("returns all terms when category param not provided", async () => {
+    mockDynamoSend.mockResolvedValueOnce({
+      Items: [
+        { termId: "t1", term: "张三", definition: "产品经理", category: "人员" },
+        { termId: "t2", term: "GenAI", definition: "Generative AI", category: "术语" },
+      ],
+    });
+
+    const res = await request(createApp())
+      .get("/api/glossary");
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBe(2);
+  });
 });
 
 describe("POST /api/glossary", () => {
