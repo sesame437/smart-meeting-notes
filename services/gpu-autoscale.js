@@ -88,7 +88,8 @@ async function ensureReady() {
     }
     logger.info("gpu-autoscale", "waiting for FunASR HTTP", { attempt: i + 1, maxAttempts });
   }
-  throw new Error(`[gpu-autoscale] FunASR at ${FUNASR_URL} not reachable after 3 minutes`);
+  logger.warn("gpu-autoscale", "FunASR not reachable after 3 minutes", { url: FUNASR_URL });
+  return false;
 }
 
 async function isFunASRReachable() {

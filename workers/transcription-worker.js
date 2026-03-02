@@ -165,14 +165,6 @@ async function runFunASR(meetingId, s3Key) {
     logger.info("transcription-worker", "funasr-not-configured");
     return null;
   }
-  // 健康检查
-  try {
-    const resp = await fetch(`${FUNASR_URL}/health`, { signal: AbortSignal.timeout(5000) });
-    if (!resp.ok) throw new Error(`health check failed: ${resp.status}`);
-  } catch (err) {
-    logger.warn("transcription-worker", "funasr-unavailable", { url: FUNASR_URL, error: err.message });
-    return null;
-  }
 
   const outputKey = `transcripts/${meetingId}/funasr.json`;
   const s3OutputKey = `${PREFIX}/${outputKey}`;
@@ -360,7 +352,33 @@ async function processMessage(message) {
 
     // GPU auto-scale: ensure FunASR instance is running before transcription
     if (ENABLE_FUNASR) {
-      await ensureReady();
+      const ready = await ensureReady();
+      if (!ready) {
+        // FunASR not ready after timeout - check retry count
+        let retryCount = 0;
+        try {
+          const { Item } = await docClient.send(new GetCommand({
+            TableName: DYNAMODB_TABLE,
+            Key: { meetingId, createdAt },
+          }));
+          retryCount = Item?.retryCount || 0;
+        } catch (err) {
+          logger.warn("transcription-worker", "read-retryCount-failed", { meetingId, error: err.message });
+        }
+
+        if (retryCount >= 3) {
+          throw new Error("FunASR not ready after 3 retries, giving up");
+        }
+
+        // Increment retry count and reset to pending for next attempt
+        logger.info("transcription-worker", "funasr-not-ready-retry", { meetingId, retryCount: retryCount + 1 });
+        await updateMeetingStatus(meetingId, createdAt, "pending", {
+          retryCount: retryCount + 1,
+          stage: "waiting-gpu",
+        });
+        // Throw to prevent message deletion, allowing SQS visibility timeout retry
+        throw new Error(`FunASR not ready, retry ${retryCount + 1}/3`);
+      }
     }
     recordActivity();
 
