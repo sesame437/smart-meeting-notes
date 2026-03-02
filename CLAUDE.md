@@ -1,165 +1,149 @@
 # CLAUDE.md — Meeting Minutes AI 操作手册
-> 这是地图，不是手册。细节在 ROADMAP.md、routes/、workers/。
+> 这是地图，不是手册。细节在 .claude/rules/ 和 .spec/。
+> **版本：2026-03-03 v2.0（对齐 DEV_MODE v3.0）**
+
+---
 
 ## ⚡ Session 开始必做（每次）
-1. 读 `PROGRESS.md` — 了解当前进度、下一步任务、已知问题
-2. 运行 `bash scripts/health-check.sh` — 确认服务正常、测试全绿再动手
-3. Session 结束后更新 `PROGRESS.md`，记录完成项和新增待办
+1. 读 `PROGRESS.md`（若存在）— 了解当前进度和已知问题
+2. `npm test` — 确认测试基线（454 unit tests），有失败先修再动手
+
+---
 
 ## 项目概览
 会议录音转录 + 智能纪要生成服务。上传音频 → FunASR 转录 → Bedrock 生成纪要 → SES 发送邮件。
 
+**端口：3300 | 前端：Vue 3 + Vite（dist/）**
+
+---
+
 ## 技术栈
-- Runtime: Node.js
-- 框架: Express
-- 数据库: DynamoDB (via @aws-sdk/lib-dynamodb)
-- 存储: S3（音频文件）
-- 队列: SQS（转录任务分发）
-- AI: AWS Bedrock Claude Sonnet 4.6（报告生成）
-- 转录: FunASR (EC2 g6.2xlarge，CAM++ 说话人分离)
-- 邮件: AWS SES (us-west-2, qiankai@amazon.com)
-- 前端: 原生 HTML/CSS/JS
+- Runtime: Node.js / Express
+- 数据库: DynamoDB (`meeting-minutes-meetings`)
+- 存储: S3 (`yc-projects-012289836917`，prefix: `meeting-minutes/`)
+- 队列: SQS (`mm-transcription-queue`)
+- AI: AWS Bedrock Claude Sonnet 4.6（us-west-2）
+- 转录: FunASR（EC2 g6.2xlarge，172.31.27.101:9002，按需启动）
+- 邮件: AWS SES（us-west-2，qiankai@amazon.com）
+- 前端: Vue 3 + Vite（`src/` → build → `dist/`）
+
+---
 
 ## 文件结构
-- `server.js` — Express 入口，只在这里 require routes
-- `routes/meetings.js` — 会议 CRUD API
-- `routes/glossary.js` — 词库管理 API
-- `services/bedrock.js` — Bedrock 报告生成
-- `services/s3.js` — S3 文件操作
-- `services/ses.js` — 邮件发送（SES us-west-2）
-- `services/sqs.js` — SQS 消息操作
-- `workers/transcription-worker.js` — 拉 SQS → 调 FunASR → 存转录结果
-- `workers/report-worker.js` — 转录完成 → 调 Bedrock → 生成纪要
-- `workers/export-worker.js` — 生成 PDF/HTML → SES 发送
-- `db/dynamodb.js` — DynamoDB 客户端初始化
+- `server.js` — Express 入口 + static dist/
+- `routes/meetings/` — core.js / report.js / email.js / helpers.js
+- `routes/glossary.js` — 词库 API
+- `services/` — bedrock / s3 / ses / sqs
+- `workers/` — transcription / report / export / gpu-autoscale
+- `db/dynamodb.js` — DynamoDB 客户端
+- `src/` — Vue 3 源码（views/ components/ stores/ api/）
+- `e2e/` — Playwright E2E 测试
+- `__tests__/` — Jest 单元测试
 
-## AWS 资源
-- S3 Bucket: `yc-projects-012289836917`，prefix: `meeting-minutes/`
-- DynamoDB Table: `meeting-minutes-meetings`
-- SQS Queue: `mm-transcription-queue`
-- SES Region: `us-west-2`，发件人: `qiankai@amazon.com`
-- FunASR EC2: `ssh funasr`（172.31.27.101，按需启动）
+---
 
 ## 禁止行为（含修复指导）
 
-- ❌ 直接修改 DynamoDB 表结构（加字段等）
-  ✅ 正确：在 db/migrations/ 写迁移脚本，或直接用 AWS CLI `aws dynamodb update-table`，并更新 README
+- ❌ 新路由写在 server.js
+  ✅ 正确：routes/ 建新文件，server.js 只做 require + app.use
 
-- ❌ 新路由写在 server.js 而非 routes/
-  ✅ 正确：在 routes/ 建新文件，server.js 只做 require 和 app.use 注册
+- ❌ DynamoDB 存带 PREFIX 的 S3 Key
+  ✅ 正确：永远存裸 key（`inbox/{id}/file.mp4`），services/s3.js 内部加 PREFIX
 
-- ❌ 在 workers/ 里直接 require 其他 worker（循环依赖）
-  ✅ 正确：公共逻辑提取到 services/，workers 各自独立
+- ❌ 业务代码拼 `${S3_PREFIX}/...`
+  ✅ 正确：调用 s3.uploadFile(bareKey) / s3.getFile(bareKey)，service 层封装
 
-- ❌ 暴露 AWS 凭证、API Key 在代码或日志
-  ✅ 正确：从 process.env 读取，.env 文件不提交
+- ❌ SES 发邮件用 us-east-1
+  ✅ 正确：固定 us-west-2，发件人 qiankai@amazon.com
 
-- ❌ 邮件发送用 us-east-1
-  ✅ 正确：SES 必须用 us-west-2（qiankai@amazon.com 在此 region 验证）
+- ❌ 内联 script 块或 onclick="" 属性（CSP 违规）
+  ✅ 正确：外链 JS + data-action + 事件委托
 
-- ❌ 引入未在 package.json 的新依赖
-  ✅ 正确：先 `npm install --save <pkg>`，再使用
+- ❌ 前端 Vue 组件超过 200 行
+  ✅ 正确：拆子组件，每个 ≤200 行
 
-## 模块质量现状
-| 模块 | 质量 | 主要 Tech Debt |
-|------|------|----------------|
-| 会议 CRUD API | ✅ 稳定 | 无 |
-| 转录 Worker | ✅ 稳定 | FunASR 说话人分离准确度待验证 |
-| 报告生成 | ⚠️ 可用 | SPEAKER_X 标签出现在正文（P1 bug）|
-| 邮件发送 | ⚠️ 可用 | PDF 附件意义不大，计划改 HTML 邮件（P2）|
-| 词库管理 | ⚠️ 仅 API | 无管理 UI，只能 CLI 操作 |
-| 前端 UI | ⚠️ 可用 | 无自动化测试 |
+- ❌ 引入未在 package.json 的依赖
+  ✅ 正确：先 npm install --save，再使用
+
+---
+
+## 三层验证（每次任务必须全部通过后才能 commit）
+
+### Layer 1：单元测试
+```bash
+npm test
+# 要求：454+ passed，0 failed，覆盖率 ≥ 79%
+```
+
+### Layer 2：API 集成
+```bash
+node server.js &; sleep 3
+curl -sf localhost:3300/health | jq '.status == "ok"'
+kill %1
+```
+
+### Layer 3：Playwright E2E
+```bash
+NODE_ENV=production npm run build && node server.js &; sleep 3
+npx playwright test e2e/ --reporter=list
+kill %1
+```
+
+**E2E 规则：**
+- 新功能必须同步编写 e2e/<feature>.spec.js，**同一个 commit 提交**
+- skip 不算通过，必须说明原因
+- 截图保存 e2e/screenshots/，必须有真实数据
+
+### 汇报格式（汇报给今朝时必须包含）
+```
+✅ Unit: N passed / 覆盖率 X%
+✅ API: /health 200
+✅ E2E: N passed，截图：e2e/screenshots/...
+📝 踩坑：[已写入 CLAUDE.md 历史教训]
+🔗 Commit: <hash>
+```
+
+---
+
+## 字段格式（Single Source of Truth）
+
+### S3 Key（DynamoDB 存裸 key）
+| 字段 | 格式 |
+|------|------|
+| s3Key | `inbox/{meetingId}/{filename}` |
+| reportKey | `reports/{meetingId}/report.json` |
+| funasrKey | `transcripts/{meetingId}/funasr.json` |
+
+### 枚举值
+- `followUps.status`：`new` / `in-progress` / `blocked` / `done`
+- 会议类型：`general` / `tech` / `weekly` / `customer` / `merged`
+
+完整 Report JSON 字段定义见 `.claude/rules/data.md`
+
+---
 
 ## 服务管理
 ```bash
 systemctl --user restart meeting-minutes
-systemctl --user status meeting-minutes
-# Workers 单独运行
-node workers/transcription-worker.js
-node workers/report-worker.js
+NODE_ENV=production node server.js  # 生产启动
 ```
-端口: 3300
+
+---
 
 ## 参考文档
-- 路线图 + 待办: ROADMAP.md（先读这里了解 P1/P2 bug）
-- 上传脚本: scripts/upload_meeting.py（Mac 使用，已部署到 /usr/local/bin/mm）
+- `.claude/rules/coding.md` — 编码规范
+- `.claude/rules/testing.md` — 测试规范（E2E 详细规则在此）
+- `.claude/rules/api.md` — HTTP/错误格式规范
+- `.claude/rules/data.md` — DynamoDB + Report JSON 完整字段
+- `.claude/rules/vue.md` — Vue 3 开发规范
 
-## 历史教训（每次纠错后更新）
-- 2026-02-22：Python 脚本含中文注释必须加 `# -*- coding: utf-8 -*-`，否则 Mac 下载后乱码。
-- 2026-02-22：SES 邮件发送必须用 us-west-2，qiankai@amazon.com 在此 region 验证。us-east-1 只有 sesame.qian@gmail.com 可用。
-- 重要架构决策不留在飞书对话，直接写入此文件。cc 看不到飞书，对它来说等同于不存在。
+---
 
-## 前端 CSP 规范（必须遵守）
-
-本项目使用 helmet，默认启用严格 CSP，国内网络环境下尤为重要。
-
-**禁止：**
-- `<script>` 内联块（必须放外链 .js 文件）
-- `onclick="..."` 等内联事件属性
-- CDN 外链（cloudflare/jsdelivr 在国内不稳定）
-
-**必须：**
-- 所有按钮用 `data-action` + `document.addEventListener("click", ...)` 事件委托
-- 页面初始化在 DOMContentLoaded 里按 URL/DOM 特征判断页面类型
-- Font Awesome 等静态资源本地化（放 public/css/ + public/fonts/）
-
-## Quality Gate（必须执行）
-
-每个功能完成后必须：
-
-1. **node --check** 所有修改的 .js 文件
-2. **npm test** 补充/运行 unit test（正常路径 + 边界 + 错误路径）
-3. **前端功能**：用 browser 工具打开 http://localhost:3300，Console 确认：
-   - 无 CSP 错误（`Refused to execute inline script`）
-   - 无 JS SyntaxError / ReferenceError
-   - 功能操作正常
-4. **git commit**
-
-## CSP 配置（server.js）
-
-helmet 已配置明确的 CSP 白名单（见 server.js），规则：
-- `scriptSrc: ["'self'"]` — 禁止内联 script，只允许外链 .js 文件
-- `styleSrc: ["'self'", "'unsafe-inline'"]` — 允许 inline style
-- 禁止任何外部 CDN（cloudflare/jsdelivr 等）
-- 所有字体/图标/CSS 必须本地化到 public/ 目录
-
-**新增静态资源时**：更新 server.js 的 CSP directives，而不是用 `unsafe-inline` 或 `unsafe-eval`。
-
-## DynamoDB 字段存储格式规范（S3 Key）
-
-**铁律：所有存入 DynamoDB 的 S3 Key 一律存裸 key（不带 PREFIX）**
-
-| 字段 | 格式示例 | 说明 |
-|------|---------|------|
-| `s3Key` | `inbox/{meetingId}/{filename}` | 音频文件路径 |
-| `reportKey` | `reports/{meetingId}/report.json` | 纪要 JSON |
-| `transcribeKey` | `transcripts/{meetingId}/transcribe.json` | AWS Transcribe 结果 |
-| `whisperKey` | `transcripts/{meetingId}/whisper.json` | Whisper 结果 |
-| `funasrKey` | `transcripts/{meetingId}/funasr.json` | FunASR 结果 |
-
-**规则：**
-- `uploadFile(bareKey, data)` 传裸 key，内部加 PREFIX，返回裸 key
-- `getFile(bareKey)` 传裸 key，内部加 PREFIX
-- 调用方**永远不需要知道 PREFIX**，不要在业务代码里拼 `${PREFIX}/...`
-- S3 Event 传来的 key 带 PREFIX，消费前必须 strip（`parseMessage` 已处理）
-
-**背景：** 2026-02-27 因 s3Key 格式不一致导致 S3 Event 去重失败（重复创建会议记录），已修复。
-
-## 架构决策记录（Key Decisions）
-
-| 日期 | 决策 | 原因 |
-|------|------|------|
-| 2026-02-10 | S3 Key 存裸 key | 避免 PREFIX 双重拼接，service 层统一处理 |
-| 2026-02-15 | meetingId 用 UUID | 格式统一，避免 meeting-XXXXX 冲突 |
-| 2026-02-20 | routes/meetings.js 拆分为子目录 | 单文件 899 行过长，拆为 core/report/email/helpers |
-| 2026-02-22 | SES 固定用 us-west-2 | qiankai@amazon.com 在此 region 验证 |
-| 2026-02-24 | Worker 不发飞书告警 | 解耦项目与飞书，保持系统独立性 |
-| 2026-02-26 | 发邮件改为纯手动触发 | regenerate/merge 路由不再自动发 SQS |
-| 2026-02-27 | 结构化日志统一用 logger.js | 62 处 console.* 替换完成，便于日志聚合 |
-
-## 规范说明
-详细编码/API/测试/数据规范见 .claude/rules/ 目录：
-- .claude/rules/api.md — HTTP 规范、错误格式、分页
-- .claude/rules/testing.md — 覆盖率、写法、Mock
-- .claude/rules/coding.md — 命名、错误处理、日志
-- .claude/rules/data.md — S3 Key、DynamoDB、SQS 格式
+## 历史教训（格式：[日期] 问题 → 根因 → 修复）
+- [2026-02-22] SES 发失败 → 用了 us-east-1 → 固定 us-west-2
+- [2026-02-27] S3 Event 去重失败 → s3Key 格式不一致（带/不带 PREFIX）→ 统一存裸 key
+- [2026-02-27] DynamoDB 手动操作丢字段 → PutItem 只写部分字段 → 先 GetItem 读完整再写回
+- [2026-02-28] cc 直接退出无输出 → exec 没有设 workdir → 必须带 workdir 参数
+- [2026-03-02] E2E 报告"8 passed"是假通过 → test.skip 被忽略 → skip≠通过，必须检查原因
+- [2026-03-02] Batch 完成后没跑 E2E 就 push → E2E 必须与功能同 commit，不允许事后补
+- [2026-03-02] cc 重构时误删函数 → app.js 单文件 2600 行 → Vue 3 迁移，组件 ≤200 行

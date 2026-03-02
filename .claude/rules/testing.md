@@ -1,120 +1,126 @@
-# 测试规范
+# 测试规范（对齐 DEV_MODE v3.0）
 
-## 覆盖率要求
-- 新增代码：≥ 80% 行覆盖率
-- routes/ 目录：每个路由至少 3 个测试（正常路径 + 边界 + 错误路径）
-- workers/ 目录：核心逻辑必须有 mock 测试
-- services/ 目录：S3/SQS/DynamoDB 操作必须有 mock 测试
+## 三层验证体系（cc 必须全部通过后才能 commit）
 
-## 覆盖率检查命令
+### Layer 1：单元测试
 ```bash
-npm test -- --coverage
-# 输出报告中 Lines 列 ≥ 70%（整体），routes/ ≥ 80%
-# 新增代码后覆盖率不得低于当前基线
+npm test
+```
+- 要求：454+ passed，0 failed
+- 覆盖率：Statements ≥ 79%，不得下降
+- 新增代码：routes/ ≥ 80%，workers/ 核心逻辑必须有 mock 测试
+
+### Layer 2：API 集成冒烟
+```bash
+node server.js &
+sleep 3
+curl -sf localhost:3300/health | jq '.status == "ok"'
+# 有改动的接口各跑一次 curl 验证
+kill %1
 ```
 
-## 测试类型区分
-- **单元测试**（`__tests__/unit/`）：测试单个函数/service，全部 mock 外部依赖
-- **集成测试**（`__tests__/integration/`）：测试路由 → service → DB 完整链路，用内存 DB
-- 禁止在单元测试中发真实网络请求
+### Layer 3：Playwright E2E
+```bash
+NODE_ENV=production npm run build
+node server.js &
+sleep 3
+npx playwright test e2e/ --reporter=list
+kill %1
+```
+- 配置：playwright.config.js，baseURL=http://localhost:3300，headless=true
+- 必须带 `--no-sandbox --disable-setuid-sandbox`（EC2 环境）
+- 截图保存：e2e/screenshots/<feature>-<timestamp>.png
+
+---
+
+## E2E 铁律
+
+### 功能与测试同步提交
+- 每个涉及前端改动的 Batch，**必须同步编写 e2e/<feature>.spec.js**
+- 禁止：前端路由/组件改了，E2E 还用旧选择器/旧路径
+- E2E 文件与功能代码**同一个 commit 提交**，不允许事后补
+
+### skip 不算通过
+- `test.skip` 是警告信号，不是"没问题"
+- 有 skip 必须说明原因：数据问题还是选择器失效？
+- 新功能对应的用例不允许 skip
+
+### 截图要求
+- 截图必须有真实数据（不能是空白/loading 状态）
+- 路径规范：`e2e/screenshots/<page>-<feature>.png`
+
+---
 
 ## 测试文件组织
 ```
+e2e/
+  home.spec.js         — 首页加载、会议列表
+  meeting.spec.js      — 详情页、编辑功能
+  glossary.spec.js     — 词库页
+  upload.spec.js       — 上传流程（不测真实 AWS 调用）
+  screenshots/         — 截图目录
+
 __tests__/
   unit/
-    services/uploadService.test.js
-    services/reportService.test.js
+    services/          — S3/SES/SQS/Bedrock mock 测试
+    workers/           — Worker 逻辑 mock 测试
   integration/
-    meetings.upload.test.js
-    meetings.report.test.js
+    meetings.*.test.js — 路由 → service 完整链路
 ```
 
-## 测试写法规范
-```javascript
-// ✅ GOOD：描述行为，不描述实现
-describe("POST /api/meetings/upload", () => {
-  it("returns 201 with meetingId when audio uploaded successfully", async () => {})
-  it("returns 400 when no file attached", async () => {})
-  it("returns 500 when S3 upload fails", async () => {})
-})
+---
 
-// ❌ BAD：测试名含实现细节
-it("calls s3.uploadFile with correct params", async () => {})
-```
+## E2E 写法示例
 
-## Mock 规范
-- AWS SDK（S3/DynamoDB/SQS/Bedrock）必须 mock，不得真实调用
-- 用 jest.mock() 或 sinon，不用手写 stub
-- 每个测试独立，不依赖执行顺序
-
-## E2E 测试（Playwright）
-- 测试文件放 `e2e/` 目录，文件名 `*.spec.js`
-- 运行命令：`npm run test:e2e`（等价于 `playwright test`）
-- 配置文件：`playwright.config.js`，baseURL=http://localhost:3300，headless=true，必须带 `--no-sandbox --disable-setuid-sandbox`（EC2 环境）
-- **测什么**：核心用户流程（页面加载、导航、表单存在、关键 UI 元素）；不测外部服务（S3/SES/Bedrock）
-- **不测什么**：真实文件上传、真实邮件发送、需要 AWS 调用的完整流程
-- 依赖数据库数据的测试用 `test.skip` 条件跳过（CI 环境无数据属正常）
-- 当前基线：**8 passed，2 skipped**（report.spec.js 依赖现有会议数据）
-
-### E2E 测试写法示例
 ```javascript
 const { test, expect } = require("@playwright/test");
 
-test.describe("词库页", () => {
-  test("词库页加载，标题正确", async ({ page }) => {
-    await page.goto("/?tab=glossary");
+test.describe("首页", () => {
+  test("正常加载，显示会议列表", async ({ page }) => {
+    await page.goto("/");
     await expect(page).toHaveTitle(/会议纪要/);
+    await page.screenshot({ path: "e2e/screenshots/home-list.png" });
   });
 
-  test("添加术语表单存在", async ({ page }) => {
-    await page.goto("/?tab=glossary");
-    await expect(page.locator("#glossary-term-input")).toBeVisible();
+  test("Console 无 CSP/JS 错误", async ({ page }) => {
+    const errors = [];
+    page.on("console", msg => {
+      if (msg.type() === "error") errors.push(msg.text());
+    });
+    await page.goto("/");
+    await page.waitForTimeout(1000);
+    expect(errors.filter(e => e.includes("CSP") || e.includes("SyntaxError"))).toHaveLength(0);
   });
 });
 ```
 
-## CI 规范
-- 每次 commit 前必须本地跑 `npm test`（unit）+ `npm run test:e2e`（e2e）
-- Full Gate = lint + unit test（`bash scripts/health-check.sh`）
-- 测试失败不得 push
-- 当前测试套件基线：**432 unit + 8 e2e，全部通过**
+---
 
-## 验证成功标准
-- unit：`432 passed, 0 failed`（基线只能增加）
-- e2e：`8 passed, 2 skipped`（skipped 属正常，failed 才是问题）
-- 覆盖率：Statements ≥ 79%，不得下降
-- 有任何 failed 不得 commit，不得 push
+## 单元测试写法规范
+
+```javascript
+// ✅ 描述行为
+describe("POST /api/meetings/upload", () => {
+  it("returns 201 with meetingId when audio uploaded successfully")
+  it("returns 400 when no file attached")
+  it("returns 500 when S3 upload fails")
+})
+
+// ❌ 测试实现细节
+it("calls s3.uploadFile with correct params")
+```
+
+- AWS SDK（S3/DynamoDB/SQS/Bedrock）必须 mock
+- 每个测试独立，不依赖执行顺序
 
 ---
 
-## E2E 测试同步规范（2026-03-03 新增）
+## 验收成功标准
 
-### 铁律：功能代码与 E2E 测试必须同步提交
+| 层次 | 标准 |
+|------|------|
+| Unit | 454+ passed，0 failed，覆盖率 ≥ 79% |
+| API | /health 返回 200 |
+| E2E | 全 pass，0 failed（skip 须说明原因）|
 
-**禁止：** 前端路由/组件/交互改了，E2E 还用旧选择器/旧路径
-**要求：** 每个涉及前端改动的 Batch，AGENT PROMPT 必须包含：
-- 新功能对应的 E2E 用例（新增或更新）
-- 运行 `npm run test:e2e` 并截图验证（截图必须能看到真实数据）
-
-### Agent Prompt E2E 验收模板（强制）
-```
-Batch N 完成条件（前端改动时）：
-1. npm run build 通过
-2. npm test ≥ N passed
-3. npm run lint 0 warnings
-4. npm run test:e2e —— 新功能必须有对应用例，pass 数不得少于上一 Batch
-5. 截图验证：对所有改动的页面截图，保存到 /tmp/e2e-<page>.png，截图必须有真实数据（不能是空白/loading 状态）
-```
-
-### 今朝验收 checklist（agent 完成后必须执行）
-- [ ] 跑 `npm run test:e2e`，确认 pass 数
-- [ ] Playwright 截图所有改动页面，确认有真实数据
-- [ ] 无 console error
-- [ ] API 返回正常（不是空数组/404）
-- [ ] 功能可以实际操作（不只是页面能打开）
-- [ ] 全部通过后才汇报给凯
-
-### skip 不算通过
-- E2E 测试 skip 是警告信号，不是"没问题"
-- skip 的原因必须检查：是数据问题还是选择器失效？
-- 新功能对应的用例不允许 skip
+**三层全通过才能：** commit → push → 汇报今朝
