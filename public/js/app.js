@@ -1004,25 +1004,63 @@ function renderMeetingDetail(m) {
   // projectReviews（weekly 专属）
   if (report.projectReviews && report.projectReviews.length) {
     for (const pr of report.projectReviews) {
+      const prIndex = report.projectReviews.indexOf(pr);
       let prHtml = `<div class="report-section">
-        <h3 class="section-title">🗂 ${esc(pr.project)}</h3>`;
+        <h3 class="section-title" id="pr-project-${prIndex}" style="display:flex;align-items:center;gap:8px;">
+          <span>🗂 ${esc(pr.project)}</span>
+          <button class="btn btn-outline btn-sm" data-action="edit-project" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑项目名称"><i class="fa fa-pencil"></i></button>
+        </h3>`;
       if (pr.progress) {
-        prHtml += `<p class="section-text" style="background:#f8f9fa;padding:10px 14px;border-radius:6px;">${esc(pr.progress)}</p>`;
+        prHtml += `<div id="pr-progress-${prIndex}" style="position:relative;">
+          <p class="section-text" style="background:#f8f9fa;padding:10px 14px;border-radius:6px;">${esc(pr.progress)}</p>
+          <button class="btn btn-outline btn-sm" data-action="edit-progress" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑进展" style="position:absolute;top:8px;right:8px;"><i class="fa fa-pencil"></i></button>
+        </div>`;
       }
-      // highlights + lowlights
-      if ((pr.highlights&&pr.highlights.length)||(pr.lowlights&&pr.lowlights.length)) {
-        if (pr.highlights) for (const h of pr.highlights) {
-          prHtml += `<p style="margin:4px 0;font-size:13px;"><span style="color:#2e7d32;margin-right:6px;">▲</span><strong>${esc(h.point)}</strong>${h.detail?` — <span style="color:#666;">${esc(h.detail)}</span>`:''}</p>`;
-        }
-        if (pr.lowlights) for (const l of pr.lowlights) {
-          prHtml += `<p style="margin:4px 0;font-size:13px;"><span style="color:#e65100;margin-right:6px;">▼</span><strong>${esc(l.point)}</strong>${l.detail?` — <span style="color:#666;">${esc(l.detail)}</span>`:''}</p>`;
-        }
+      // highlights
+      if (pr.highlights && pr.highlights.length) {
+        pr.highlights.forEach((h, hIndex) => {
+          prHtml += `<div id="pr-highlight-row-${prIndex}-${hIndex}" style="margin:4px 0;font-size:13px;display:flex;align-items:center;justify-content:space-between;">
+            <div><span style="color:#2e7d32;margin-right:6px;">▲</span><strong>${esc(h.point)}</strong>${h.detail?` — <span style="color:#666;">${esc(h.detail)}</span>`:''}</div>
+            <div class="row-actions">
+              <button class="btn btn-outline btn-sm" data-action="edit-pr-highlight" data-pr-index="${prIndex}" data-index="${hIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-pr-highlight" data-pr-index="${prIndex}" data-index="${hIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </div>
+          </div>`;
+        });
+      }
+      // lowlights
+      if (pr.lowlights && pr.lowlights.length) {
+        pr.lowlights.forEach((l, lIndex) => {
+          prHtml += `<div id="pr-lowlight-row-${prIndex}-${lIndex}" style="margin:4px 0;font-size:13px;display:flex;align-items:center;justify-content:space-between;">
+            <div><span style="color:#e65100;margin-right:6px;">▼</span><strong>${esc(l.point)}</strong>${l.detail?` — <span style="color:#666;">${esc(l.detail)}</span>`:''}</div>
+            <div class="row-actions">
+              <button class="btn btn-outline btn-sm" data-action="edit-pr-lowlight" data-pr-index="${prIndex}" data-index="${lIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-pr-lowlight" data-pr-index="${prIndex}" data-index="${lIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </div>
+          </div>`;
+        });
+      }
+      // Add buttons (always show)
+      if ((pr.highlights && pr.highlights.length) || (pr.lowlights && pr.lowlights.length)) {
+        prHtml += `<div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="add-pr-highlight" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加亮点</button>
+          <button class="btn btn-outline btn-sm" data-action="add-pr-lowlight" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加待改进</button>
+        </div>`;
       }
       // risks
       if (pr.risks && pr.risks.length) {
-        for (const r of pr.risks) {
-          prHtml += `<div class="risk-card" style="margin-top:8px;">⚠️ <strong>${esc(r.risk)}</strong>${r.mitigation?`<br><span style="font-size:12px;color:#666;">${esc(r.mitigation)}</span>`:''}</div>`;
-        }
+        pr.risks.forEach((r, rIndex) => {
+          prHtml += `<div id="pr-risk-row-${prIndex}-${rIndex}" class="risk-card" style="margin-top:8px;display:flex;align-items:flex-start;justify-content:space-between;">
+            <div style="flex:1;">⚠️ <strong>${esc(r.risk)}</strong>${r.mitigation?`<br><span style="font-size:12px;color:#666;">${esc(r.mitigation)}</span>`:''}</div>
+            <div class="row-actions" style="margin-left:8px;">
+              <button class="btn btn-outline btn-sm" data-action="edit-risk" data-pr-index="${prIndex}" data-index="${rIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-risk" data-pr-index="${prIndex}" data-index="${rIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </div>
+          </div>`;
+        });
+        prHtml += `<div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="add-risk" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加风险</button>
+        </div>`;
       }
       // followUps
       if (pr.followUps && pr.followUps.length) {
@@ -2083,6 +2121,336 @@ async function addAnnouncement(meetingId) {
   }
 }
 
+/* ===== ProjectReview Project/Progress Edit ===== */
+function editProject(prIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var pr = _currentReport.projectReviews[prIndex];
+  if (!pr) return;
+  var h3 = document.getElementById("pr-project-" + prIndex);
+  if (!h3) return;
+  h3.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;width:100%;">
+      <input type="text" class="form-control" id="edit-project-text-${prIndex}" value="${escapeAttr(pr.project)}" style="flex:1;border:2px solid #FF9900;">
+      <button class="btn action-primary-btn btn-sm" data-action="save-project" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-project-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </div>`;
+  h3.style.border = "2px solid #FF9900";
+  h3.style.borderRadius = "4px";
+  h3.style.padding = "6px";
+}
+
+async function saveProject(prIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var newText = document.getElementById("edit-project-text-" + prIndex).value.trim();
+  if (!newText) {
+    Toast.error("项目名称不能为空");
+    return;
+  }
+  projectReviews[prIndex].project = newText;
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+function editProgress(prIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var pr = _currentReport.projectReviews[prIndex];
+  if (!pr) return;
+  var div = document.getElementById("pr-progress-" + prIndex);
+  if (!div) return;
+  div.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <textarea class="form-control" id="edit-progress-text-${prIndex}" rows="4" style="border:2px solid #FF9900;">${escapeAttr(pr.progress || '')}</textarea>
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-progress" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-progress-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
+    </div>`;
+  div.style.border = "2px solid #FF9900";
+  div.style.borderRadius = "4px";
+  div.style.padding = "6px";
+}
+
+async function saveProgress(prIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var newText = document.getElementById("edit-progress-text-" + prIndex).value.trim();
+  projectReviews[prIndex].progress = newText || undefined;
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+/* ===== ProjectReview Highlight Edit/Delete/Add ===== */
+function editPrHighlight(prIndex, hIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var pr = _currentReport.projectReviews[prIndex];
+  if (!pr || !pr.highlights) return;
+  var item = pr.highlights[hIndex];
+  if (!item) return;
+  var div = document.getElementById("pr-highlight-row-" + prIndex + "-" + hIndex);
+  if (!div) return;
+  div.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+      <input type="text" class="form-control" id="edit-pr-highlight-point-${prIndex}-${hIndex}" value="${escapeAttr(item.point || '')}" placeholder="亮点（必填）" style="border:2px solid #FF9900;">
+      <input type="text" class="form-control" id="edit-pr-highlight-detail-${prIndex}-${hIndex}" value="${escapeAttr(item.detail || '')}" placeholder="详情（选填）" style="border:2px solid #FF9900;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-pr-highlight" data-pr-index="${prIndex}" data-index="${hIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-pr-highlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
+    </div>`;
+  div.style.border = "2px solid #FF9900";
+  div.style.borderRadius = "4px";
+  div.style.padding = "6px";
+}
+
+async function savePrHighlight(prIndex, hIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var pr = projectReviews[prIndex];
+  if (!pr || !pr.highlights) return;
+  var point = document.getElementById("edit-pr-highlight-point-" + prIndex + "-" + hIndex).value.trim();
+  var detail = document.getElementById("edit-pr-highlight-detail-" + prIndex + "-" + hIndex).value.trim();
+  if (!point) {
+    Toast.error("亮点不能为空");
+    return;
+  }
+  pr.highlights[hIndex] = { point: point, detail: detail || undefined };
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deletePrHighlight(prIndex, hIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该亮点？",
+    onOk: async function() {
+      var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+      var pr = projectReviews[prIndex];
+      if (!pr || !pr.highlights) return;
+      pr.highlights.splice(hIndex, 1);
+      try {
+        await patchReportSection(meetingId, "projectReviews", projectReviews);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addPrHighlight(prIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var point = prompt("请输入亮点：");
+  if (!point || !point.trim()) return;
+  var detail = prompt("请输入详情（可选，直接回车跳过）：");
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var pr = projectReviews[prIndex];
+  if (!pr) return;
+  if (!pr.highlights) pr.highlights = [];
+  pr.highlights.push({
+    point: point.trim(),
+    detail: detail && detail.trim() ? detail.trim() : undefined
+  });
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
+/* ===== ProjectReview Lowlight Edit/Delete/Add ===== */
+function editPrLowlight(prIndex, lIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var pr = _currentReport.projectReviews[prIndex];
+  if (!pr || !pr.lowlights) return;
+  var item = pr.lowlights[lIndex];
+  if (!item) return;
+  var div = document.getElementById("pr-lowlight-row-" + prIndex + "-" + lIndex);
+  if (!div) return;
+  div.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+      <input type="text" class="form-control" id="edit-pr-lowlight-point-${prIndex}-${lIndex}" value="${escapeAttr(item.point || '')}" placeholder="待改进（必填）" style="border:2px solid #FF9900;">
+      <input type="text" class="form-control" id="edit-pr-lowlight-detail-${prIndex}-${lIndex}" value="${escapeAttr(item.detail || '')}" placeholder="详情（选填）" style="border:2px solid #FF9900;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-pr-lowlight" data-pr-index="${prIndex}" data-index="${lIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-pr-lowlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
+    </div>`;
+  div.style.border = "2px solid #FF9900";
+  div.style.borderRadius = "4px";
+  div.style.padding = "6px";
+}
+
+async function savePrLowlight(prIndex, lIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var pr = projectReviews[prIndex];
+  if (!pr || !pr.lowlights) return;
+  var point = document.getElementById("edit-pr-lowlight-point-" + prIndex + "-" + lIndex).value.trim();
+  var detail = document.getElementById("edit-pr-lowlight-detail-" + prIndex + "-" + lIndex).value.trim();
+  if (!point) {
+    Toast.error("待改进不能为空");
+    return;
+  }
+  pr.lowlights[lIndex] = { point: point, detail: detail || undefined };
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deletePrLowlight(prIndex, lIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该待改进项？",
+    onOk: async function() {
+      var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+      var pr = projectReviews[prIndex];
+      if (!pr || !pr.lowlights) return;
+      pr.lowlights.splice(lIndex, 1);
+      try {
+        await patchReportSection(meetingId, "projectReviews", projectReviews);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addPrLowlight(prIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var point = prompt("请输入待改进项：");
+  if (!point || !point.trim()) return;
+  var detail = prompt("请输入详情（可选，直接回车跳过）：");
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var pr = projectReviews[prIndex];
+  if (!pr) return;
+  if (!pr.lowlights) pr.lowlights = [];
+  pr.lowlights.push({
+    point: point.trim(),
+    detail: detail && detail.trim() ? detail.trim() : undefined
+  });
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
+/* ===== ProjectReview Risk Edit/Delete/Add ===== */
+function editRisk(prIndex, rIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var pr = _currentReport.projectReviews[prIndex];
+  if (!pr || !pr.risks) return;
+  var item = pr.risks[rIndex];
+  if (!item) return;
+  var div = document.getElementById("pr-risk-row-" + prIndex + "-" + rIndex);
+  if (!div) return;
+  div.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+      <input type="text" class="form-control" id="edit-risk-risk-${prIndex}-${rIndex}" value="${escapeAttr(item.risk || '')}" placeholder="风险（必填）" style="border:2px solid #FF9900;">
+      <input type="text" class="form-control" id="edit-risk-mitigation-${prIndex}-${rIndex}" value="${escapeAttr(item.mitigation || '')}" placeholder="缓解措施（选填）" style="border:2px solid #FF9900;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-risk" data-pr-index="${prIndex}" data-index="${rIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-risk-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
+    </div>`;
+  div.style.border = "2px solid #FF9900";
+  div.style.borderRadius = "4px";
+  div.style.padding = "6px";
+}
+
+async function saveRisk(prIndex, rIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var pr = projectReviews[prIndex];
+  if (!pr || !pr.risks) return;
+  var risk = document.getElementById("edit-risk-risk-" + prIndex + "-" + rIndex).value.trim();
+  var mitigation = document.getElementById("edit-risk-mitigation-" + prIndex + "-" + rIndex).value.trim();
+  if (!risk) {
+    Toast.error("风险不能为空");
+    return;
+  }
+  pr.risks[rIndex] = { risk: risk, mitigation: mitigation || undefined };
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteRisk(prIndex, rIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该风险？",
+    onOk: async function() {
+      var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+      var pr = projectReviews[prIndex];
+      if (!pr || !pr.risks) return;
+      pr.risks.splice(rIndex, 1);
+      try {
+        await patchReportSection(meetingId, "projectReviews", projectReviews);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addRisk(prIndex, meetingId) {
+  if (!_currentReport || !_currentReport.projectReviews) return;
+  var risk = prompt("请输入风险：");
+  if (!risk || !risk.trim()) return;
+  var mitigation = prompt("请输入缓解措施（可选，直接回车跳过）：");
+  var projectReviews = JSON.parse(JSON.stringify(_currentReport.projectReviews));
+  var pr = projectReviews[prIndex];
+  if (!pr) return;
+  if (!pr.risks) pr.risks = [];
+  pr.risks.push({
+    risk: risk.trim(),
+    mitigation: mitigation && mitigation.trim() ? mitigation.trim() : undefined
+  });
+  try {
+    await patchReportSection(meetingId, "projectReviews", projectReviews);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
 /* ===== FollowUp Edit/Delete/Add ===== */
 function editFollowUp(prIndex, fIndex, meetingId) {
   if (!_currentReport || !_currentReport.projectReviews) return;
@@ -2395,6 +2763,27 @@ document.addEventListener("click", function(e) {
     case "delete-followup":     deleteFollowUp(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
     case "add-followup":        addFollowUp(parseInt(el.dataset.prIndex), el.dataset.meetingId); break;
     case "cancel-followup-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-project":        editProject(parseInt(el.dataset.prIndex), el.dataset.meetingId); break;
+    case "save-project":        saveProject(parseInt(el.dataset.prIndex), el.dataset.meetingId); break;
+    case "cancel-project-edit": fetchMeeting(el.dataset.meetingId); break;
+    case "edit-progress":       editProgress(parseInt(el.dataset.prIndex), el.dataset.meetingId); break;
+    case "save-progress":       saveProgress(parseInt(el.dataset.prIndex), el.dataset.meetingId); break;
+    case "cancel-progress-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-pr-highlight":   editPrHighlight(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-pr-highlight":   savePrHighlight(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-pr-highlight": deletePrHighlight(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-pr-highlight":    addPrHighlight(parseInt(el.dataset.prIndex), el.dataset.meetingId); break;
+    case "cancel-pr-highlight-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-pr-lowlight":    editPrLowlight(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-pr-lowlight":    savePrLowlight(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-pr-lowlight":  deletePrLowlight(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-pr-lowlight":     addPrLowlight(parseInt(el.dataset.prIndex), el.dataset.meetingId); break;
+    case "cancel-pr-lowlight-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-risk":           editRisk(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-risk":           saveRisk(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-risk":         deleteRisk(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-risk":            addRisk(parseInt(el.dataset.prIndex), el.dataset.meetingId); break;
+    case "cancel-risk-edit":    fetchMeeting(el.dataset.meetingId); break;
   }
 });
 

@@ -239,7 +239,7 @@ describe("bedrock-service", () => {
 
       const callBody = JSON.parse(mockSend.mock.calls[0][0].input.body)
       expect(callBody.anthropic_version).toBe("bedrock-2023-05-31")
-      expect(callBody.max_tokens).toBe(16000)
+      expect(callBody.max_tokens).toBe(32000)
     })
   })
 })
