@@ -4,10 +4,10 @@ const {
 } = require("@aws-sdk/client-bedrock-runtime");
 
 const bedrockClient = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION,
+  region: process.env.BEDROCK_REGION || "us-east-1",
 });
 
-const DEFAULT_MODEL_ID = "global.anthropic.claude-sonnet-4-6";
+const DEFAULT_MODEL_ID = process.env.BEDROCK_MODEL_ID || "global.anthropic.claude-sonnet-4-6";
 
 function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speakerMap = null, customPrompt = null) {
   let speakerNote = "";
@@ -229,7 +229,7 @@ async function invokeModel(transcriptText, meetingType = "general", glossaryTerm
       accept: "application/json",
       body: JSON.stringify({
         anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 16000,
+        max_tokens: 32000,
         messages: [{ role: "user", content: prompt }],
       }),
     })
