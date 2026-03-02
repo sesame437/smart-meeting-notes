@@ -9,14 +9,17 @@
 ## 当前状态
 
 - 服务：port 3300，正常运行
-- 测试：454 passed (Jest) + 8 passed / 7 skipped (Playwright)
+- 测试：456 passed (Jest) + 8 passed / 7 skipped (Playwright)
 - 架构评分：92/100（v3.0 评分表）
 - Lint：0 errors, 0 warnings
 - Vue SPA：dist/ 可部署，server.js 已配置生产模式 serve
 
 ## 最近完成（最新在前）
 
-- [x] Vue Batch 5 完成：Toast + ConfirmDialog + UploadArea + server.js 生产模式（当前 commit）
+- [x] **Speaker 识别 × 词汇表人员打通**（2 Batch 完成，当前 commit）
+  - Batch 1（后端）：glossary category 过滤 + Bedrock 提取 speakerKeypoints（commit `ca8fd92`）
+  - Batch 2（前端）：SpeakerMap keypoints 显示 + 词汇表人员 tab + 实时搜索（commit `798b6f8`）
+- [x] Vue Batch 5 完成：Toast + ConfirmDialog + UploadArea + server.js 生产模式
 - [x] Vue Batch 4 完成：ProjectReview + SpeakerMap + WeeklySection + GlossaryView 完整实现（commit `8bfde1f`）
 - [x] zod 校验补全 + E2E 测试 + lint warnings 清零（3合1）：glossary/meetings 路由 zod 校验 + e2e/edit.spec.js + eslint no-unused-vars 规则完善
 - [x] 数据字段全面统一：11个旧别名全部清零（actionItems/keyDecisions/agenda_items/executive_summary等）（commit `4189fd9`）
