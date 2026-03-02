@@ -4,7 +4,7 @@ const {
 } = require("@aws-sdk/client-bedrock-runtime");
 
 const bedrockClient = new BedrockRuntimeClient({
-  region: process.env.BEDROCK_REGION || "us-east-1",
+  region: process.env.BEDROCK_REGION || process.env.AWS_REGION || "us-west-2",
 });
 
 const DEFAULT_MODEL_ID = process.env.BEDROCK_MODEL_ID || "global.anthropic.claude-sonnet-4-6";
