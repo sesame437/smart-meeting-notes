@@ -152,12 +152,12 @@ async function runPreflightCheck() {
     // Exit code 1 means FAILED
     if (err.code === 1 && output.includes("PREFLIGHT_RESULT=FAILED")) {
       logger.error("gpu-autoscale", "preflight check failed", { output, error: err.message });
-      throw new Error(`[gpu-autoscale] FunASR preflight check failed: ${output}`);
+      throw new Error(`[gpu-autoscale] FunASR preflight check failed: ${output}`, { cause: err });
     }
 
     // Other errors (SSH timeout, connection refused, etc.)
     logger.error("gpu-autoscale", "preflight check error", { error: err.message, output });
-    throw new Error(`[gpu-autoscale] Failed to run preflight check: ${err.message}`);
+    throw new Error(`[gpu-autoscale] Failed to run preflight check: ${err.message}`, { cause: err });
   }
 }
 

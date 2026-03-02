@@ -24,24 +24,18 @@ function extractJsonFromLLMResponse(text) {
   // Step 3: Try direct parse first
   try {
     return JSON.parse(jsonCandidate);
-  } catch (err) {
+  } catch (_err) {
     // Direct parse failed, try cleanup
   }
 
-  // Step 4: Clean up and retry
+  // Step 4: Clean up and retry — strip control characters and fix bare newlines
   try {
-    // Remove control characters except \n, \r, \t
+    // eslint-disable-next-line no-control-regex
     let cleaned = jsonCandidate.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
-
-    // Fix unescaped newlines inside string values
-    // This is tricky - we need to escape newlines that are inside quotes
-    // A simple heuristic: replace literal newlines with \\n
-    // (This may not be perfect for all cases, but handles most CJK content issues)
     cleaned = cleaned.replace(/([^\\])\n/g, "$1\\n");
-
     return JSON.parse(cleaned);
   } catch (cleanupErr) {
-    throw new Error(`Failed to parse Bedrock JSON response: ${cleanupErr.message}`);
+    throw new Error(`Failed to parse Bedrock JSON response: ${cleanupErr.message}`, { cause: cleanupErr });
   }
 }
 
