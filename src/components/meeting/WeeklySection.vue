@@ -96,7 +96,6 @@ function getStatusText(status) {
   return map[status] || status
 }
 </script>
-
 <style scoped>
 .weekly-section {
   margin-top: 2rem;

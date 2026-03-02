@@ -4,7 +4,6 @@
       <h3 class="meeting-title">{{ displayTitle }}</h3>
       <span :class="['status-badge', statusClass]">{{ statusText }}</span>
     </div>
-
     <div class="card-meta">
       <span class="meeting-date">{{ formattedDate }}</span>
       <span :class="['meeting-type-tag', typeClass]">{{ typeText }}</span>
@@ -93,7 +92,6 @@ function handleClick() {
   }
 }
 </script>
-
 <style scoped>
 .meeting-card {
   background: #1a2332;
