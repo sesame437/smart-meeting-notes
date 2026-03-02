@@ -99,6 +99,9 @@
         />
       </section>
 
+      <!-- Weekly sections -->
+      <WeeklySection v-if="meetingType === 'weekly'" :report="report" :meeting-id="meeting.meetingId" />
+
       <!-- Customer sections (read-only) -->
       <template v-if="meetingType === 'customer'">
         <section class="section">
@@ -171,6 +174,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMeetingStore } from '@/stores/meeting'
 import EditableList from '@/components/common/EditableList.vue'
+import WeeklySection from '@/components/meeting/WeeklySection.vue'
 
 const route = useRoute()
 const router = useRouter()

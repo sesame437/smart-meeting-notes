@@ -73,6 +73,7 @@ const props = defineProps({
   fields: Array,
   section: String,
   meetingId: String,
+  prIndex: Number,
   emptyText: String,
   addLabel: String
 })
@@ -99,7 +100,16 @@ async function saveEdit(index) {
   try {
     const updatedItems = [...props.items]
     updatedItems[index] = { ...editingData.value }
-    await store.patchSection(props.meetingId, props.section, updatedItems)
+
+    if (props.prIndex !== undefined) {
+      // 嵌套编辑：更新 projectReviews[prIndex][section]
+      const projectReviews = [...store.report.projectReviews]
+      projectReviews[props.prIndex] = { ...projectReviews[props.prIndex], [props.section]: updatedItems }
+      await store.patchSection(props.meetingId, 'projectReviews', projectReviews)
+    } else {
+      await store.patchSection(props.meetingId, props.section, updatedItems)
+    }
+
     emit('save')
     editingIndex.value = null
     editingData.value = {}
@@ -112,7 +122,15 @@ async function deleteItem(index) {
   if (!window.confirm('确定删除这条记录吗?')) return
   try {
     const updatedItems = props.items.filter((_, i) => i !== index)
-    await store.patchSection(props.meetingId, props.section, updatedItems)
+
+    if (props.prIndex !== undefined) {
+      const projectReviews = [...store.report.projectReviews]
+      projectReviews[props.prIndex] = { ...projectReviews[props.prIndex], [props.section]: updatedItems }
+      await store.patchSection(props.meetingId, 'projectReviews', projectReviews)
+    } else {
+      await store.patchSection(props.meetingId, props.section, updatedItems)
+    }
+
     emit('save')
     editingIndex.value = null
     editingData.value = {}
@@ -134,7 +152,15 @@ function cancelAdd() {
 async function saveNew() {
   try {
     const updatedItems = [...(props.items || []), { ...newItemData.value }]
-    await store.patchSection(props.meetingId, props.section, updatedItems)
+
+    if (props.prIndex !== undefined) {
+      const projectReviews = [...store.report.projectReviews]
+      projectReviews[props.prIndex] = { ...projectReviews[props.prIndex], [props.section]: updatedItems }
+      await store.patchSection(props.meetingId, 'projectReviews', projectReviews)
+    } else {
+      await store.patchSection(props.meetingId, props.section, updatedItems)
+    }
+
     emit('save')
     showAddForm.value = false
     newItemData.value = {}
