@@ -28,11 +28,25 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
-const formData = ref({ term: '', definition: '', category: '' })
+const props = defineProps({
+  currentCategory: {
+    type: String,
+    default: ''
+  }
+})
+
+const formData = ref({ term: '', definition: '', category: props.currentCategory })
 
 const emit = defineEmits(['add'])
+
+// 当 currentCategory 变化时，更新 formData.category（仅在 category 为空时）
+watch(() => props.currentCategory, (newCat) => {
+  if (!formData.value.category) {
+    formData.value.category = newCat
+  }
+})
 
 const canAdd = computed(() => {
   return formData.value.term.trim() && formData.value.definition.trim()
@@ -45,7 +59,7 @@ function handleAdd() {
     definition: formData.value.definition.trim(),
     category: formData.value.category.trim() || undefined
   })
-  formData.value = { term: '', definition: '', category: '' }
+  formData.value = { term: '', definition: '', category: props.currentCategory }
 }
 </script>
 

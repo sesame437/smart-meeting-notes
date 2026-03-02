@@ -8,16 +8,25 @@
     </div>
 
     <div v-else class="mapping-list">
-      <SpeakerRow
-        v-for="(realName, rawLabel) in localMap"
-        :key="rawLabel"
-        :raw-label="rawLabel"
-        :real-name="realName"
-        :is-editing="editingKey === rawLabel"
-        @edit="startEdit(rawLabel)"
-        @save="(name) => saveEdit(rawLabel, name)"
-        @cancel="cancelEdit"
-      />
+      <div v-for="(realName, rawLabel) in localMap" :key="rawLabel" class="speaker-card">
+        <div class="keypoints-column">
+          <h4>{{ rawLabel }} 发言要点</h4>
+          <ul v-if="getKeypoints(rawLabel).length > 0" class="keypoints-list">
+            <li v-for="(point, idx) in getKeypoints(rawLabel)" :key="idx">{{ point }}</li>
+          </ul>
+          <p v-else class="no-keypoints">暂无发言摘要</p>
+        </div>
+        <div class="mapping-column">
+          <SpeakerRow
+            :raw-label="rawLabel"
+            :real-name="realName"
+            :is-editing="editingKey === rawLabel"
+            @edit="startEdit(rawLabel)"
+            @save="(name) => saveEdit(rawLabel, name)"
+            @cancel="cancelEdit"
+          />
+        </div>
+      </div>
     </div>
 
     <div v-if="saving" class="saving-indicator">保存中...</div>
@@ -37,6 +46,10 @@ const props = defineProps({
   speakerMap: {
     type: Object,
     default: () => ({})
+  },
+  meeting: {
+    type: Object,
+    default: () => ({})
   }
 })
 
@@ -49,6 +62,12 @@ const saving = ref(false)
 watch(() => props.speakerMap, (newMap) => {
   localMap.value = { ...newMap }
 }, { deep: true })
+
+function getKeypoints(rawLabel) {
+  const keypoints = props.meeting?.content?.speakerKeypoints
+  if (!keypoints || !keypoints[rawLabel]) return []
+  return keypoints[rawLabel].slice(0, 3)
+}
 
 function startEdit(rawLabel) {
   editingKey.value = rawLabel
@@ -110,7 +129,48 @@ h3 {
 .mapping-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1.5rem;
+}
+
+.speaker-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--color-bg);
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.keypoints-column h4 {
+  margin: 0 0 0.75rem 0;
+  color: var(--color-orange);
+  font-size: 0.9rem;
+}
+
+.keypoints-list {
+  list-style: disc inside;
+  margin: 0;
+  padding: 0;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.keypoints-list li {
+  margin-bottom: 0.5rem;
+}
+
+.no-keypoints {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.mapping-column {
+  display: flex;
+  align-items: center;
 }
 
 .saving-indicator {

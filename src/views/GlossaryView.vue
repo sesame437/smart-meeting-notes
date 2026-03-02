@@ -2,13 +2,28 @@
   <div class="glossary-view">
     <h1>词汇表</h1>
 
-    <GlossaryForm @add="addTerm" />
+    <div class="tabs">
+      <button
+        :class="['tab', { active: activeTab === '术语' }]"
+        @click="activeTab = '术语'"
+      >
+        术语
+      </button>
+      <button
+        :class="['tab', { active: activeTab === '人员' }]"
+        @click="activeTab = '人员'"
+      >
+        人员
+      </button>
+    </div>
+
+    <GlossaryForm :current-category="activeTab" @add="addTerm" />
 
     <div v-if="store.loading" class="loading">加载中...</div>
     <div v-else-if="store.error" class="error">{{ store.error }}</div>
     <GlossaryTable
-      v-else-if="store.items.length > 0"
-      :items="store.items"
+      v-else-if="filteredItems.length > 0"
+      :items="filteredItems"
       @update="updateTerm"
       @delete="deleteItem"
     />
@@ -20,12 +35,18 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useGlossaryStore } from '@/stores/glossary'
 import GlossaryForm from '@/components/glossary/GlossaryForm.vue'
 import GlossaryTable from '@/components/glossary/GlossaryTable.vue'
 
 const store = useGlossaryStore()
+const activeTab = ref('术语')
+
+const filteredItems = computed(() => {
+  if (!activeTab.value) return store.items
+  return store.items.filter(item => item.category === activeTab.value)
+})
 
 async function addTerm(data) {
   try {
@@ -65,7 +86,35 @@ onMounted(async () => {
 
 h1 {
   color: var(--color-orange);
+  margin-bottom: 1rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
   margin-bottom: 2rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  color: var(--color-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+.tab.active {
+  color: var(--color-orange);
+  border-bottom-color: var(--color-orange);
 }
 
 .loading {

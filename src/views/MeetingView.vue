@@ -10,6 +10,15 @@
         <span :class="['status-badge', statusClass]">{{ statusText }}</span>
       </div>
 
+      <!-- Speaker Map (if present) -->
+      <SpeakerMap
+        v-if="meeting.speakerMap && Object.keys(meeting.speakerMap).length > 0"
+        :meeting-id="meeting.meetingId"
+        :speaker-map="meeting.speakerMap"
+        :meeting="meeting"
+        @update="handleSpeakerMapUpdate"
+      />
+
       <!-- General sections (all types) -->
       <GeneralSection :report="report" :meeting-id="meeting.meetingId" :meeting-type="meetingType" />
 
@@ -35,6 +44,7 @@ import { useMeetingStore } from '@/stores/meeting'
 import GeneralSection from '@/components/meeting/GeneralSection.vue'
 import CustomerSection from '@/components/meeting/CustomerSection.vue'
 import WeeklySection from '@/components/meeting/WeeklySection.vue'
+import SpeakerMap from '@/components/meeting/SpeakerMap.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -64,6 +74,13 @@ const statusText = computed(() => {
 
 function goBack() {
   router.push('/')
+}
+
+function handleSpeakerMapUpdate(updatedMap) {
+  // 更新 store 中的 meeting 数据
+  if (store.current) {
+    store.current.speakerMap = updatedMap
+  }
 }
 
 onMounted(async () => {

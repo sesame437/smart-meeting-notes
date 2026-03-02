@@ -38,6 +38,17 @@ export const useGlossaryStore = defineStore('glossary', {
       }
     },
 
+    // 获取人员分类词条
+    async fetchPersonnel() {
+      try {
+        const items = await api.get('/glossary?category=人员')
+        return items || []
+      } catch (err) {
+        this.error = err.message
+        return []
+      }
+    },
+
     // 创建词条
     async createTerm(term, definition, category) {
       try {
