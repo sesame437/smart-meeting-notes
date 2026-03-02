@@ -1,8 +1,24 @@
 const { Router } = require("express");
 const crypto = require("crypto");
+const { z } = require("zod");
 const glossaryStore = require("../services/glossary-store");
 
 const router = Router();
+
+// Zod schemas for validation
+const glossarySchema = z.object({
+  term: z.string().min(1).max(100),
+  definition: z.string().min(1).max(500),
+  category: z.string().max(50).optional(),
+  aliases: z.union([z.array(z.string()), z.string()]).optional(),
+});
+
+const glossaryUpdateSchema = z.object({
+  term: z.string().min(1).max(100),
+  definition: z.string().min(1).max(500).optional(),
+  category: z.string().max(50).optional(),
+  aliases: z.union([z.array(z.string()), z.string()]).optional(),
+});
 
 // Param validation middleware: id must be non-empty, max 100 chars
 function validateIdParam(req, res, next) {
@@ -27,13 +43,26 @@ router.get("/", async (_req, res, next) => {
 // Add term
 router.post("/", async (req, res, next) => {
   try {
-    const { term, definition, aliases } = req.body;
+    // Validate request body with zod
+    const parseResult = glossarySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parseResult.error.message,
+          fields: parseResult.error.issues.map(e => ({ field: e.path.join('.'), message: e.message }))
+        }
+      });
+    }
+
+    const { term, definition, category, aliases } = parseResult.data;
     const item = {
       termId: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
+      term,
+      definition,
     };
-    if (term !== undefined) item.term = term;
-    if (definition !== undefined) item.definition = definition;
+    if (category !== undefined) item.category = category;
     if (aliases !== undefined) item.aliases = aliases;
     await glossaryStore.createGlossaryItem(item);
     res.status(201).json(item);
@@ -45,10 +74,19 @@ router.post("/", async (req, res, next) => {
 // Update term
 router.put("/:id", async (req, res, next) => {
   try {
-    if (req.body.term === undefined || req.body.term === null || req.body.term === "") {
-      return res.status(400).json({ error: { code: "MISSING_TERM", message: "term is required" } });
+    // Validate request body with zod
+    const parseResult = glossaryUpdateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parseResult.error.message,
+          fields: parseResult.error.issues.map(e => ({ field: e.path.join('.'), message: e.message }))
+        }
+      });
     }
-    const { term, definition, aliases } = req.body;
+
+    const { term, definition, category, aliases } = parseResult.data;
     const expressions = [];
     const names = {};
     const values = {};
@@ -62,6 +100,11 @@ router.put("/:id", async (req, res, next) => {
       expressions.push("#d = :d");
       names["#d"] = "definition";
       values[":d"] = definition;
+    }
+    if (category !== undefined) {
+      expressions.push("#cat = :cat");
+      names["#cat"] = "category";
+      values[":cat"] = category;
     }
     if (aliases !== undefined) {
       expressions.push("#a = :a");

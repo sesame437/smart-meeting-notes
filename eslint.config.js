@@ -39,7 +39,11 @@ module.exports = [
     },
     rules: {
       "no-console": "error",
-      "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "no-unused-vars": ["warn", {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_"
+      }],
       "no-process-exit": "off"
     }
   },

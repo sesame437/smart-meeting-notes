@@ -20,6 +20,14 @@ const uploadSchema = z.object({
   recipientEmails: z.string().optional(),
 });
 
+const meetingUpdateSchema = z.object({
+  title: z.string().max(200).optional(),
+  meetingType: z.enum(["general", "tech", "weekly", "customer"]).optional(),
+  speakerMap: z.record(z.string()).optional(),
+  status: z.string().optional(),
+  content: z.any().optional(),
+});
+
 function register(router) {
   // List meetings - deduplicate by meetingId, prefer item with title, then latest createdAt
   router.get("/", async (_req, res, next) => {
@@ -98,10 +106,22 @@ function register(router) {
   // Update meeting
   router.put("/:id", async (req, res, next) => {
     try {
+      // Validate request body with zod
+      const parseResult = meetingUpdateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: parseResult.error.message,
+            fields: parseResult.error.issues.map(e => ({ field: e.path.join('.'), message: e.message }))
+          }
+        });
+      }
+
       const item = await getMeetingById(req.params.id);
       if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
 
-      const { status, content, title, meetingType } = req.body;
+      const { status, content, title, meetingType, speakerMap } = parseResult.data;
       const expressions = [];
       const names = {};
       const values = {};
@@ -124,6 +144,10 @@ function register(router) {
       if (meetingType !== undefined) {
         expressions.push("meetingType = :mt");
         values[":mt"] = meetingType;
+      }
+      if (speakerMap !== undefined) {
+        expressions.push("speakerMap = :sm");
+        values[":sm"] = speakerMap;
       }
 
       expressions.push("updatedAt = :u");

@@ -82,15 +82,32 @@ describe("POST /api/glossary", () => {
     expect(res.body.definition).toBe("Retrieval Augmented Generation");
   });
 
-  test("returns 201 even if term is undefined (no validation in route)", async () => {
-    mockDynamoSend.mockResolvedValueOnce({});
-
+  test("returns 400 if term is missing (zod validation)", async () => {
     const res = await request(createApp())
       .post("/api/glossary")
       .send({ definition: "Some definition" });
 
-    expect(res.status).toBe(201);
-    expect(res.body.termId).toBeDefined();
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeDefined();
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  test("returns 400 if definition is missing (zod validation)", async () => {
+    const res = await request(createApp())
+      .post("/api/glossary")
+      .send({ term: "Some term" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  test("returns 400 if term exceeds max length", async () => {
+    const res = await request(createApp())
+      .post("/api/glossary")
+      .send({ term: "a".repeat(101), definition: "Some definition" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
 });
 
@@ -112,22 +129,22 @@ describe("PUT /api/glossary/:id", () => {
     expect(res.body.term).toBe("Updated Term");
   });
 
-  test("returns 400 if term is missing", async () => {
+  test("returns 400 if term is missing (zod validation)", async () => {
     const res = await request(createApp())
       .put("/api/glossary/t1")
       .send({ definition: "Definition without term" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe("MISSING_TERM");
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
 
-  test("returns 400 if term is empty string", async () => {
+  test("returns 400 if term is empty string (zod validation)", async () => {
     const res = await request(createApp())
       .put("/api/glossary/t1")
       .send({ term: "", definition: "Some definition" });
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe("MISSING_TERM");
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
 });
 
