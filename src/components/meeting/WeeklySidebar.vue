@@ -65,31 +65,25 @@ function setupScrollspy() {
 function scrollToSection(id) {
   const element = document.getElementById(id)
   if (element) {
-    const offset = 100
-    const elementPosition = element.getBoundingClientRect().top + window.pageYOffset
-    const offsetPosition = elementPosition - offset
-
-    window.scrollTo({
-      top: offsetPosition,
-      behavior: 'smooth'
-    })
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 }
 </script>
 
 <style scoped>
 .weekly-sidebar {
-  position: fixed;
-  left: 20px;
-  top: 100px;
+  position: sticky;
+  top: 80px;
   width: 160px;
+  min-width: 160px;
+  flex-shrink: 0;
+  align-self: flex-start;
   background: var(--color-surface);
   border-radius: 8px;
   border: 1px solid var(--color-border);
   padding: 1rem;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 100px);
   overflow-y: auto;
-  z-index: 10;
 }
 
 nav {

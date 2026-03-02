@@ -123,15 +123,25 @@ const sidebarSections = computed(() => {
 </script>
 
 <style scoped>
-.weekly-layout { position: relative; margin-top: 2rem; }
-.weekly-content { margin-left: 180px; }
+.weekly-layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  margin-top: 2rem;
+}
+
+.weekly-content {
+  flex: 1;
+  min-width: 0;
+}
+
 .mobile-tabs { display: none; }
 .section { margin-bottom: 2rem; }
 .section h2 { color: var(--color-orange); font-size: 1.2rem; margin-bottom: 1rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem; }
 .static-content { padding: 1rem; background: var(--color-surface); border-radius: 4px; border: 1px solid var(--color-border); white-space: pre-wrap; }
 
 @media (max-width: 767px) {
-  .weekly-content { margin-left: 0; }
+  .weekly-layout { flex-direction: column; }
   .mobile-tabs { display: flex; gap: 0.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 1rem; padding: 0.5rem 0; border-bottom: 2px solid var(--color-border); }
   .mobile-tab { padding: 0.5rem 1rem; background: var(--color-surface); color: var(--color-text); text-decoration: none; border-radius: 4px; white-space: nowrap; font-size: 0.875rem; }
 }
