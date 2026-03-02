@@ -7,10 +7,14 @@
 
     <section class="section">
       <h2>参会人员</h2>
-      <div class="participants">
-        <span v-for="(p, i) in report.participants" :key="i" class="participant-tag">{{ p }}</span>
-        <span v-if="!report.participants || report.participants.length === 0" class="muted">暂无参会人员</span>
-      </div>
+      <EditableList
+        :items="report.participants || []"
+        :fields="[{ key: 'name', label: '姓名', type: 'text', required: true }]"
+        section="participants"
+        :meeting-id="meetingId"
+        empty-text="暂无参会人员"
+        add-label="+ 添加参会人"
+      />
     </section>
 
     <section class="section">
@@ -122,20 +126,6 @@ defineProps({
   border-radius: 4px;
   border: 1px solid var(--color-border);
   white-space: pre-wrap;
-}
-
-.participants {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.participant-tag {
-  padding: 4px 12px;
-  background: rgba(255, 153, 0, 0.2);
-  color: var(--color-orange);
-  border-radius: 12px;
-  font-size: 0.875rem;
 }
 
 .muted {
