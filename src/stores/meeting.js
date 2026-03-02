@@ -33,7 +33,7 @@ export const useMeetingStore = defineStore('meeting', {
       try {
         const query = new URLSearchParams(params).toString()
         const data = await api.get(`/meetings${query ? '?' + query : ''}`)
-        this.list = data.meetings || []
+        this.list = data.items || data || []
         return data
       } catch (err) {
         this.error = err.message
