@@ -129,7 +129,8 @@ async function stopInstance() {
 // 4. ensureReady — make sure FunASR is reachable, starting instance if needed
 async function ensureReady() {
   // First, try to ping FunASR
-  if (await isFunASRReachable()) {
+  const healthCheck = await isFunASRReachable();
+  if (healthCheck.reachable) {
     logger.info("gpu-autoscale", "FunASR already reachable");
 
     // Run preflight check before accepting transcription tasks
@@ -157,80 +158,83 @@ async function ensureReady() {
   } else if (state !== "running" && state !== "pending") {
     throw new Error(`[gpu-autoscale] Instance in unexpected state: ${state}`);
   }
-  // state is "running" or "pending" — check if FunASR service is active, start if needed
+  // state is "running" or "pending" — wait for FunASR HTTP endpoint
 
-  // If instance is running, check FunASR service status via SSH
-  if (state === "running") {
-    const SSH_KEY = process.env.SSH_KEY_PATH || "/home/qiankai/.ssh/clawd-ops-20260219.pem";
-    const SSH_USER = "ubuntu";
-    const SSH_HOST = FUNASR_PRIVATE_IP;
+  // Poll FunASR HTTP endpoint with adaptive interval (max 10 min)
+  const startTime = Date.now();
+  const MAX_WAIT_MS = 10 * 60 * 1000; // 10 minutes
+  let attempt = 0;
 
-    try {
-      const { stdout } = await execFileAsync(
-        "ssh",
-        [
-          "-i", SSH_KEY,
-          "-o", "StrictHostKeyChecking=no",
-          "-o", "ConnectTimeout=5",
-          `${SSH_USER}@${SSH_HOST}`,
-          "systemctl is-active funasr",
-        ],
-        { timeout: 10000 }
-      );
+  while (Date.now() - startTime < MAX_WAIT_MS) {
+    attempt++;
+    const check = await isFunASRReachable();
 
-      const serviceStatus = stdout.trim();
-      if (serviceStatus !== "active") {
-        logger.warn("gpu-autoscale", "FunASR service not active, starting", { serviceStatus });
-        await execFileAsync(
-          "ssh",
-          [
-            "-i", SSH_KEY,
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "ConnectTimeout=5",
-            `${SSH_USER}@${SSH_HOST}`,
-            "sudo systemctl start funasr",
-          ],
-          { timeout: 30000 }
-        );
-        logger.info("gpu-autoscale", "FunASR service started");
-      } else {
-        logger.info("gpu-autoscale", "FunASR service already active");
-      }
-    } catch (err) {
-      logger.warn("gpu-autoscale", "failed to check/start FunASR service", { error: err.message });
-      // Continue to HTTP polling anyway — service might be running despite SSH failure
-    }
-  }
-
-  // Poll FunASR HTTP endpoint (max 3 min, every 10s)
-  const maxAttempts = 18;
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise((r) => setTimeout(r, 10000));
-    if (await isFunASRReachable()) {
-      logger.info("gpu-autoscale", "FunASR reachable", { waitTimeSeconds: (i + 1) * 10 });
+    if (check.reachable) {
+      const waitTimeSeconds = Math.round((Date.now() - startTime) / 1000);
+      logger.info("gpu-autoscale", "FunASR reachable", { waitTimeSeconds, attempts: attempt });
 
       // Run preflight check before accepting transcription tasks
       await runPreflightCheck();
 
       return true;
     }
-    logger.info("gpu-autoscale", "waiting for FunASR HTTP", { attempt: i + 1, maxAttempts });
+
+    // Adaptive polling based on reason
+    let waitMs;
+    if (check.reason === 'not_started') {
+      // Service not started yet - poll every 30s
+      waitMs = 30000;
+      logger.info("gpu-autoscale", "waiting for FunASR service to start", {
+        attempt,
+        reason: check.reason,
+        nextCheckInSeconds: 30
+      });
+    } else {
+      // Service loading (model initialization) - poll every 10s
+      waitMs = 10000;
+      logger.info("gpu-autoscale", "waiting for FunASR model to load", {
+        attempt,
+        reason: check.reason,
+        nextCheckInSeconds: 10
+      });
+    }
+
+    await new Promise((r) => setTimeout(r, waitMs));
   }
-  logger.warn("gpu-autoscale", "FunASR not reachable after 3 minutes", { url: FUNASR_URL });
+
+  const totalWaitMinutes = Math.round((Date.now() - startTime) / 60000);
+  logger.warn("gpu-autoscale", "FunASR not reachable after max wait", {
+    url: FUNASR_URL,
+    totalWaitMinutes,
+    attempts: attempt
+  });
   return false;
 }
 
 async function isFunASRReachable() {
   try {
     const resp = await fetch(`${FUNASR_URL}/health`, { signal: AbortSignal.timeout(5000) });
-    return resp.ok;
-  } catch {
-    // health endpoint might not exist, try root
+    if (resp.ok) {
+      return { reachable: true };
+    }
+    return { reachable: false, reason: 'loading' }; // HTTP responded but not healthy
+  } catch (err) {
+    // ECONNREFUSED means port not open, service not started
+    if (err.code === 'ECONNREFUSED' || err.cause?.code === 'ECONNREFUSED') {
+      return { reachable: false, reason: 'not_started' };
+    }
+    // Timeout or other network error - try root endpoint
     try {
       const resp = await fetch(FUNASR_URL, { signal: AbortSignal.timeout(5000) });
-      return resp.status < 500; // any non-server-error means it's up
-    } catch {
-      return false;
+      if (resp.status < 500) {
+        return { reachable: true };
+      }
+      return { reachable: false, reason: 'loading' };
+    } catch (err2) {
+      if (err2.code === 'ECONNREFUSED' || err2.cause?.code === 'ECONNREFUSED') {
+        return { reachable: false, reason: 'not_started' };
+      }
+      return { reachable: false, reason: 'loading' };
     }
   }
 }
