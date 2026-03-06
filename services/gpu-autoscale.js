@@ -157,7 +157,50 @@ async function ensureReady() {
   } else if (state !== "running" && state !== "pending") {
     throw new Error(`[gpu-autoscale] Instance in unexpected state: ${state}`);
   }
-  // state is "running" or "pending" — wait for HTTP reachable
+  // state is "running" or "pending" — check if FunASR service is active, start if needed
+
+  // If instance is running, check FunASR service status via SSH
+  if (state === "running") {
+    const SSH_KEY = process.env.SSH_KEY_PATH || "/home/qiankai/.ssh/clawd-ops-20260219.pem";
+    const SSH_USER = "ubuntu";
+    const SSH_HOST = FUNASR_PRIVATE_IP;
+
+    try {
+      const { stdout } = await execFileAsync(
+        "ssh",
+        [
+          "-i", SSH_KEY,
+          "-o", "StrictHostKeyChecking=no",
+          "-o", "ConnectTimeout=5",
+          `${SSH_USER}@${SSH_HOST}`,
+          "systemctl is-active funasr",
+        ],
+        { timeout: 10000 }
+      );
+
+      const serviceStatus = stdout.trim();
+      if (serviceStatus !== "active") {
+        logger.warn("gpu-autoscale", "FunASR service not active, starting", { serviceStatus });
+        await execFileAsync(
+          "ssh",
+          [
+            "-i", SSH_KEY,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=5",
+            `${SSH_USER}@${SSH_HOST}`,
+            "sudo systemctl start funasr",
+          ],
+          { timeout: 30000 }
+        );
+        logger.info("gpu-autoscale", "FunASR service started");
+      } else {
+        logger.info("gpu-autoscale", "FunASR service already active");
+      }
+    } catch (err) {
+      logger.warn("gpu-autoscale", "failed to check/start FunASR service", { error: err.message });
+      // Continue to HTTP polling anyway — service might be running despite SSH failure
+    }
+  }
 
   // Poll FunASR HTTP endpoint (max 3 min, every 10s)
   const maxAttempts = 18;

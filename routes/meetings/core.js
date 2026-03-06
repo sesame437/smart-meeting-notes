@@ -337,7 +337,7 @@ function register(router) {
       try {
         const mergedStats = fs.statSync(mergedFilePath);
         useStream = mergedStats.size > FILE_SIZE_THRESHOLD;
-      } catch (err) {
+      } catch (_err) {
         // File doesn't exist or stat failed (e.g., in test env), fall back to buffer
       }
 

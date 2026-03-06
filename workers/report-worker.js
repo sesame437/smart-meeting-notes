@@ -165,18 +165,23 @@ async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, 
   let lastError;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      return await invokeModel(transcriptText, meetingType, glossaryTerms);
+      const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms);
+      // Parse JSON response immediately (retry if parsing fails)
+      const report = extractJsonFromLLMResponse(responseText);
+      return report;
     } catch (err) {
       lastError = err;
       const errorName = err.name || "";
       const errorCode = err.Code || err.$metadata?.httpStatusCode || 0;
+      const errorMessage = err.message || "";
 
-      // Retryable errors: Throttling, ServiceUnavailable
+      // Retryable errors: Throttling, ServiceUnavailable, JSON parse failures
       const isRetryable =
         errorName.includes("ThrottlingException") ||
         errorName.includes("ServiceUnavailableException") ||
         errorCode === 429 ||
-        errorCode === 503;
+        errorCode === 503 ||
+        errorMessage.includes("Failed to parse Bedrock JSON response");
 
       if (!isRetryable || attempt === maxRetries) {
         logger.error("report-worker", "bedrock-invoke-failed", {
@@ -188,13 +193,14 @@ async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, 
         throw err;
       }
 
-      // Exponential backoff: 5s, 15s, 45s
-      const delay = Math.min(5000 * Math.pow(3, attempt - 1), 300000);
+      // Backoff: 5s for all retries (JSON parse issues don't need exponential backoff)
+      const delay = errorMessage.includes("Failed to parse Bedrock JSON response") ? 5000 : Math.min(5000 * Math.pow(3, attempt - 1), 300000);
       logger.warn("report-worker", "bedrock-retry", {
         attempt,
         nextAttempt: attempt + 1,
         delayMs: delay,
         errorName,
+        isJsonParseError: errorMessage.includes("Failed to parse Bedrock JSON response"),
       });
       await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -252,10 +258,8 @@ async function processMessage(message) {
 
     // 2. Fetch glossary terms and call Bedrock Claude to generate structured report (with retry)
     const glossaryTerms = await fetchGlossaryTerms();
-    const responseText = await invokeModelWithRetry(finalTranscript, meetingType, glossaryTerms);
-
-    // 3. Parse the JSON response
-    const report = extractJsonFromLLMResponse(responseText);
+    // invokeModelWithRetry now returns parsed report object (includes JSON parsing with retry)
+    const report = await invokeModelWithRetry(finalTranscript, meetingType, glossaryTerms);
 
     // 4. Upload report to S3
     const reportKey = `reports/${meetingId}/report.json`;
