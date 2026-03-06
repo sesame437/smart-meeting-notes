@@ -6,6 +6,7 @@ const path = require("path");
 
 const rateLimit = require("express-rate-limit");
 const logger = require("./services/logger");
+const authenticateAPIKey = require("./middleware/auth");
 
 // 启动时校验必需环境变量
 const REQUIRED_ENV = [
@@ -71,8 +72,9 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", service: "meeting-minutes" });
 });
 
-app.use("/api/meetings", meetingsRouter);
-app.use("/api/glossary", glossaryRouter);
+// Apply API Key authentication to all /api routes except /api/health
+app.use("/api/meetings", authenticateAPIKey, meetingsRouter);
+app.use("/api/glossary", authenticateAPIKey, glossaryRouter);
 
 // SPA fallback — serve index.html for all non-API routes
 app.get('*', (req, res) => {

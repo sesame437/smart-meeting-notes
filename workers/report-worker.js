@@ -161,6 +161,47 @@ async function getMeetingType(meetingId, createdAt, messageType) {
   }
 }
 
+async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, maxRetries = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await invokeModel(transcriptText, meetingType, glossaryTerms);
+    } catch (err) {
+      lastError = err;
+      const errorName = err.name || "";
+      const errorCode = err.Code || err.$metadata?.httpStatusCode || 0;
+
+      // Retryable errors: Throttling, ServiceUnavailable
+      const isRetryable =
+        errorName.includes("ThrottlingException") ||
+        errorName.includes("ServiceUnavailableException") ||
+        errorCode === 429 ||
+        errorCode === 503;
+
+      if (!isRetryable || attempt === maxRetries) {
+        logger.error("report-worker", "bedrock-invoke-failed", {
+          attempt,
+          errorName,
+          errorCode,
+          message: err.message,
+        }, err);
+        throw err;
+      }
+
+      // Exponential backoff: 5s, 15s, 45s
+      const delay = Math.min(5000 * Math.pow(3, attempt - 1), 300000);
+      logger.warn("report-worker", "bedrock-retry", {
+        attempt,
+        nextAttempt: attempt + 1,
+        delayMs: delay,
+        errorName,
+      });
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+}
+
 async function processMessage(message) {
   const body = JSON.parse(message.Body);
   const { meetingId, transcribeKey, whisperKey, createdAt } = body;
@@ -209,9 +250,9 @@ async function processMessage(message) {
     }
     const finalTranscript = transcriptParts.join("\n\n");
 
-    // 2. Fetch glossary terms and call Bedrock Claude to generate structured report
+    // 2. Fetch glossary terms and call Bedrock Claude to generate structured report (with retry)
     const glossaryTerms = await fetchGlossaryTerms();
-    const responseText = await invokeModel(finalTranscript, meetingType, glossaryTerms);
+    const responseText = await invokeModelWithRetry(finalTranscript, meetingType, glossaryTerms);
 
     // 3. Parse the JSON response
     const report = extractJsonFromLLMResponse(responseText);

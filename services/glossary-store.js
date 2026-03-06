@@ -9,8 +9,18 @@ const {
 const TABLE = process.env.GLOSSARY_TABLE;
 
 async function listGlossary() {
-  const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE }));
-  return Items || [];
+  const items = [];
+  let lastKey;
+  do {
+    const params = {
+      TableName: TABLE,
+    };
+    if (lastKey) params.ExclusiveStartKey = lastKey;
+    const resp = await docClient.send(new ScanCommand(params));
+    items.push(...(resp.Items || []));
+    lastKey = resp.LastEvaluatedKey;
+  } while (lastKey);
+  return items;
 }
 
 async function createGlossaryItem(item) {

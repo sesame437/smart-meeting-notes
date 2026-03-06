@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { z } = require("zod");
-const { uploadFile, getFile } = require("../../services/s3");
+const { uploadFile, getFile, deleteObject, uploadStream } = require("../../services/s3");
 const { sendMessage } = require("../../services/sqs");
 const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
@@ -167,6 +167,14 @@ function register(router) {
       const item = await getMeetingById(req.params.id);
       if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
 
+      // Delete S3 objects in parallel before deleting DynamoDB record
+      await Promise.all([
+        item.s3Key ? deleteObject(item.s3Key) : Promise.resolve(),
+        item.reportKey ? deleteObject(item.reportKey) : Promise.resolve(),
+        item.transcriptKey ? deleteObject(item.transcriptKey) : Promise.resolve(),
+        item.funasrKey ? deleteObject(item.funasrKey) : Promise.resolve(),
+      ]);
+
       await store.deleteMeeting(req.params.id, item.createdAt);
       res.status(204).end();
     } catch (err) {
@@ -209,9 +217,15 @@ function register(router) {
       const filename = sanitizeFilename(req.file.originalname);
       const s3Key = `inbox/${meetingId}/${filename}`;
 
-      // Upload to S3
-      const fileBuffer = await fs.promises.readFile(req.file.path);
-      await uploadFile(s3Key, fileBuffer, req.file.mimetype);
+      // Upload to S3 - use stream for files >100MB to avoid OOM
+      const FILE_SIZE_THRESHOLD = 100 * 1024 * 1024; // 100MB
+      if (req.file.size > FILE_SIZE_THRESHOLD) {
+        const stream = fs.createReadStream(req.file.path);
+        await uploadStream(s3Key, stream, req.file.mimetype);
+      } else {
+        const fileBuffer = await fs.promises.readFile(req.file.path);
+        await uploadFile(s3Key, fileBuffer, req.file.mimetype);
+      }
 
       // Clean up temp file
       fs.unlinkSync(req.file.path);
@@ -312,16 +326,28 @@ function register(router) {
       await mergeAudioFiles(inputFiles, mergedFilePath);
       tempFiles.push(mergedFilePath);
 
-      // 读取合并后的文件
-      const fileBuffer = await fs.promises.readFile(mergedFilePath);
-
       // 使用第一个文件的原始名称（去掉扩展名）+ ".ogg"
       const originalBasename = path.basename(req.files[0].originalname, path.extname(req.files[0].originalname));
       const filename = sanitizeFilename(`${originalBasename}-merged.ogg`);
       const s3Key = `inbox/${meetingId}/${filename}`;
 
-      // Upload to S3
-      await uploadFile(s3Key, fileBuffer, "audio/ogg");
+      // Upload to S3 - use stream for large merged files to avoid OOM
+      const FILE_SIZE_THRESHOLD = 100 * 1024 * 1024; // 100MB
+      let useStream = false;
+      try {
+        const mergedStats = fs.statSync(mergedFilePath);
+        useStream = mergedStats.size > FILE_SIZE_THRESHOLD;
+      } catch (err) {
+        // File doesn't exist or stat failed (e.g., in test env), fall back to buffer
+      }
+
+      if (useStream) {
+        const stream = fs.createReadStream(mergedFilePath);
+        await uploadStream(s3Key, stream, "audio/ogg");
+      } else {
+        const fileBuffer = await fs.promises.readFile(mergedFilePath);
+        await uploadFile(s3Key, fileBuffer, "audio/ogg");
+      }
 
       logger.info("meetings-route", "upload-multiple-s3-success", { meetingId, s3Key });
 

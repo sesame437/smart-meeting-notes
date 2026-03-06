@@ -11,8 +11,18 @@ const TABLE = process.env.DYNAMODB_TABLE;
 const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || process.env.DYNAMODB_TABLE;
 
 async function listMeetings() {
-  const { Items } = await docClient.send(new ScanCommand({ TableName: TABLE }));
-  return Items || [];
+  const items = [];
+  let lastKey;
+  do {
+    const params = {
+      TableName: TABLE,
+    };
+    if (lastKey) params.ExclusiveStartKey = lastKey;
+    const resp = await docClient.send(new ScanCommand(params));
+    items.push(...(resp.Items || []));
+    lastKey = resp.LastEvaluatedKey;
+  } while (lastKey);
+  return items;
 }
 
 async function createMeeting(item) {
@@ -76,11 +86,19 @@ async function rollbackRetry(meetingId, createdAt, errorMessage) {
 }
 
 async function getGlossaryItems() {
-  const { Items: glossaryItems } = await docClient.send(new ScanCommand({
-    TableName: GLOSSARY_TABLE,
-    ProjectionExpression: "termId",
-  }));
-  return glossaryItems || [];
+  const items = [];
+  let lastKey;
+  do {
+    const params = {
+      TableName: GLOSSARY_TABLE,
+      ProjectionExpression: "termId",
+    };
+    if (lastKey) params.ExclusiveStartKey = lastKey;
+    const resp = await docClient.send(new ScanCommand(params));
+    items.push(...(resp.Items || []));
+    lastKey = resp.LastEvaluatedKey;
+  } while (lastKey);
+  return items;
 }
 
 async function saveReport(item) {

@@ -17,15 +17,16 @@ function register(router) {
         return res.status(500).json({ error: { code: "QUEUE_NOT_CONFIGURED", message: "Export queue not configured" } });
       }
 
-      // Update stage to exporting
-      await store.markEmailSent(req.params.id, item.createdAt);
-
+      // Send message to export queue first
       await sendMessage(exportQueueUrl, {
         meetingId: req.params.id,
         reportKey: item.reportKey,
         createdAt: item.createdAt,
         meetingName: item.title || undefined,
       });
+
+      // Only update stage to exporting after successful SQS enqueue
+      await store.markEmailSent(req.params.id, item.createdAt);
 
       res.json({ success: true, message: "Email sending triggered" });
     } catch (err) {

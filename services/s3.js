@@ -1,4 +1,4 @@
-const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 
 const s3 = new S3Client({ region: process.env.AWS_REGION });
 const BUCKET = process.env.S3_BUCKET;
@@ -24,7 +24,27 @@ async function getFile(key) {
   return resp.Body;
 }
 
-module.exports = { s3, uploadFile, getFile };
+async function deleteObject(key) {
+  if (!key) return;
+  const fullKey = key.startsWith(PREFIX) ? key : `${PREFIX}/${key}`;
+  await s3.send(new DeleteObjectCommand({
+    Bucket: BUCKET,
+    Key: fullKey,
+  }));
+}
+
+async function uploadStream(key, stream, contentType) {
+  const fullKey = `${PREFIX}/${key}`;
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: fullKey,
+    Body: stream,
+    ContentType: contentType,
+  }));
+  return key;
+}
+
+module.exports = { s3, uploadFile, getFile, deleteObject, uploadStream };
 
 /**
  * 使用规范（重要）：
