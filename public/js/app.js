@@ -1,25 +1,3 @@
-/* ===== Utility: HTML escaping ===== */
-function escapeHtml(str) {
-  if (str == null) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-function escapeAttr(str) {
-  if (str == null) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-function getParam(name) {
-  const url = new URL(window.location.href);
-  return url.searchParams.get(name);
-}
-
 /* ===== Random Fun Messages ===== */
 const FunMessages = {
   uploading: [
@@ -117,18 +95,36 @@ const Toast = {
 
 /* ===== Auto-polling ===== */
 let pollingTimer = null;
+let currentPollingInterval = 12000;
 
 function hasActiveJobs(meetings) {
   const activeStatuses = ['pending', 'processing', 'transcribing', 'reporting'];
   return meetings.some(m => activeStatuses.includes(m.status));
 }
 
-function startPolling() {
-  if (pollingTimer) return;
+function getPollingInterval(meetings) {
+  // Dynamic polling interval based on meeting states
+  const hasWaitingGPU = meetings.some(m => m.status === 'pending' && m.stage === 'waiting-gpu');
+  const hasProcessing = meetings.some(m => m.status === 'processing');
+
+  if (hasWaitingGPU) return 30000; // 30 seconds for GPU cold start
+  if (hasProcessing) return 8000;  // 8 seconds for active processing
+  return 12000; // Default 12 seconds
+}
+
+function startPolling(interval = 12000) {
+  if (pollingTimer && currentPollingInterval === interval) return; // Already polling at correct interval
+
+  // Restart polling with new interval
+  if (pollingTimer) {
+    clearInterval(pollingTimer);
+  }
+
+  currentPollingInterval = interval;
   showSyncIndicator(true);
   pollingTimer = setInterval(async () => {
     await fetchMeetings();
-  }, 12000);
+  }, interval);
 }
 
 function stopPolling() {
@@ -235,9 +231,10 @@ async function fetchMeetings() {
     meetingList.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
     allMeetings = meetingList;
     renderFilteredMeetings();
-    // Auto-polling: keep polling while any job is active
+    // Auto-polling: keep polling while any job is active, with dynamic interval
     if (hasActiveJobs(meetingList)) {
-      startPolling();
+      const interval = getPollingInterval(meetingList);
+      startPolling(interval);
     } else {
       stopPolling();
     }
@@ -271,10 +268,15 @@ function meetingCard(m) {
 
   // Stage description for active jobs
   const stage = m.stage || "";
-  const stageLabels = { transcribing: "转录中…", generating: "生成报告中…", sending: "发送邮件中…" };
-  const stageText = (status === "processing" || status === "pending" || status === "transcribed" || status === "reported")
-    ? (stageLabels[stage] || "")
-    : "";
+  let stageText = "";
+  if (status === "pending" && stage === "waiting-gpu") {
+    stageText = "GPU 启动中（约3-5分钟）";
+  } else if (status === "processing") {
+    stageText = "转录中...";
+  } else if (status === "pending" || status === "transcribed" || status === "reported") {
+    const stageLabels = { transcribing: "转录中…", generating: "生成报告中…", sending: "发送邮件中…", "waiting-retry": "等待重试..." };
+    stageText = stageLabels[stage] || "";
+  }
 
   // Failed state: show error message and retry button
   const errorMsg = (status === "failed")
@@ -692,18 +694,19 @@ async function fetchMeeting(id) {
   }
   try {
     const m = await API.get(`/api/meetings/${id}`);
-    renderMeetingDetail(m);
     content.dataset.loaded = "1";
-  } catch (err) {
-    console.error("fetchMeeting error:", err);
-    content.innerHTML = '<div class="empty-state">加载会议详情失败，请刷新页面重试</div>';
+    renderMeetingDetail(m);
+  } catch (_) {
+    if (!content.dataset.loaded) {
+      content.innerHTML = '<div class="empty-state">加载会议详情失败</div>';
+    }
   }
 }
 
 function renderListItem(item) {
   if (typeof item === "string") return item;
   if (typeof item === "object" && item !== null) {
-    return item.point || item.content || item.description
+    return item.point || item.text || item.content || item.description
       || item.action || item.decision || item.risk || item.issue
       || item.item || item.name || JSON.stringify(item);
   }
@@ -720,11 +723,11 @@ function renderMeetingDetail(m) {
   const highlights  = report.highlights  || [];
   const lowlights   = report.lowlights   || [];
   const actions     = report.actions     || [];
-  const decisions   = report.decisions   || []; // key_decisions is legacy, report-worker normalizes on ingest
+  const decisions   = report.decisions   || [];
   const risks       = report.risks       || report.issues || [];
-  const participants= report.participants || [];
-  const topics      = report.topics      || [];
-  const summary     = report.summary     || "暂无摘要";
+  const participants= report.participants|| [];
+  const topics      = report.topics      || report.agenda_items || [];
+  const summary     = report.summary     || report.executive_summary || "暂无摘要";
   const duration    = report.duration    || m.duration || "-";
 
   // ---- Pipeline Stage Indicator ----
@@ -1001,39 +1004,79 @@ function renderMeetingDetail(m) {
   // announcements（weekly 专属）
   if (report.announcements && report.announcements.length) {
     let annHtml = `<div class="report-section">
-      <h3 class="section-title">📢 公司公告</h3>
-      <div id="announcements-container"></div>
-    </div>`;
+      <h3 class="section-title">📢 公司公告</h3>`;
+    report.announcements.forEach((a, i) => {
+      annHtml += `<div class="decision-card" id="announcement-row-${i}" style="margin-bottom:8px;display:flex;align-items:flex-start;justify-content:space-between;">
+        <span class="announcement-text">
+          <strong>${esc(a.title)}</strong>
+          ${a.detail ? `<br><span style="color:#555;font-size:13px;">${esc(a.detail)}</span>` : ''}
+          ${a.owner ? `<br><span style="color:#879596;font-size:12px;">发布：${esc(a.owner)}</span>` : ''}
+        </span>
+        <div class="row-actions" style="flex-shrink:0;">
+          <button class="btn btn-outline btn-sm" data-action="edit-announcement" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" data-action="delete-announcement" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+        </div>
+      </div>`;
+    });
+    annHtml += `</div>`;
     html += annHtml;
   }
 
   // projectReviews（weekly 专属）
   if (report.projectReviews && report.projectReviews.length) {
-    for (const pr of report.projectReviews) {
-      const prIndex = report.projectReviews.indexOf(pr);
-      let prHtml = `<div class="report-section">
-        <h3 class="section-title" id="pr-project-${prIndex}" style="display:flex;align-items:center;gap:8px;">
-          <span>🗂 ${esc(pr.project)}</span>
-          <button class="btn btn-outline btn-sm" data-action="edit-project" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑项目名称"><i class="fa fa-pencil"></i></button>
-        </h3>`;
-      if (pr.progress) {
-        prHtml += `<div id="pr-progress-${prIndex}" style="position:relative;">
-          <p class="section-text" style="background:#f8f9fa;padding:10px 14px;border-radius:6px;">${esc(pr.progress)}</p>
-          <button class="btn btn-outline btn-sm" data-action="edit-progress" data-pr-index="${prIndex}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑进展" style="position:absolute;top:8px;right:8px;"><i class="fa fa-pencil"></i></button>
+    report.projectReviews.forEach((pr, pi) => {
+      let prHtml = `<div class="report-section" id="pr-row-${pi}">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <h3 class="section-title" style="margin:0;">🗂 ${esc(pr.project)}</h3>
+          <div class="row-actions" style="flex-shrink:0;">
+            <button class="btn btn-outline btn-sm" data-action="edit-project-review" data-index="${pi}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑项目"><i class="fa fa-pencil"></i></button>
+            <button class="btn btn-danger btn-sm" data-action="delete-project-review" data-index="${pi}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除项目"><i class="fa fa-trash"></i></button>
+          </div>
         </div>`;
+      if (pr.progress) {
+        prHtml += `<p class="section-text" style="background:#f8f9fa;padding:10px 14px;border-radius:6px;">${esc(pr.progress)}</p>`;
       }
-      // highlights & lowlights
-      prHtml += `<div id="pr-highlights-container-${prIndex}"></div>`;
-      prHtml += `<div id="pr-lowlights-container-${prIndex}"></div>`;
-
+      // highlights + lowlights
+      if ((pr.highlights&&pr.highlights.length)||(pr.lowlights&&pr.lowlights.length)) {
+        if (pr.highlights) for (const h of pr.highlights) {
+          prHtml += `<p style="margin:4px 0;font-size:13px;"><span style="color:#2e7d32;margin-right:6px;">▲</span><strong>${esc(h.point)}</strong>${h.detail?` — <span style="color:#666;">${esc(h.detail)}</span>`:''}</p>`;
+        }
+        if (pr.lowlights) for (const l of pr.lowlights) {
+          prHtml += `<p style="margin:4px 0;font-size:13px;"><span style="color:#e65100;margin-right:6px;">▼</span><strong>${esc(l.point)}</strong>${l.detail?` — <span style="color:#666;">${esc(l.detail)}</span>`:''}</p>`;
+        }
+      }
       // risks
-      prHtml += `<div id="pr-risks-container-${prIndex}"></div>`;
-
+      if (pr.risks && pr.risks.length) {
+        pr.risks.forEach((r, ri) => {
+          prHtml += `<div class="risk-card" id="pr-risk-row-${pi}-${ri}" style="margin-top:8px;display:flex;align-items:flex-start;justify-content:space-between;">
+            <span>⚠️ <strong>${esc(r.risk)}</strong>${r.mitigation?`<br><span style="font-size:12px;color:#666;">${esc(r.mitigation)}</span>`:''}</span>
+            <div class="row-actions" style="flex-shrink:0;">
+              <button class="btn btn-outline btn-sm" data-action="edit-pr-risk" data-pr-index="${pi}" data-index="${ri}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-pr-risk" data-pr-index="${pi}" data-index="${ri}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </div>
+          </div>`;
+        });
+      }
       // followUps
-      prHtml += `<div id="pr-followups-container-${prIndex}"></div>`;
+      if (pr.followUps && pr.followUps.length) {
+        prHtml += `<table class="report-table" style="margin-top:10px;">
+          <thead><tr><th>跟进事项</th><th>负责人</th><th>截止</th><th></th></tr></thead><tbody>`;
+        pr.followUps.forEach((f, fi) => {
+          prHtml += `<tr id="pr-followup-row-${pi}-${fi}">
+            <td>${esc(f.task)}</td><td>${esc(f.owner||'-')}</td><td>${formatDeadline(f.deadline||'-')}</td>
+            <td>
+              <div class="row-actions">
+                <button class="btn btn-outline btn-sm" data-action="edit-pr-followup" data-pr-index="${pi}" data-index="${fi}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+                <button class="btn btn-danger btn-sm" data-action="delete-pr-followup" data-pr-index="${pi}" data-index="${fi}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>`;
+        });
+        prHtml += `</tbody></table>`;
+      }
       prHtml += `</div>`;
       html += prHtml;
-    }
+    });
   }
 
   // ---- Topics / Agenda ----
@@ -1067,41 +1110,102 @@ function renderMeetingDetail(m) {
   }
 
   // ---- Highlights / Lowlights grid ----
-  html += `<div class="section-grid">`;
+  if (highlights.length || lowlights.length) {
+    html += `<div class="section-grid">`;
 
-  html += `
-    <div class="card" id="section-highlights">
-      <div class="card-title"><i class="fa fa-thumb-tack"></i> 亮点</div>
-      <div id="highlights-container"></div>
-    </div>
-  `;
+    if (highlights.length) {
+      html += `
+        <div class="card" id="section-highlights">
+          <div class="card-title"><i class="fa fa-thumb-tack"></i> 亮点</div>
+          <ul>${highlights.map((h, i) => `<li class="highlight-item" id="highlight-row-${i}" style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="hl-text">${escapeHtml(renderListItem(h))}</span>
+            <div class="row-actions">
+              <button class="btn btn-outline btn-sm" data-action="edit-highlight" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-highlight" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </div>
+          </li>`).join("")}</ul>
+          <div style="text-align:right;margin-top:8px;">
+            <button class="btn btn-outline btn-sm" data-action="add-highlight" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加亮点</button>
+          </div>
+        </div>
+      `;
+    }
 
-  html += `
-    <div class="card" id="section-lowlights">
-      <div class="card-title"><i class="fa fa-exclamation-triangle"></i> 待改进</div>
-      <div id="lowlights-container"></div>
-    </div>
-  `;
+    if (lowlights.length) {
+      html += `
+        <div class="card" id="section-lowlights">
+          <div class="card-title"><i class="fa fa-exclamation-triangle"></i> 待改进</div>
+          <ul>${lowlights.map((l, i) => `<li class="lowlight-item" id="lowlight-row-${i}" style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="hl-text">${escapeHtml(renderListItem(l))}</span>
+            <div class="row-actions">
+              <button class="btn btn-outline btn-sm" data-action="edit-lowlight" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-lowlight" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </div>
+          </li>`).join("")}</ul>
+          <div style="text-align:right;margin-top:8px;">
+            <button class="btn btn-outline btn-sm" data-action="add-lowlight" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加待改进</button>
+          </div>
+        </div>
+      `;
+    }
 
-  html += `</div>`;
+    html += `</div>`;
+  }
 
   // ---- Action Items ----
   html += `
-    <div class="card" id="section-actions">
+    <div class="card" id="section-actionItems">
       <div class="card-title">
         <span><i class="fa fa-check-square-o"></i> 待办事项</span>
+        
       </div>
-      <div id="actions-container"></div>
+      <div id="actionItems-display">
+      ${actions.length ? `
+      <div class="table-wrap">
+        <table class="actions-table">
+          <thead><tr>
+            <th style="color:var(--aws-orange)">任务</th>
+            <th style="color:var(--aws-orange)">负责人</th>
+            <th style="color:var(--aws-orange)">截止日期</th>
+            <th style="color:var(--aws-orange)">优先级</th>
+          </tr></thead>
+          <tbody>
+            ${actions.map((a, idx) => {
+              const prio = (a.priority || "").toLowerCase();
+              const prioLabel = a.priority || "-";
+              return `<tr id="action-row-${idx}">
+                <td>${escapeHtml(a.task || a.action || "")}</td>
+                <td>${escapeHtml(a.owner || a.assignee || "-")}</td>
+                <td>${formatDeadline(a.deadline || a.dueDate || "-")}</td>
+                <td class="td-priority-actions">
+                  <span class="priority-badge priority-${prio}">${escapeHtml(prioLabel)}</span>
+                  <div class="row-actions"><button class="btn btn-outline btn-sm" data-action="edit-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+                  <button class="btn btn-danger btn-sm" data-action="delete-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button></div>
+                </td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>` : '<div class="empty-state">暂无待办事项</div>'}
+      </div>
     </div>
   `;
 
   // ---- Key Decisions ----
   html += `
-    <div class="card decisions-card" id="section-decisions">
+    <div class="card decisions-card" id="section-keyDecisions">
       <div class="card-title">
         <span><i class="fa fa-gavel"></i> 关键决策</span>
       </div>
-      <div id="decisions-container"></div>
+      <div id="keyDecisions-display">
+      ${decisions.length ? `<ul>${decisions.map((d, idx) => `<li id="decision-row-${idx}">
+        <span class="decision-text">${escapeHtml(renderListItem(d))}</span>
+        <div class="row-actions">
+          <button class="btn btn-outline btn-sm" data-action="edit-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" data-action="delete-decision-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+        </div>
+      </li>`).join("")}</ul>` : '<div class="empty-state">暂无关键决策</div>'}
+      </div>
     </div>
   `;
 
@@ -1110,7 +1214,18 @@ function renderMeetingDetail(m) {
     html += `
       <div class="card risks-card">
         <div class="card-title"><i class="fa fa-warning"></i> 风险与问题</div>
-        <ul>${risks.map(r => `<li>${escapeHtml(renderListItem(r))}</li>`).join("")}</ul>
+        <ul>${risks.map((r, i) => {
+          const isObj = typeof r === "object" && r !== null;
+          const riskText = isObj ? escapeHtml(r.risk || renderListItem(r)) : escapeHtml(renderListItem(r));
+          const mitigationText = isObj && r.mitigation ? `<br><span style="font-size:12px;color:#666;">应对：${escapeHtml(r.mitigation)}</span>` : "";
+          return `<li class="risk-item" id="risk-row-${i}" style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="risk-text">${riskText}${mitigationText}</span>
+            <div class="row-actions">
+              <button class="btn btn-outline btn-sm" data-action="edit-risk" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+              <button class="btn btn-danger btn-sm" data-action="delete-risk" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            </div>
+          </li>`;
+        }).join("")}</ul>
       </div>
     `;
   }
@@ -1154,8 +1269,8 @@ function renderMeetingDetail(m) {
             <div class="name-suggestions" style="display:none;"></div>
           </div>
           <div class="row-actions">
-            <button class="btn btn-outline btn-sm" data-action="el-edit" data-section="participants" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
-            <button class="btn btn-danger btn-sm" data-action="el-delete" data-section="participants" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            <button class="btn btn-outline btn-sm" data-action="edit-participant" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+            <button class="btn btn-danger btn-sm" data-action="delete-participant" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
           </div>
         </div>`;
       });
@@ -1178,157 +1293,6 @@ function renderMeetingDetail(m) {
   // Store report data for inline editing
   storeReportData(m.meetingId, report);
 
-  // Render editable lists using unified framework
-  renderEditableList(
-    'highlights-container',
-    highlights.map(h => renderListItem(h)),
-    {
-      fields: [{ key: 'text', label: '内容', type: 'text', required: true }],
-      addLabel: '添加亮点',
-      emptyText: '暂无亮点'
-    },
-    m.meetingId,
-    'highlights'
-  );
-
-  renderEditableList(
-    'lowlights-container',
-    lowlights.map(l => renderListItem(l)),
-    {
-      fields: [{ key: 'text', label: '内容', type: 'text', required: true }],
-      addLabel: '添加待改进',
-      emptyText: '暂无待改进项'
-    },
-    m.meetingId,
-    'lowlights'
-  );
-
-  // Render actions
-  renderEditableList(
-    'actions-container',
-    actions,
-    {
-      fields: [
-        { key: 'task', label: '任务', type: 'text', required: true },
-        { key: 'owner', label: '负责人', type: 'text' },
-        { key: 'deadline', label: '截止日期', type: 'text' },
-        { key: 'priority', label: '优先级', type: 'text' }
-      ],
-      addLabel: '添加待办事项',
-      emptyText: '暂无待办事项'
-    },
-    m.meetingId,
-    'actions'
-  );
-
-  // Render decisions
-  renderEditableList(
-    'decisions-container',
-    decisions.map(d => renderListItem(d)),
-    {
-      fields: [{ key: 'decision', label: '决策内容', type: 'text', required: true }],
-      addLabel: '添加决策',
-      emptyText: '暂无关键决策'
-    },
-    m.meetingId,
-    'decisions'
-  );
-
-  // Render announcements (weekly only)
-  if (report.announcements && report.announcements.length) {
-    renderEditableList(
-      'announcements-container',
-      report.announcements,
-      {
-        fields: [
-          { key: 'title', label: '标题', type: 'text', required: true },
-          { key: 'detail', label: '详情', type: 'textarea' },
-          { key: 'owner', label: '发布人', type: 'text' }
-        ],
-        addLabel: '添加公告',
-        emptyText: '暂无公告'
-      },
-      m.meetingId,
-      'announcements'
-    );
-  }
-
-  // Render projectReviews nested fields (weekly only)
-  if (report.projectReviews && report.projectReviews.length) {
-    report.projectReviews.forEach((pr, prIndex) => {
-      // Highlights
-      if (document.getElementById(`pr-highlights-container-${prIndex}`)) {
-        renderEditableList(
-          `pr-highlights-container-${prIndex}`,
-          pr.highlights || [],
-          {
-            fields: [{ key: 'point', label: '亮点', type: 'text', required: true }, { key: 'detail', label: '详情', type: 'textarea' }],
-            addLabel: '添加亮点',
-            emptyText: '暂无亮点'
-          },
-          m.meetingId,
-          'highlights',
-          prIndex
-        );
-      }
-
-      // Lowlights
-      if (document.getElementById(`pr-lowlights-container-${prIndex}`)) {
-        renderEditableList(
-          `pr-lowlights-container-${prIndex}`,
-          pr.lowlights || [],
-          {
-            fields: [{ key: 'point', label: '待改进', type: 'text', required: true }, { key: 'detail', label: '详情', type: 'textarea' }],
-            addLabel: '添加待改进',
-            emptyText: '暂无待改进项'
-          },
-          m.meetingId,
-          'lowlights',
-          prIndex
-        );
-      }
-
-      // Risks
-      if (document.getElementById(`pr-risks-container-${prIndex}`)) {
-        renderEditableList(
-          `pr-risks-container-${prIndex}`,
-          pr.risks || [],
-          {
-            fields: [
-              { key: 'risk', label: '风险', type: 'text', required: true },
-              { key: 'mitigation', label: '应对措施', type: 'textarea' }
-            ],
-            addLabel: '添加风险',
-            emptyText: '暂无风险'
-          },
-          m.meetingId,
-          'risks',
-          prIndex
-        );
-      }
-
-      // FollowUps
-      if (document.getElementById(`pr-followups-container-${prIndex}`)) {
-        renderEditableList(
-          `pr-followups-container-${prIndex}`,
-          pr.followUps || [],
-          {
-            fields: [
-              { key: 'task', label: '跟进事项', type: 'text', required: true },
-              { key: 'owner', label: '负责人', type: 'text' },
-              { key: 'deadline', label: '截止', type: 'text' }
-            ],
-            addLabel: '添加跟进',
-            emptyText: '暂无跟进事项'
-          },
-          m.meetingId,
-          'followUps',
-          prIndex
-        );
-      }
-    });
-  }
-
   // Bind custom name search dropdown for participant inputs
   initParticipantNameSearch();
 
@@ -1340,10 +1304,26 @@ function renderMeetingDetail(m) {
     `;
   }
 
-  // Stop polling when meeting is in a terminal state
-  if (["completed", "failed"].includes(status) && window._detailPollingTimer) {
-    clearInterval(window._detailPollingTimer);
-    window._detailPollingTimer = null;
+  // Dynamic polling based on meeting state
+  if (!["completed", "failed"].includes(status)) {
+    const stage = m.stage || "";
+    const interval = (status === "pending" && stage === "waiting-gpu") ? 30000
+                   : (status === "processing") ? 8000
+                   : 12000;
+
+    // Restart polling if interval changed
+    if (!window._detailPollingTimer || window._detailPollingInterval !== interval) {
+      if (window._detailPollingTimer) clearInterval(window._detailPollingTimer);
+      window._detailPollingInterval = interval;
+      window._detailPollingTimer = setInterval(() => fetchMeeting(id), interval);
+    }
+  } else {
+    // Stop polling for terminal states
+    if (window._detailPollingTimer) {
+      clearInterval(window._detailPollingTimer);
+      window._detailPollingTimer = null;
+      window._detailPollingInterval = null;
+    }
   }
 }
 
@@ -1396,10 +1376,7 @@ async function retryMeetingDetail(id) {
     Toast.success("已重新提交处理");
     fetchMeeting(id);
     startPolling();
-    // Poll meeting detail
-    if (!window._detailPollingTimer) {
-      window._detailPollingTimer = setInterval(() => fetchMeeting(id), 12000);
-    }
+    // Detail polling will be automatically set by fetchMeeting with dynamic interval
   } catch (_) { /* error already shown by API */ }
 }
 
@@ -1754,6 +1731,114 @@ async function saveSection(section, meetingId) {
   }
 }
 
+function editActionItem(index, meetingId) {
+  if (!_currentReport) return;
+  var actions = _currentReport.actions || [];
+  var item = actions[index];
+  if (!item) return;
+  var row = document.getElementById("action-row-" + index);
+  if (!row) return;
+  row.innerHTML = `
+    <td><input type="text" class="form-control" id="edit-action-task-${index}" value="${escapeAttr(item.task || item.action || "")}" style="border:2px solid #FF9900;"></td>
+    <td><input type="text" class="form-control" id="edit-action-owner-${index}" value="${escapeAttr(item.owner || item.assignee || "")}" style="border:2px solid #FF9900;"></td>
+    <td><input type="text" class="form-control" id="edit-action-deadline-${index}" value="${escapeAttr(item.deadline || item.dueDate || "")}" style="border:2px solid #FF9900;"></td>
+    <td><input type="text" class="form-control" id="edit-action-priority-${index}" value="${escapeAttr(item.priority || "")}" style="border:2px solid #FF9900;"></td>
+    <td>
+      <button class="btn action-primary-btn btn-sm" data-action="save-action-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-action-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </td>`;
+  row.style.border = "2px solid #FF9900";
+}
+
+async function saveActionItem(index, meetingId) {
+  if (!_currentReport) return;
+  var actions = JSON.parse(JSON.stringify(_currentReport.actions || []));
+  actions[index] = {
+    task: document.getElementById("edit-action-task-" + index).value.trim(),
+    owner: document.getElementById("edit-action-owner-" + index).value.trim(),
+    deadline: document.getElementById("edit-action-deadline-" + index).value.trim(),
+    priority: document.getElementById("edit-action-priority-" + index).value.trim(),
+  };
+  try {
+    await API.patch("/api/meetings/" + meetingId + "/report", { section: "actions", data: actions });
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteActionItem(index, meetingId) {
+  if (!_currentReport) return;
+  if (!confirm("确认删除该待办事项？")) return;
+  var actions = JSON.parse(JSON.stringify(_currentReport.actions || []));
+  actions.splice(index, 1);
+  try {
+    await API.patch("/api/meetings/" + meetingId + "/report", { section: "actions", data: actions });
+    Toast.success("已删除");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("删除失败");
+  }
+}
+
+function editDecisionItem(index, meetingId) {
+  if (!_currentReport) return;
+  var decisions = _currentReport.decisions || [];
+  var item = decisions[index];
+  if (!item) return;
+  var li = document.getElementById("decision-row-" + index);
+  if (!li) return;
+  var text = renderListItem(item);
+  li.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;">
+      <input type="text" class="form-control" id="edit-decision-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
+      <button class="btn action-primary-btn btn-sm" data-action="save-decision-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-decision-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </div>`;
+  li.style.border = "2px solid #FF9900";
+  li.style.borderRadius = "4px";
+  li.style.padding = "6px";
+}
+
+async function saveDecisionItem(index, meetingId) {
+  if (!_currentReport) return;
+  var decisions = JSON.parse(JSON.stringify(_currentReport.decisions || []));
+  var newText = document.getElementById("edit-decision-text-" + index).value.trim();
+  // Preserve object structure if it was an object, otherwise store as string
+  if (typeof decisions[index] === "object" && decisions[index] !== null) {
+    var d = decisions[index];
+    if (d.decision !== undefined) d.decision = newText;
+    else if (d.point !== undefined) d.point = newText;
+    else if (d.text !== undefined) d.text = newText;
+    else if (d.content !== undefined) d.content = newText;
+    else d.decision = newText;
+  } else {
+    decisions[index] = newText;
+  }
+  try {
+    await API.patch("/api/meetings/" + meetingId + "/report", { section: "decisions", data: decisions });
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteDecisionItem(index, meetingId) {
+  if (!_currentReport) return;
+  if (!confirm("确认删除该决策？")) return;
+  var decisions = JSON.parse(JSON.stringify(_currentReport.decisions || []));
+  decisions.splice(index, 1);
+  try {
+    await API.patch("/api/meetings/" + meetingId + "/report", { section: "decisions", data: decisions });
+    Toast.success("已删除");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("删除失败");
+  }
+}
+
 /* ===== Patch Report Section Helper ===== */
 async function patchReportSection(meetingId, section, data) {
   const res = await fetch("/api/meetings/" + meetingId + "/report", {
@@ -1765,689 +1850,616 @@ async function patchReportSection(meetingId, section, data) {
   return res.json();
 }
 
-/* ===== Unified Edit Framework ===== */
-
-/**
- * Render editable list with unified UI
- * @param {string} containerId - DOM element ID to render into
- * @param {Array} items - Array of items (string or object)
- * @param {Object} config - { fields: [{key, label, type, required}], addLabel, emptyText }
- * @param {string} meetingId - Meeting ID
- * @param {string} section - Section name for API (e.g., "participants", "highlights")
- * @param {number} prIndex - Optional project review index for nested sections
- */
-function renderEditableList(containerId, items, config, meetingId, section, prIndex) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-
-  let html = '';
-
-  // Empty state
-  if (!items || items.length === 0) {
-    html = `<div class="empty-state">${config.emptyText || '暂无数据'}</div>`;
-  } else {
-    // Render items
-    items.forEach((item, index) => {
-      // Extract display text from item
-      let displayText = '';
-      if (typeof item === 'string') {
-        displayText = item;
-      } else if (config.fields.length === 1) {
-        // Single field object
-        const field = config.fields[0];
-        displayText = item[field.key] || JSON.stringify(item);
-      } else {
-        // Multi-field object, show primary field
-        const primaryField = config.fields.find(f => f.required) || config.fields[0];
-        displayText = item[primaryField.key] || JSON.stringify(item);
-      }
-
-      html += `
-        <div class="editable-row" data-index="${index}">
-          <div class="editable-row-content">${escapeHtml(displayText)}</div>
-          <div class="editable-row-actions">
-            <button class="btn btn-outline btn-sm"
-              data-action="el-edit"
-              data-section="${escapeAttr(section)}"
-              data-index="${index}"
-              data-meeting-id="${escapeAttr(meetingId)}"
-              ${prIndex !== undefined ? `data-pr-index="${prIndex}"` : ''}
-              title="编辑">
-              <i class="fa fa-pencil"></i>
-            </button>
-            <button class="btn btn-outline btn-sm"
-              data-action="el-delete"
-              data-section="${escapeAttr(section)}"
-              data-index="${index}"
-              data-meeting-id="${escapeAttr(meetingId)}"
-              ${prIndex !== undefined ? `data-pr-index="${prIndex}"` : ''}
-              title="删除">
-              <i class="fa fa-trash"></i>
-            </button>
-          </div>
-        </div>`;
-    });
-  }
-
-  // Add button
-  html += `
-    <button class="add-item-btn"
-      data-action="el-add"
-      data-section="${escapeAttr(section)}"
-      data-meeting-id="${escapeAttr(meetingId)}"
-      ${prIndex !== undefined ? `data-pr-index="${prIndex}"` : ''}>
-      <i class="fa fa-plus"></i> ${config.addLabel || '添加'}
-    </button>`;
-
-  container.innerHTML = html;
-}
-
-/**
- * Show confirm dialog for delete actions
- * @param {string} message - Confirmation message
- * @param {Function} onConfirm - Callback on confirm
- */
-function showConfirmDialog(message, onConfirm) {
-  // Remove existing dialogs
-  const existing = document.querySelector('.confirm-dialog-overlay');
-  if (existing) existing.remove();
-
-  // Create overlay
-  const overlay = document.createElement('div');
-  overlay.className = 'confirm-dialog-overlay';
-
-  // Create dialog
-  overlay.innerHTML = `
-    <div class="confirm-dialog">
-      <div class="confirm-dialog-title">确认删除</div>
-      <div class="confirm-dialog-message">${escapeHtml(message)}</div>
-      <div class="confirm-dialog-actions">
-        <button class="btn-cancel" data-action="cancel-dialog">取消</button>
-        <button class="btn-confirm" data-action="confirm-dialog">确认删除</button>
-      </div>
-    </div>`;
-
-  document.body.appendChild(overlay);
-
-  // Event handlers
-  const cancelBtn = overlay.querySelector('[data-action="cancel-dialog"]');
-  const confirmBtn = overlay.querySelector('[data-action="confirm-dialog"]');
-
-  const close = () => overlay.remove();
-
-  cancelBtn.addEventListener('click', close);
-  confirmBtn.addEventListener('click', () => {
-    close();
-    if (onConfirm) onConfirm();
-  });
-
-  // Click overlay to close
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close();
-  });
-}
-
-/**
- * Save section data to API
- * @param {string} meetingId - Meeting ID
- * @param {string} section - Section name
- * @param {*} data - Data to save
- * @param {number} prIndex - Optional project review index
- */
-async function saveSectionData(meetingId, section, data, prIndex) {
-  try {
-    if (section === 'projectReviews' && prIndex !== undefined) {
-      // For nested projectReviews sections, need to fetch full report and update specific PR
-      const report = await API.get(`/api/meetings/${meetingId}/report`);
-      if (!report.projectReviews) report.projectReviews = [];
-      if (!report.projectReviews[prIndex]) {
-        throw new Error(`Project review ${prIndex} not found`);
-      }
-
-      // Merge data into specific PR
-      Object.assign(report.projectReviews[prIndex], data);
-
-      // Save entire projectReviews array
-      await API.patch(`/api/meetings/${meetingId}/report`, {
-        section: 'projectReviews',
-        data: report.projectReviews
-      });
-    } else {
-      // Direct section save
-      await API.patch(`/api/meetings/${meetingId}/report`, {
-        section: section,
-        data: data
-      });
-    }
-
-    Toast.success('已保存');
-    fetchMeeting(meetingId);
-  } catch (err) {
-    Toast.error('保存失败');
-    throw err;
-  }
-}
-
-/**
- * Handle unified edit action
- */
-function handleUnifiedEdit(el) {
-  const section = el.dataset.section;
-  const index = parseInt(el.dataset.index);
-  const meetingId = el.dataset.meetingId;
-  const prIndex = el.dataset.prIndex !== undefined ? parseInt(el.dataset.prIndex) : undefined;
-
+/* ===== Participant Edit/Delete ===== */
+function editParticipant(index, meetingId) {
   if (!_currentReport) return;
-
-  // Get current data and field config
-  let items = [];
-  let fieldConfig = null;
-
-  if (section === 'highlights') {
-    items = _currentReport.highlights || [];
-    fieldConfig = [{key: 'point', label: '内容', type: 'text', required: true}];
-  } else if (section === 'lowlights') {
-    items = _currentReport.lowlights || [];
-    fieldConfig = [{key: 'point', label: '内容', type: 'text', required: true}];
-  } else if (section === 'participants') {
-    items = _currentReport.participants || [];
-    fieldConfig = [{key: 'name', label: '姓名', type: 'text', required: true}];
-  } else if (section === 'actions') {
-    items = _currentReport.actions || [];
-    fieldConfig = [
-      {key: 'task', label: '任务', type: 'text', required: true},
-      {key: 'owner', label: '负责人', type: 'text'},
-      {key: 'deadline', label: '截止日期', type: 'text'},
-      {key: 'priority', label: '优先级', type: 'text'}
-    ];
-  } else if (section === 'decisions') {
-    items = _currentReport.decisions || [];
-    fieldConfig = [{key: 'decision', label: '决策内容', type: 'text', required: true}];
-  } else if (section === 'announcements') {
-    items = _currentReport.announcements || [];
-    fieldConfig = [
-      {key: 'title', label: '标题', type: 'text', required: true},
-      {key: 'detail', label: '详情', type: 'textarea'},
-      {key: 'owner', label: '发布人', type: 'text'}
-    ];
-  } else if (prIndex !== undefined && _currentReport.projectReviews && _currentReport.projectReviews[prIndex]) {
-    const pr = _currentReport.projectReviews[prIndex];
-    if (section === 'pr-highlights') {
-      items = pr.highlights || [];
-      fieldConfig = [
-        {key: 'point', label: '亮点', type: 'text', required: true},
-        {key: 'detail', label: '详情', type: 'textarea'}
-      ];
-    } else if (section === 'pr-lowlights') {
-      items = pr.lowlights || [];
-      fieldConfig = [
-        {key: 'point', label: '待改进', type: 'text', required: true},
-        {key: 'detail', label: '详情', type: 'textarea'}
-      ];
-    } else if (section === 'pr-risks') {
-      items = pr.risks || [];
-      fieldConfig = [
-        {key: 'risk', label: '风险', type: 'text', required: true},
-        {key: 'mitigation', label: '应对措施', type: 'textarea'}
-      ];
-    } else if (section === 'pr-followUps') {
-      items = pr.followUps || [];
-      fieldConfig = [
-        {key: 'task', label: '跟进事项', type: 'text', required: true},
-        {key: 'owner', label: '负责人', type: 'text'},
-        {key: 'deadline', label: '截止日期', type: 'text'}
-      ];
-    }
-  }
-
-  if (!fieldConfig) return;
-  const item = items[index];
+  var participants = _currentReport.participants || [];
+  var item = participants[index];
   if (!item) return;
-
-  // Find the editable-row
-  const row = el.closest('.editable-row');
+  var text = typeof item === "string" ? item : (item.name || JSON.stringify(item));
+  var rows = document.querySelectorAll(".participant-row");
+  var row = rows[index];
   if (!row) return;
-
-  // Generate form fields
-  let formFields = '';
-  fieldConfig.forEach(field => {
-    let value = '';
-    if (typeof item === 'string') {
-      value = item;
+  var labelEl = row.querySelector(".participant-label");
+  if (!labelEl) return;
+  var origText = labelEl.textContent;
+  labelEl.innerHTML = `<input type="text" class="form-control" id="edit-participant-input-${index}" value="${escapeAttr(text)}" style="border:2px solid #FF9900;width:100%;">`;
+  var input = document.getElementById("edit-participant-input-" + index);
+  input.focus();
+  function save() {
+    var newVal = input.value.trim();
+    if (!newVal) { input.focus(); return; }
+    var arr = JSON.parse(JSON.stringify(participants));
+    if (typeof arr[index] === "object" && arr[index] !== null) {
+      if (arr[index].name !== undefined) arr[index].name = newVal;
+      else arr[index] = newVal;
     } else {
-      value = item[field.key] || item[field.key.replace('-', '_')] || '';
+      arr[index] = newVal;
     }
+    patchReportSection(meetingId, "participants", arr)
+      .then(function() { Toast.success("已保存"); fetchMeeting(meetingId); })
+      .catch(function() { Toast.error("保存失败"); labelEl.textContent = origText; });
+  }
+  input.addEventListener("keydown", function(e) { if (e.key === "Enter") { e.preventDefault(); save(); } });
+  input.addEventListener("blur", save);
+}
 
-    if (field.type === 'textarea') {
-      formFields += `
-        <textarea
-          class="unified-edit-input"
-          data-field="${escapeAttr(field.key)}"
-          placeholder="${escapeAttr(field.label)}${field.required ? ' (必填)' : ''}"
-          rows="2">${escapeAttr(value)}</textarea>`;
-    } else {
-      formFields += `
-        <input type="text"
-          class="unified-edit-input"
-          data-field="${escapeAttr(field.key)}"
-          value="${escapeAttr(value)}"
-          placeholder="${escapeAttr(field.label)}${field.required ? ' (必填)' : ''}" />`;
+async function deleteParticipant(index, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该参会人员？",
+    onOk: async function() {
+      var participants = JSON.parse(JSON.stringify(_currentReport.participants || []));
+      participants.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "participants", participants);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
     }
   });
+}
 
-  // Replace with edit form
-  row.innerHTML = `
-    <div class="edit-form-inline">
-      ${formFields}
-      <div class="edit-actions">
-        <button class="btn-cancel"
-          data-action="el-cancel"
-          data-section="${escapeAttr(section)}"
-          data-meeting-id="${escapeAttr(meetingId)}"
-          ${prIndex !== undefined ? `data-pr-index="${prIndex}"` : ''}>
-          取消
-        </button>
-        <button class="btn-save"
-          data-action="el-save"
-          data-section="${escapeAttr(section)}"
-          data-index="${index}"
-          data-meeting-id="${escapeAttr(meetingId)}"
-          ${prIndex !== undefined ? `data-pr-index="${prIndex}"` : ''}>
-          💾 保存
-        </button>
+/* ===== Highlight Edit/Delete/Add ===== */
+function editHighlight(index, meetingId) {
+  if (!_currentReport) return;
+  var highlights = _currentReport.highlights || [];
+  var item = highlights[index];
+  if (!item) return;
+  var text = renderListItem(item);
+  var li = document.getElementById("highlight-row-" + index);
+  if (!li) return;
+  li.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;width:100%;">
+      <input type="text" class="form-control" id="edit-highlight-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
+      <button class="btn action-primary-btn btn-sm" data-action="save-highlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-highlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </div>`;
+  li.style.border = "2px solid #FF9900";
+  li.style.borderRadius = "4px";
+  li.style.padding = "6px";
+}
+
+async function saveHighlight(index, meetingId) {
+  if (!_currentReport) return;
+  var highlights = JSON.parse(JSON.stringify(_currentReport.highlights || []));
+  var newText = document.getElementById("edit-highlight-text-" + index).value.trim();
+  if (typeof highlights[index] === "object" && highlights[index] !== null) {
+    var h = highlights[index];
+    if (h.point !== undefined) h.point = newText;
+    else if (h.text !== undefined) h.text = newText;
+    else if (h.content !== undefined) h.content = newText;
+    else h.point = newText;
+  } else {
+    highlights[index] = newText;
+  }
+  try {
+    await patchReportSection(meetingId, "highlights", highlights);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteHighlight(index, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该亮点？",
+    onOk: async function() {
+      var highlights = JSON.parse(JSON.stringify(_currentReport.highlights || []));
+      highlights.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "highlights", highlights);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addHighlight(meetingId) {
+  var text = prompt("请输入新亮点：");
+  if (!text || !text.trim()) return;
+  var highlights = JSON.parse(JSON.stringify((_currentReport && _currentReport.highlights) || []));
+  highlights.push(text.trim());
+  try {
+    await patchReportSection(meetingId, "highlights", highlights);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
+/* ===== Lowlight Edit/Delete/Add ===== */
+function editLowlight(index, meetingId) {
+  if (!_currentReport) return;
+  var lowlights = _currentReport.lowlights || [];
+  var item = lowlights[index];
+  if (!item) return;
+  var text = renderListItem(item);
+  var li = document.getElementById("lowlight-row-" + index);
+  if (!li) return;
+  li.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;width:100%;">
+      <input type="text" class="form-control" id="edit-lowlight-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
+      <button class="btn action-primary-btn btn-sm" data-action="save-lowlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-lowlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </div>`;
+  li.style.border = "2px solid #FF9900";
+  li.style.borderRadius = "4px";
+  li.style.padding = "6px";
+}
+
+async function saveLowlight(index, meetingId) {
+  if (!_currentReport) return;
+  var lowlights = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
+  var newText = document.getElementById("edit-lowlight-text-" + index).value.trim();
+  if (typeof lowlights[index] === "object" && lowlights[index] !== null) {
+    var l = lowlights[index];
+    if (l.point !== undefined) l.point = newText;
+    else if (l.text !== undefined) l.text = newText;
+    else if (l.content !== undefined) l.content = newText;
+    else l.point = newText;
+  } else {
+    lowlights[index] = newText;
+  }
+  try {
+    await patchReportSection(meetingId, "lowlights", lowlights);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteLowlight(index, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该待改进项？",
+    onOk: async function() {
+      var lowlights = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
+      lowlights.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "lowlights", lowlights);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addLowlight(meetingId) {
+  var text = prompt("请输入新待改进项：");
+  if (!text || !text.trim()) return;
+  var lowlights = JSON.parse(JSON.stringify((_currentReport && _currentReport.lowlights) || []));
+  lowlights.push(text.trim());
+  try {
+    await patchReportSection(meetingId, "lowlights", lowlights);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
+/* ===== Risk Edit/Delete ===== */
+function editRisk(index, meetingId) {
+  if (!_currentReport) return;
+  var risks = _currentReport.risks || [];
+  var item = risks[index];
+  if (!item) return;
+  var li = document.getElementById("risk-row-" + index);
+  if (!li) return;
+  var isObj = typeof item === "object" && item !== null;
+  var riskVal = isObj ? (item.risk || renderListItem(item)) : renderListItem(item);
+  var mitigationVal = isObj && item.mitigation ? item.mitigation : "";
+  li.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px;width:100%;">
+      <input type="text" class="form-control" id="edit-risk-text-${index}" value="${escapeAttr(riskVal)}" placeholder="风险" style="flex:1;border:2px solid #FF9900;">
+      <input type="text" class="form-control" id="edit-risk-mitigation-${index}" value="${escapeAttr(mitigationVal)}" placeholder="应对措施" style="flex:1;border:2px solid #FF9900;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-risk" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-risk-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
       </div>
     </div>`;
-
-  // Focus first input
-  const firstInput = row.querySelector('.unified-edit-input');
-  if (firstInput) {
-    firstInput.focus();
-    if (firstInput.tagName === 'INPUT') {
-      firstInput.select();
-    }
-  }
+  li.style.border = "2px solid #FF9900";
+  li.style.borderRadius = "4px";
+  li.style.padding = "6px";
 }
 
-/**
- * Handle unified save action
- */
-async function handleUnifiedSave(el) {
-  const section = el.dataset.section;
-  const index = parseInt(el.dataset.index);
-  const meetingId = el.dataset.meetingId;
-  const prIndex = el.dataset.prIndex !== undefined ? parseInt(el.dataset.prIndex) : undefined;
-
+async function saveRisk(index, meetingId) {
   if (!_currentReport) return;
-
-  // Get all input fields
-  const row = el.closest('.editable-row');
-  if (!row) return;
-
-  const inputs = row.querySelectorAll('.unified-edit-input');
-  if (!inputs || inputs.length === 0) return;
-
-  // Collect field values
-  const newItem = {};
-  let hasRequiredFields = false;
-
-  inputs.forEach(input => {
-    const fieldKey = input.dataset.field;
-    const value = input.value.trim();
-
-    // Check if this is a required field (placeholder contains "必填")
-    const isRequired = input.placeholder && input.placeholder.includes('必填');
-
-    if (isRequired && value) {
-      hasRequiredFields = true;
-    } else if (isRequired && !value) {
-      Toast.error(`${input.placeholder.replace(' (必填)', '')} 不能为空`);
-      input.focus();
-      throw new Error('Required field empty');
-    }
-
-    if (value) {
-      newItem[fieldKey] = value;
-    }
-  });
-
-  if (Object.keys(newItem).length === 0) {
-    Toast.error('至少填写一个字段');
-    inputs[0].focus();
-    return;
-  }
-
-  // Get current data
-  let items = [];
-  let targetSection = section;
-
-  if (section === 'highlights') {
-    items = JSON.parse(JSON.stringify(_currentReport.highlights || []));
-  } else if (section === 'lowlights') {
-    items = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
-  } else if (section === 'participants') {
-    items = JSON.parse(JSON.stringify(_currentReport.participants || []));
-  } else if (section === 'actions') {
-    items = JSON.parse(JSON.stringify(_currentReport.actions || []));
-    targetSection = 'actions';
-  } else if (section === 'decisions') {
-    items = JSON.parse(JSON.stringify(_currentReport.decisions || []));
-    targetSection = 'decisions';
-  } else if (section === 'announcements') {
-    items = JSON.parse(JSON.stringify(_currentReport.announcements || []));
-  } else if (prIndex !== undefined && _currentReport.projectReviews && _currentReport.projectReviews[prIndex]) {
-    const pr = _currentReport.projectReviews[prIndex];
-    if (section === 'pr-highlights') {
-      items = JSON.parse(JSON.stringify(pr.highlights || []));
-    } else if (section === 'pr-lowlights') {
-      items = JSON.parse(JSON.stringify(pr.lowlights || []));
-    } else if (section === 'pr-risks') {
-      items = JSON.parse(JSON.stringify(pr.risks || []));
-    } else if (section === 'pr-followUps') {
-      items = JSON.parse(JSON.stringify(pr.followUps || []));
-    }
-  }
-
-  // Update item
-  if (typeof items[index] === 'string' && inputs.length === 1) {
-    items[index] = Object.values(newItem)[0];
+  var risks = JSON.parse(JSON.stringify(_currentReport.risks || []));
+  var riskText = document.getElementById("edit-risk-text-" + index).value.trim();
+  var mitigationText = document.getElementById("edit-risk-mitigation-" + index).value.trim();
+  if (!riskText) { Toast.error("风险描述不能为空"); return; }
+  if (typeof risks[index] === "object" && risks[index] !== null) {
+    risks[index].risk = riskText;
+    risks[index].mitigation = mitigationText;
   } else {
-    items[index] = newItem;
+    risks[index] = mitigationText ? { risk: riskText, mitigation: mitigationText } : riskText;
   }
-
-  // Save
-  if (section.startsWith('pr-') && prIndex !== undefined) {
-    // For projectReviews nested fields
-    const fieldName = section.replace('pr-', '');
-    const updateData = {};
-    updateData[fieldName] = items;
-    await saveSectionData(meetingId, 'projectReviews', updateData, prIndex);
-  } else {
-    await saveSectionData(meetingId, targetSection, items, prIndex);
+  try {
+    await patchReportSection(meetingId, "risks", risks);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
   }
 }
 
-/**
- * Handle unified cancel action
- */
-function handleUnifiedCancel(el) {
-  const meetingId = el.dataset.meetingId;
-  fetchMeeting(meetingId);
-}
-
-/**
- * Handle unified delete action
- */
-function handleUnifiedDelete(el) {
-  const section = el.dataset.section;
-  const index = parseInt(el.dataset.index);
-  const meetingId = el.dataset.meetingId;
-  const prIndex = el.dataset.prIndex !== undefined ? parseInt(el.dataset.prIndex) : undefined;
-
+async function deleteRisk(index, meetingId) {
   if (!_currentReport) return;
-
-  const messages = {
-    highlights: '确认要删除该亮点？',
-    lowlights: '确认要删除该待改进项？',
-    participants: '确认要删除该参会人员？',
-    actions: '确认要删除该待办事项？',
-    actions: '确认要删除该待办事项？',
-    decisions: '确认要删除该决策？',
-    decisions: '确认要删除该决策？',
-    announcements: '确认要删除该公告？',
-    'pr-highlights': '确认要删除该项目亮点？',
-    'pr-lowlights': '确认要删除该项目待改进项？',
-    'pr-risks': '确认要删除该风险？',
-    'pr-followUps': '确认要删除该跟进事项？'
-  };
-
-  showConfirmDialog(messages[section] || '确认删除？', async () => {
-    // Get current data
-    let items = [];
-    let targetSection = section;
-
-    if (section === 'highlights') {
-      items = JSON.parse(JSON.stringify(_currentReport.highlights || []));
-    } else if (section === 'lowlights') {
-      items = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
-    } else if (section === 'participants') {
-      items = JSON.parse(JSON.stringify(_currentReport.participants || []));
-    } else if (section === 'actions') {
-      items = JSON.parse(JSON.stringify(_currentReport.actions || []));
-      targetSection = 'actions';
-    } else if (section === 'decisions') {
-      items = JSON.parse(JSON.stringify(_currentReport.decisions || []));
-      targetSection = 'decisions';
-    } else if (section === 'announcements') {
-      items = JSON.parse(JSON.stringify(_currentReport.announcements || []));
-    } else if (prIndex !== undefined && _currentReport.projectReviews && _currentReport.projectReviews[prIndex]) {
-      const pr = _currentReport.projectReviews[prIndex];
-      if (section === 'pr-highlights') {
-        items = JSON.parse(JSON.stringify(pr.highlights || []));
-      } else if (section === 'pr-lowlights') {
-        items = JSON.parse(JSON.stringify(pr.lowlights || []));
-      } else if (section === 'pr-risks') {
-        items = JSON.parse(JSON.stringify(pr.risks || []));
-      } else if (section === 'pr-followUps') {
-        items = JSON.parse(JSON.stringify(pr.followUps || []));
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该风险项？",
+    onOk: async function() {
+      var risks = JSON.parse(JSON.stringify(_currentReport.risks || []));
+      risks.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "risks", risks);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
       }
     }
-
-    // Remove item
-    items.splice(index, 1);
-
-    // Save
-    if (section.startsWith('pr-') && prIndex !== undefined) {
-      const fieldName = section.replace('pr-', '');
-      const updateData = {};
-      updateData[fieldName] = items;
-      await saveSectionData(meetingId, 'projectReviews', updateData, prIndex);
-    } else {
-      await saveSectionData(meetingId, targetSection, items, prIndex);
-    }
   });
 }
 
-/**
- * Handle unified add action
- */
-function handleUnifiedAdd(el) {
-  const section = el.dataset.section;
-  const meetingId = el.dataset.meetingId;
-  const prIndex = el.dataset.prIndex !== undefined ? parseInt(el.dataset.prIndex) : undefined;
-
+/* ===== Announcement Edit/Delete ===== */
+function editAnnouncement(index, meetingId) {
   if (!_currentReport) return;
-
-  // Create add form after the button
-  const btn = el;
-  const existingForm = btn.parentElement.querySelector('.add-form-inline');
-  if (existingForm) {
-    existingForm.remove();
-    return;
-  }
-
-  // Get field config
-  let fieldConfig = null;
-  if (section === 'highlights') {
-    fieldConfig = [{key: 'point', label: '内容', type: 'text', required: true}];
-  } else if (section === 'lowlights') {
-    fieldConfig = [{key: 'point', label: '内容', type: 'text', required: true}];
-  } else if (section === 'participants') {
-    fieldConfig = [{key: 'name', label: '姓名', type: 'text', required: true}];
-  } else if (section === 'actions') {
-    fieldConfig = [
-      {key: 'task', label: '任务', type: 'text', required: true},
-      {key: 'owner', label: '负责人', type: 'text'},
-      {key: 'deadline', label: '截止日期', type: 'text'},
-      {key: 'priority', label: '优先级', type: 'text'}
-    ];
-  } else if (section === 'decisions') {
-    fieldConfig = [{key: 'decision', label: '决策内容', type: 'text', required: true}];
-  } else if (section === 'announcements') {
-    fieldConfig = [
-      {key: 'title', label: '标题', type: 'text', required: true},
-      {key: 'detail', label: '详情', type: 'textarea'},
-      {key: 'owner', label: '发布人', type: 'text'}
-    ];
-  } else if (section === 'pr-highlights') {
-    fieldConfig = [
-      {key: 'point', label: '亮点', type: 'text', required: true},
-      {key: 'detail', label: '详情', type: 'textarea'}
-    ];
-  } else if (section === 'pr-lowlights') {
-    fieldConfig = [
-      {key: 'point', label: '待改进', type: 'text', required: true},
-      {key: 'detail', label: '详情', type: 'textarea'}
-    ];
-  } else if (section === 'pr-risks') {
-    fieldConfig = [
-      {key: 'risk', label: '风险', type: 'text', required: true},
-      {key: 'mitigation', label: '应对措施', type: 'textarea'}
-    ];
-  } else if (section === 'pr-followUps') {
-    fieldConfig = [
-      {key: 'task', label: '跟进事项', type: 'text', required: true},
-      {key: 'owner', label: '负责人', type: 'text'},
-      {key: 'deadline', label: '截止日期', type: 'text'}
-    ];
-  }
-
-  if (!fieldConfig) return;
-
-  // Generate form fields
-  let formFields = '';
-  fieldConfig.forEach(field => {
-    if (field.type === 'textarea') {
-      formFields += `
-        <textarea
-          class="unified-add-input"
-          data-field="${escapeAttr(field.key)}"
-          placeholder="${escapeAttr(field.label)}${field.required ? ' (必填)' : ''}"
-          rows="2"></textarea>`;
-    } else {
-      formFields += `
-        <input type="text"
-          class="unified-add-input"
-          data-field="${escapeAttr(field.key)}"
-          placeholder="${escapeAttr(field.label)}${field.required ? ' (必填)' : ''}" />`;
-    }
-  });
-
-  const form = document.createElement('div');
-  form.className = 'edit-form-inline add-form-inline';
-  form.innerHTML = `
-    ${formFields}
-    <div class="edit-actions">
-      <button class="btn-cancel"
-        data-action="el-cancel-add">
-        取消
-      </button>
-      <button class="btn-save"
-        data-action="el-save-add"
-        data-section="${escapeAttr(section)}"
-        data-meeting-id="${escapeAttr(meetingId)}"
-        ${prIndex !== undefined ? `data-pr-index="${prIndex}"` : ''}>
-        💾 添加
-      </button>
+  var announcements = _currentReport.announcements || [];
+  var item = announcements[index];
+  if (!item) return;
+  var el = document.getElementById("announcement-row-" + index);
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px;width:100%;">
+      <input type="text" class="form-control" id="edit-ann-title-${index}" value="${escapeAttr(item.title || '')}" placeholder="标题" style="border:2px solid #FF9900;">
+      <input type="text" class="form-control" id="edit-ann-detail-${index}" value="${escapeAttr(item.detail || '')}" placeholder="详情" style="border:2px solid #FF9900;">
+      <input type="text" class="form-control" id="edit-ann-owner-${index}" value="${escapeAttr(item.owner || '')}" placeholder="发布人" style="border:2px solid #FF9900;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-announcement" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-announcement-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
     </div>`;
+  el.style.border = "2px solid #FF9900";
+  el.style.borderRadius = "4px";
+  el.style.padding = "6px";
+}
 
-  btn.parentElement.insertBefore(form, btn);
-
-  // Focus first input
-  const firstInput = form.querySelector('.unified-add-input');
-  if (firstInput) {
-    firstInput.focus();
+async function saveAnnouncement(index, meetingId) {
+  if (!_currentReport) return;
+  var announcements = JSON.parse(JSON.stringify(_currentReport.announcements || []));
+  var title = document.getElementById("edit-ann-title-" + index).value.trim();
+  var detail = document.getElementById("edit-ann-detail-" + index).value.trim();
+  var owner = document.getElementById("edit-ann-owner-" + index).value.trim();
+  if (!title) { Toast.error("标题不能为空"); return; }
+  announcements[index] = { title: title, detail: detail, owner: owner };
+  try {
+    await patchReportSection(meetingId, "announcements", announcements);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
   }
+}
 
-  // Cancel button
-  form.querySelector('[data-action="el-cancel-add"]').addEventListener('click', () => {
-    form.remove();
-  });
-
-  // Save button
-  form.querySelector('[data-action="el-save-add"]').addEventListener('click', async () => {
-    const inputs = form.querySelectorAll('.unified-add-input');
-    const newItem = {};
-    let hasRequiredField = false;
-
-    inputs.forEach(input => {
-      const fieldKey = input.dataset.field;
-      const value = input.value.trim();
-      const isRequired = input.placeholder && input.placeholder.includes('必填');
-
-      if (isRequired && value) {
-        hasRequiredField = true;
-      } else if (isRequired && !value) {
-        Toast.error(`${input.placeholder.replace(' (必填)', '')} 不能为空`);
-        input.focus();
-        throw new Error('Required field empty');
+async function deleteAnnouncement(index, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该公告？",
+    onOk: async function() {
+      var announcements = JSON.parse(JSON.stringify(_currentReport.announcements || []));
+      announcements.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "announcements", announcements);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
       }
-
-      if (value) {
-        newItem[fieldKey] = value;
-      }
-    });
-
-    if (!hasRequiredField) {
-      Toast.error('请至少填写必填字段');
-      firstInput.focus();
-      return;
-    }
-
-    // Get current data
-    let items = [];
-    let targetSection = section;
-
-    if (section === 'highlights') {
-      items = JSON.parse(JSON.stringify(_currentReport.highlights || []));
-    } else if (section === 'lowlights') {
-      items = JSON.parse(JSON.stringify(_currentReport.lowlights || []));
-    } else if (section === 'participants') {
-      items = JSON.parse(JSON.stringify(_currentReport.participants || []));
-    } else if (section === 'actions') {
-      items = JSON.parse(JSON.stringify(_currentReport.actions || []));
-      targetSection = 'actions';
-    } else if (section === 'decisions') {
-      items = JSON.parse(JSON.stringify(_currentReport.decisions || []));
-      targetSection = 'decisions';
-    } else if (section === 'announcements') {
-      items = JSON.parse(JSON.stringify(_currentReport.announcements || []));
-    } else if (prIndex !== undefined && _currentReport.projectReviews && _currentReport.projectReviews[prIndex]) {
-      const pr = _currentReport.projectReviews[prIndex];
-      if (section === 'pr-highlights') {
-        items = JSON.parse(JSON.stringify(pr.highlights || []));
-      } else if (section === 'pr-lowlights') {
-        items = JSON.parse(JSON.stringify(pr.lowlights || []));
-      } else if (section === 'pr-risks') {
-        items = JSON.parse(JSON.stringify(pr.risks || []));
-      } else if (section === 'pr-followUps') {
-        items = JSON.parse(JSON.stringify(pr.followUps || []));
-      }
-    }
-
-    // Add new item (single field vs multi-field)
-    if (fieldConfig.length === 1 && inputs.length === 1) {
-      items.push(Object.values(newItem)[0]);
-    } else {
-      items.push(newItem);
-    }
-
-    // Save
-    try {
-      if (section.startsWith('pr-') && prIndex !== undefined) {
-        const fieldName = section.replace('pr-', '');
-        const updateData = {};
-        updateData[fieldName] = items;
-        await saveSectionData(meetingId, 'projectReviews', updateData, prIndex);
-      } else {
-        await saveSectionData(meetingId, targetSection, items, prIndex);
-      }
-      form.remove();
-    } catch (err) {
-      // Error already handled by saveSectionData
     }
   });
 }
 
+/* ===== ProjectReview Edit/Delete ===== */
+function editProjectReview(index, meetingId) {
+  if (!_currentReport) return;
+  var reviews = _currentReport.projectReviews || [];
+  var pr = reviews[index];
+  if (!pr) return;
+  var el = document.getElementById("pr-row-" + index);
+  if (!el) return;
+  var headerDiv = el.querySelector(".section-title").parentElement;
+  headerDiv.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px;width:100%;">
+      <input type="text" class="form-control" id="edit-pr-project-${index}" value="${escapeAttr(pr.project || '')}" placeholder="项目名称" style="border:2px solid #FF9900;">
+      <input type="text" class="form-control" id="edit-pr-progress-${index}" value="${escapeAttr(pr.progress || '')}" placeholder="进展" style="border:2px solid #FF9900;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-project-review" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-pr-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
+    </div>`;
+}
+
+async function saveProjectReview(index, meetingId) {
+  if (!_currentReport) return;
+  var reviews = JSON.parse(JSON.stringify(_currentReport.projectReviews || []));
+  var project = document.getElementById("edit-pr-project-" + index).value.trim();
+  var progress = document.getElementById("edit-pr-progress-" + index).value.trim();
+  if (!project) { Toast.error("项目名称不能为空"); return; }
+  reviews[index].project = project;
+  reviews[index].progress = progress;
+  try {
+    await patchReportSection(meetingId, "projectReviews", reviews);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteProjectReview(index, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该项目？",
+    onOk: async function() {
+      var reviews = JSON.parse(JSON.stringify(_currentReport.projectReviews || []));
+      reviews.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, "projectReviews", reviews);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+/* ===== ProjectReview FollowUp Edit/Delete ===== */
+function editPrFollowUp(prIndex, fuIndex, meetingId) {
+  if (!_currentReport) return;
+  var reviews = _currentReport.projectReviews || [];
+  var pr = reviews[prIndex];
+  if (!pr) return;
+  var followUps = pr.followUps || [];
+  var item = followUps[fuIndex];
+  if (!item) return;
+  var tr = document.getElementById("pr-followup-row-" + prIndex + "-" + fuIndex);
+  if (!tr) return;
+  tr.innerHTML = `
+    <td><input type="text" class="form-control" id="edit-prfu-task-${prIndex}-${fuIndex}" value="${escapeAttr(item.task || '')}" style="border:2px solid #FF9900;"></td>
+    <td><input type="text" class="form-control" id="edit-prfu-owner-${prIndex}-${fuIndex}" value="${escapeAttr(item.owner || '')}" style="border:2px solid #FF9900;width:80px;"></td>
+    <td><input type="text" class="form-control" id="edit-prfu-deadline-${prIndex}-${fuIndex}" value="${escapeAttr(item.deadline || '')}" style="border:2px solid #FF9900;width:100px;"></td>
+    <td>
+      <div style="display:flex;gap:4px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-pr-followup" data-pr-index="${prIndex}" data-index="${fuIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-prfu-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
+    </td>`;
+  tr.style.border = "2px solid #FF9900";
+}
+
+async function savePrFollowUp(prIndex, fuIndex, meetingId) {
+  if (!_currentReport) return;
+  var reviews = JSON.parse(JSON.stringify(_currentReport.projectReviews || []));
+  var task = document.getElementById("edit-prfu-task-" + prIndex + "-" + fuIndex).value.trim();
+  var owner = document.getElementById("edit-prfu-owner-" + prIndex + "-" + fuIndex).value.trim();
+  var deadline = document.getElementById("edit-prfu-deadline-" + prIndex + "-" + fuIndex).value.trim();
+  if (!task) { Toast.error("跟进事项不能为空"); return; }
+  reviews[prIndex].followUps[fuIndex] = { task: task, owner: owner, deadline: deadline };
+  try {
+    await patchReportSection(meetingId, "projectReviews", reviews);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deletePrFollowUp(prIndex, fuIndex, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该跟进事项？",
+    onOk: async function() {
+      var reviews = JSON.parse(JSON.stringify(_currentReport.projectReviews || []));
+      reviews[prIndex].followUps.splice(fuIndex, 1);
+      try {
+        await patchReportSection(meetingId, "projectReviews", reviews);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+/* ===== ProjectReview Risk Edit/Delete ===== */
+function editPrRisk(prIndex, riskIndex, meetingId) {
+  if (!_currentReport) return;
+  var reviews = _currentReport.projectReviews || [];
+  var pr = reviews[prIndex];
+  if (!pr) return;
+  var risks = pr.risks || [];
+  var item = risks[riskIndex];
+  if (!item) return;
+  var el = document.getElementById("pr-risk-row-" + prIndex + "-" + riskIndex);
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px;width:100%;">
+      <input type="text" class="form-control" id="edit-prrisk-risk-${prIndex}-${riskIndex}" value="${escapeAttr(item.risk || '')}" placeholder="风险" style="border:2px solid #FF9900;">
+      <input type="text" class="form-control" id="edit-prrisk-mitigation-${prIndex}-${riskIndex}" value="${escapeAttr(item.mitigation || '')}" placeholder="应对措施" style="border:2px solid #FF9900;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-pr-risk" data-pr-index="${prIndex}" data-index="${riskIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-prrisk-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
+    </div>`;
+  el.style.border = "2px solid #FF9900";
+  el.style.borderRadius = "4px";
+  el.style.padding = "6px";
+}
+
+async function savePrRisk(prIndex, riskIndex, meetingId) {
+  if (!_currentReport) return;
+  var reviews = JSON.parse(JSON.stringify(_currentReport.projectReviews || []));
+  var risk = document.getElementById("edit-prrisk-risk-" + prIndex + "-" + riskIndex).value.trim();
+  var mitigation = document.getElementById("edit-prrisk-mitigation-" + prIndex + "-" + riskIndex).value.trim();
+  if (!risk) { Toast.error("风险描述不能为空"); return; }
+  reviews[prIndex].risks[riskIndex] = { risk: risk, mitigation: mitigation };
+  try {
+    await patchReportSection(meetingId, "projectReviews", reviews);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deletePrRisk(prIndex, riskIndex, meetingId) {
+  if (!_currentReport) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该项目风险？",
+    onOk: async function() {
+      var reviews = JSON.parse(JSON.stringify(_currentReport.projectReviews || []));
+      reviews[prIndex].risks.splice(riskIndex, 1);
+      try {
+        await patchReportSection(meetingId, "projectReviews", reviews);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+/* ===== Merge Selection ===== */
+function getSelectedMeetingIds() {
+  return Array.from(document.querySelectorAll('.merge-checkbox:checked')).map(cb => cb.dataset.id);
+}
+
+function updateMergeSelection() {
+  const ids = getSelectedMeetingIds();
+  let bar = document.getElementById('merge-action-bar');
+  if (ids.length >= 2) {
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'merge-action-bar';
+      bar.className = 'merge-action-bar';
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML = `
+      <span>已选 <strong>${ids.length}</strong> 个会议</span>
+      <button class="btn action-primary-btn" data-action="open-merge-modal">合并生成报告</button>
+    `;
+    bar.style.display = 'flex';
+  } else {
+    if (bar) bar.style.display = 'none';
+  }
+}
+
+function openMergeModal() {
+  const ids = getSelectedMeetingIds();
+  if (ids.length < 2) { Toast.error("请至少选择 2 个会议"); return; }
+
+  // Build meeting list for display
+  const selectedMeetings = ids.map(id => {
+    const m = allMeetings.find(mt => mt.meetingId === id);
+    return m ? escapeHtml(m.title || m.meetingId) : id;
+  });
+
+  let overlay = document.getElementById('merge-modal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'merge-modal';
+    overlay.className = 'modal-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:560px;">
+      <h3><i class="fa fa-object-group"></i> 合并生成报告</h3>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:600;color:#232F3E;margin-bottom:8px;">已选会议（${ids.length}）</div>
+        <ul style="list-style:none;padding:0;max-height:150px;overflow-y:auto;">
+          ${selectedMeetings.map(t => `<li style="padding:4px 0;font-size:13px;border-bottom:1px solid #e8edf2;">${t}</li>`).join('')}
+        </ul>
+      </div>
+      <div class="form-group">
+        <label for="merge-custom-prompt">自定义提示词（可选）</label>
+        <textarea id="merge-custom-prompt" class="form-control" rows="3" placeholder="例：总结本周项目进展，重点关注风险和 action items"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" data-action="close-merge-modal">取消</button>
+        <button class="btn action-primary-btn" id="merge-submit-btn" data-action="submit-merge"><i class="fa fa-magic"></i> 生成报告</button>
+      </div>
+    </div>
+  `;
+  overlay.classList.add('show');
+}
+
+function closeMergeModal() {
+  const overlay = document.getElementById('merge-modal');
+  if (overlay) overlay.classList.remove('show');
+}
+
+async function submitMerge() {
+  const ids = getSelectedMeetingIds();
+  const customPrompt = (document.getElementById('merge-custom-prompt') || {}).value || '';
+  const btn = document.getElementById('merge-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '生成中…'; }
+
+  try {
+    await API.post('/api/meetings/merge', { meetingIds: ids, customPrompt: customPrompt.trim() || undefined });
+    Toast.success('合并报告生成中');
+    closeMergeModal();
+    // Uncheck all checkboxes
+    document.querySelectorAll('.merge-checkbox:checked').forEach(cb => { cb.checked = false; });
+    updateMergeSelection();
+    fetchMeetings();
+  } catch (_) {
+    /* error shown by API */
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-magic"></i> 生成报告'; }
+  }
+}
+
+/* ===== Utils ===== */
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  return escapeHtml(String(str))
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getParam(name) {
+  return new URLSearchParams(window.location.search).get(name);
+}
 
 /* ===== Event Delegation (replaces inline onclick for CSP compliance) ===== */
 /* ===== Participant Name Search Dropdown ===== */
@@ -2510,13 +2522,6 @@ document.addEventListener("click", function(e) {
   const id = el.dataset.id;
 
   switch (action) {
-    // Unified Edit Framework
-    case "el-edit":            handleUnifiedEdit(el); break;
-    case "el-delete":          handleUnifiedDelete(el); break;
-    case "el-add":             handleUnifiedAdd(el); break;
-    case "el-save":            handleUnifiedSave(el); break;
-    case "el-cancel":          handleUnifiedCancel(el); break;
-
     case "delete-meeting":     deleteMeeting(id); break;
     case "retry-meeting":      retryMeeting(id); break;
     case "start-card-edit":    startCardEdit(id, el.dataset.title, el.dataset.type); break;
@@ -2539,6 +2544,46 @@ document.addEventListener("click", function(e) {
     case "edit-section":        editSection(el.dataset.section); break;
     case "cancel-section-edit": cancelSectionEdit(el.dataset.section); break;
     case "save-section":        saveSection(el.dataset.section, el.dataset.meetingId); break;
+    case "edit-action-item":    editActionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-action-item":    saveActionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-action-item":  deleteActionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "cancel-action-edit":  fetchMeeting(el.dataset.meetingId); break;
+    case "edit-decision-item":  editDecisionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-decision-item":  saveDecisionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-decision-item":deleteDecisionItem(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "cancel-decision-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-participant":    editParticipant(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-participant":  deleteParticipant(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "edit-highlight":      editHighlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-highlight":      saveHighlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-highlight":    deleteHighlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-highlight":       addHighlight(el.dataset.meetingId); break;
+    case "cancel-highlight-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-lowlight":       editLowlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-lowlight":       saveLowlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-lowlight":     deleteLowlight(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-lowlight":        addLowlight(el.dataset.meetingId); break;
+    case "cancel-lowlight-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-risk":           editRisk(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-risk":           saveRisk(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-risk":         deleteRisk(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "cancel-risk-edit":    fetchMeeting(el.dataset.meetingId); break;
+    case "edit-announcement":   editAnnouncement(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-announcement":   saveAnnouncement(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-announcement": deleteAnnouncement(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "cancel-announcement-edit":fetchMeeting(el.dataset.meetingId); break;
+    case "edit-project-review":  editProjectReview(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-project-review":  saveProjectReview(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-project-review":deleteProjectReview(parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "cancel-pr-edit":       fetchMeeting(el.dataset.meetingId); break;
+    case "edit-pr-followup":     editPrFollowUp(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-pr-followup":     savePrFollowUp(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-pr-followup":   deletePrFollowUp(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "cancel-prfu-edit":     fetchMeeting(el.dataset.meetingId); break;
+    case "edit-pr-risk":         editPrRisk(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-pr-risk":         savePrRisk(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-pr-risk":       deletePrRisk(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "cancel-prrisk-edit":   fetchMeeting(el.dataset.meetingId); break;
   }
 });
 
@@ -2549,80 +2594,13 @@ document.addEventListener("change", function(e) {
   }
 });
 
-
-/* ===== Merge Modal Functions ===== */
-function getSelectedMeetingIds() {
-  return Array.from(document.querySelectorAll('.merge-checkbox:checked')).map(cb => cb.dataset.id);
-}
-
-function updateMergeSelection() {
-  const ids = getSelectedMeetingIds();
-  let bar = document.getElementById('merge-action-bar');
-  if (ids.length >= 2) {
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.id = 'merge-action-bar';
-      bar.className = 'merge-action-bar';
-      document.body.appendChild(bar);
-    }
-    bar.innerHTML = `
-      <span>已选 <strong>${ids.length}</strong> 个会议</span>
-      <button class="btn action-primary-btn" data-action="open-merge-modal">合并生成报告</button>
-    `;
-    bar.style.display = 'flex';
-  } else {
-    if (bar) bar.style.display = 'none';
-  }
-}
-
-function openMergeModal() {
-  const ids = getSelectedMeetingIds();
-  if (ids.length < 2) { Toast.error("请至少选择 2 个会议"); return; }
-  const selectedMeetings = ids.map(id => {
-    const m = allMeetings.find(mt => mt.meetingId === id);
-    return m ? escapeHtml(m.title || m.meetingId) : id;
-  });
-  let overlay = document.getElementById('merge-modal');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'merge-modal';
-    overlay.className = 'modal-overlay';
-    document.body.appendChild(overlay);
-  }
-  overlay.innerHTML = `
-    <div class="modal" style="max-width:560px;">
-      <h3><i class="fa fa-object-group"></i> 合并生成报告</h3>
-      <div style="margin-bottom:16px;">
-        <div style="font-size:13px;font-weight:600;color:#232F3E;margin-bottom:8px;">已选会议（${ids.length}）</div>
-        <ul style="list-style:none;padding:0;max-height:150px;overflow-y:auto;">
-          ${selectedMeetings.map(t => `<li style="padding:4px 0;font-size:13px;border-bottom:1px solid #e8edf2;">${t}</li>`).join('')}
-        </ul>
-      </div>
-      <div class="form-group">
-        <label for="merge-custom-prompt">自定义提示词（可选）</label>
-        <textarea id="merge-custom-prompt" class="form-control" rows="3" placeholder="例：总结本周项目进展，重点关注风险和 action items"></textarea>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-outline" data-action="close-merge-modal">取消</button>
-        <button class="btn action-primary-btn" id="merge-submit-btn" data-action="submit-merge"><i class="fa fa-magic"></i> 生成报告</button>
-      </div>
-    </div>
-  `;
-  overlay.classList.add('show');
-}
-
-function closeMergeModal() {
-  const overlay = document.getElementById('merge-modal');
-  if (overlay) overlay.classList.remove('show');
-}
-
 /* ===== Init (moved from inline script to avoid CSP violation) ===== */
 document.addEventListener("DOMContentLoaded", function() {
   const meetingId = getParam("id");
   if (meetingId) {
     // meeting.html — detail page
+    // fetchMeeting will automatically set up dynamic polling based on meeting state
     fetchMeeting(meetingId);
-    window._detailPollingTimer = setInterval(() => fetchMeeting(meetingId), 12000);
   } else if (document.getElementById("upload-area")) {
     // index.html — list page
     initUpload();

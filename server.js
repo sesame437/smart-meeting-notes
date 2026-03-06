@@ -40,12 +40,8 @@ app.use(helmet({
   },
 }));
 app.use(express.json());
-// In production serve Vue SPA (dist/); in development serve legacy public/
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "dist")));
-} else {
-  app.use(express.static(path.join(__dirname, "public"), { maxAge: 0, etag: false, lastModified: false }));
-}
+// Serve static files from public/ directory (legacy HTML+CSS frontend)
+app.use(express.static(path.join(__dirname, "public"), { maxAge: 0, etag: false, lastModified: false }));
 
 // Rate limiting for upload and report generation endpoints
 const apiLimiter = rateLimit({
@@ -78,15 +74,12 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/meetings", meetingsRouter);
 app.use("/api/glossary", glossaryRouter);
 
-// SPA fallback — serve Vue index.html for all non-API routes in production
-if (process.env.NODE_ENV === 'production') {
-  const path = require('path');
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(__dirname, 'dist/index.html'));
-    }
-  });
-}
+// SPA fallback — serve index.html for all non-API routes
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(__dirname, 'public/index.html'));
+  }
+});
 
 // Unified error handling middleware (must be after all routes)
 app.use((err, req, res, _next) => {

@@ -214,10 +214,11 @@ async function runFunASR(meetingId, s3Key) {
   } catch (err) {
     if (err.name === "AbortError") {
       logger.error("transcription-worker", "funasr-timeout", { timeoutMinutes: 30 });
+      throw new Error(`FunASR timeout after 30 minutes`, { cause: err });
     } else {
       logger.error("transcription-worker", "funasr-failed", {}, err);
+      throw err; // Propagate error for retry logic
     }
-    return null;
   }
 }
 
@@ -383,6 +384,7 @@ async function processMessage(message) {
     recordActivity();
 
     // Run enabled tracks in parallel
+    // Note: FunASR errors propagate for retry logic; other tracks fail gracefully
     const [transcribeKey, whisperKey, funasrKey] = await Promise.all([
       ENABLE_TRANSCRIBE
         ? runAWSTranscribe(meetingId, s3Key).catch((err) => { logger.error("transcription-worker", "transcribe-track-failed", {}, err); return null; })
@@ -391,7 +393,7 @@ async function processMessage(message) {
         ? runWhisper(meetingId, s3Key, filename).catch((err) => { logger.error("transcription-worker", "whisper-track-failed", {}, err); return null; })
         : Promise.resolve(null),
       ENABLE_FUNASR
-        ? runFunASR(meetingId, s3Key).catch((err) => { logger.error("transcription-worker", "funasr-track-failed", {}, err); return null; })
+        ? runFunASR(meetingId, s3Key) // Let errors propagate for unified retry logic
         : Promise.resolve(null),
     ]);
 
@@ -464,9 +466,39 @@ async function processMessage(message) {
     logger.info("transcription-worker", "transcription-complete", { meetingId });
   } catch (err) {
     logger.error("transcription-worker", "processing-failed", { meetingId }, err);
+
+    // Unified retry logic for all failure scenarios
+    let retryCount = 0;
+    try {
+      const { Item } = await docClient.send(new GetCommand({
+        TableName: DYNAMODB_TABLE,
+        Key: { meetingId, createdAt },
+      }));
+      retryCount = Item?.retryCount || 0;
+    } catch (getErr) {
+      logger.warn("transcription-worker", "read-retryCount-failed", { meetingId, error: getErr.message });
+    }
+
+    if (retryCount < 3) {
+      // Retry: update status to pending and increment retry count
+      logger.info("transcription-worker", "error-retry", { meetingId, retryCount: retryCount + 1, errorType: err.name || "Error" });
+      try {
+        await updateMeetingStatus(meetingId, createdAt, "pending", {
+          retryCount: retryCount + 1,
+          stage: "waiting-retry",
+          errorMessage: err.message, // Keep error message for debugging
+        });
+      } catch (updateErr) {
+        logger.error("transcription-worker", "update-retry-status-failed", { meetingId }, updateErr);
+      }
+      throw err; // Re-throw to prevent SQS message deletion (visibility timeout retry)
+    }
+
+    // Exceeded retry limit: mark as failed
+    logger.error("transcription-worker", "giving-up-after-retries", { meetingId, retries: retryCount });
     try {
       await updateMeetingStatus(meetingId, createdAt, "failed", {
-        errorMessage: err.message,
+        errorMessage: `${err.message} (retried ${retryCount} times)`,
         stage: "failed",
       });
     } catch (updateErr) {

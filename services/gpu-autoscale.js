@@ -1,4 +1,4 @@
-const { EC2Client, StartInstancesCommand, StopInstancesCommand, DescribeInstancesCommand } = require("@aws-sdk/client-ec2");
+const { EC2Client, StartInstancesCommand, StopInstancesCommand, DescribeInstancesCommand, ModifyInstanceAttributeCommand } = require("@aws-sdk/client-ec2");
 const { DynamoDBClient, QueryCommand } = require("@aws-sdk/client-dynamodb");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
@@ -12,6 +12,7 @@ const FUNASR_URL = process.env.FUNASR_URL || `http://${FUNASR_PRIVATE_IP}:9002`;
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || "meeting-minutes-meetings";
 const REGION = process.env.AWS_REGION || "us-west-2";
+const GPU_FALLBACK_TYPES = (process.env.GPU_FALLBACK_INSTANCE_TYPES || "g6.2xlarge,g5.2xlarge,g4dn.2xlarge").split(",");
 
 const ec2 = new EC2Client({ region: REGION });
 const dynamoClient = new DynamoDBClient({ region: REGION });
@@ -31,19 +32,91 @@ async function getInstanceState() {
   return instance.State.Name; // "running" | "stopped" | "pending" | "stopping" | ...
 }
 
-// 2. startInstance — start and poll until running (max 3 min, every 10s)
+// 2. startInstance — start and poll until running, with capacity fallback
 async function startInstance() {
-  logger.info("gpu-autoscale", "starting instance", { instanceId: INSTANCE_ID });
-  await ec2.send(new StartInstancesCommand({ InstanceIds: [INSTANCE_ID] }));
+  const maxRetries = 3;
+  let lastError = null;
 
-  const maxAttempts = 18; // 3 min / 10s
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise((r) => setTimeout(r, 10000));
-    const state = await getInstanceState();
-    logger.info("gpu-autoscale", "instance state", { state, attempt: i + 1, maxAttempts });
-    if (state === "running") return;
+  // Retry up to 3 times for InsufficientInstanceCapacity
+  for (let retry = 0; retry < maxRetries; retry++) {
+    try {
+      logger.info("gpu-autoscale", "starting instance", { instanceId: INSTANCE_ID, retry: retry + 1 });
+      await ec2.send(new StartInstancesCommand({ InstanceIds: [INSTANCE_ID] }));
+
+      // Poll until running (max 3 min, every 10s)
+      const maxAttempts = 18;
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise((r) => setTimeout(r, 10000));
+        const state = await getInstanceState();
+        logger.info("gpu-autoscale", "instance state", { state, attempt: i + 1, maxAttempts });
+        if (state === "running") return;
+      }
+      throw new Error(`[gpu-autoscale] Instance ${INSTANCE_ID} did not reach 'running' within 3 minutes`);
+    } catch (err) {
+      if (err.name === "InsufficientInstanceCapacity" && retry < maxRetries - 1) {
+        logger.warn("gpu-autoscale", "insufficient capacity, retrying", { retry: retry + 1, waitMinutes: 3 });
+        await new Promise((r) => setTimeout(r, 3 * 60 * 1000)); // Wait 3 minutes
+        lastError = err;
+        continue;
+      }
+      // Not a capacity error or exhausted retries
+      lastError = err;
+      break;
+    }
   }
-  throw new Error(`[gpu-autoscale] Instance ${INSTANCE_ID} did not reach 'running' within 3 minutes`);
+
+  // If we reach here, all retries failed — try fallback instance types
+  logger.warn("gpu-autoscale", "all retries failed, trying fallback instance types", { fallbackTypes: GPU_FALLBACK_TYPES });
+
+  for (const instanceType of GPU_FALLBACK_TYPES) {
+    try {
+      logger.info("gpu-autoscale", "trying fallback instance type", { instanceType });
+
+      // Stop instance if not already stopped
+      const currentState = await getInstanceState();
+      if (currentState !== "stopped") {
+        logger.info("gpu-autoscale", "stopping instance for type change", { currentState });
+        await stopInstance();
+        // Wait until fully stopped
+        for (let i = 0; i < 18; i++) {
+          await new Promise((r) => setTimeout(r, 10000));
+          const s = await getInstanceState();
+          if (s === "stopped") break;
+          if (i === 17) throw new Error("[gpu-autoscale] Instance stuck in stopping state");
+        }
+      }
+
+      // Modify instance type
+      logger.info("gpu-autoscale", "modifying instance type", { instanceType });
+      await ec2.send(new ModifyInstanceAttributeCommand({
+        InstanceId: INSTANCE_ID,
+        InstanceType: { Value: instanceType },
+      }));
+
+      // Try starting with new type
+      await ec2.send(new StartInstancesCommand({ InstanceIds: [INSTANCE_ID] }));
+
+      // Poll until running
+      const maxAttempts = 18;
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise((r) => setTimeout(r, 10000));
+        const state = await getInstanceState();
+        logger.info("gpu-autoscale", "instance state with fallback type", { state, instanceType, attempt: i + 1 });
+        if (state === "running") {
+          logger.info("gpu-autoscale", "successfully started with fallback type", { instanceType });
+          return;
+        }
+      }
+      throw new Error(`[gpu-autoscale] Instance did not reach 'running' with type ${instanceType}`);
+    } catch (err) {
+      logger.warn("gpu-autoscale", "fallback instance type failed", { instanceType, error: err.message });
+      lastError = err;
+      continue;
+    }
+  }
+
+  // All fallback types exhausted
+  throw new Error(`[gpu-autoscale] Failed to start instance after all retries and fallback types: ${lastError?.message}`, { cause: lastError });
 }
 
 // 3. stopInstance
