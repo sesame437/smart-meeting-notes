@@ -7,6 +7,7 @@ const { sendMessage } = require("../../services/sqs");
 const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
 const { mergeAudioFiles } = require("../../services/ffmpeg");
+const { warmUpGPU } = require("../../services/gpu-autoscale");
 const {
   upload,
   uploadMultiple,
@@ -239,6 +240,9 @@ function register(router) {
       };
       await store.createMeetingFromUpload(item);
 
+      // 异步预热 GPU，不阻塞响应
+      warmUpGPU().catch(err => logger.warn("meetings-route", "gpu-warmup-failed", { error: err.message }));
+
       // 不再自动发送转录消息，等待前端确认
 
       res.status(201).json({ meetingId, status: "uploaded", title: item.title, meetingType });
@@ -344,6 +348,9 @@ function register(router) {
         ...(recipientEmails.length ? { recipientEmails } : {}),
       };
       await store.createMeetingFromUpload(item);
+
+      // 异步预热 GPU，不阻塞响应
+      warmUpGPU().catch(err => logger.warn("meetings-route", "gpu-warmup-failed", { error: err.message }));
 
       logger.info("meetings-route", "upload-multiple-complete", { meetingId });
 

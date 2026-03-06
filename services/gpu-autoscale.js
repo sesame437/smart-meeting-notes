@@ -12,7 +12,7 @@ const FUNASR_URL = process.env.FUNASR_URL || `http://${FUNASR_PRIVATE_IP}:9002`;
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || "meeting-minutes-meetings";
 const REGION = process.env.AWS_REGION || "us-west-2";
-const GPU_FALLBACK_TYPES = (process.env.GPU_FALLBACK_INSTANCE_TYPES || "g6.2xlarge,g5.2xlarge,g4dn.2xlarge").split(",");
+const GPU_FALLBACK_TYPES = (process.env.GPU_FALLBACK_INSTANCE_TYPES || "g5.2xlarge,g6.2xlarge,g4dn.2xlarge").split(",");
 
 const ec2 = new EC2Client({ region: REGION });
 const dynamoClient = new DynamoDBClient({ region: REGION });
@@ -302,4 +302,24 @@ async function checkActiveJobs() {
   }
 }
 
-module.exports = { ensureReady, recordActivity };
+// 8. warmUpGPU — 仅启动实例，不等待 FunASR 就绪（快速返回）
+async function warmUpGPU() {
+  try {
+    const state = await getInstanceState();
+    if (state === "running") {
+      logger.info("gpu-autoscale", "warm-up-skipped", { reason: "already running" });
+      return;
+    }
+    if (state === "pending") {
+      logger.info("gpu-autoscale", "warm-up-skipped", { reason: "already starting" });
+      return;
+    }
+    logger.info("gpu-autoscale", "warm-up-triggered", { currentState: state });
+    await startInstance(); // 只启动实例，不等 FunASR 健康检查
+  } catch (err) {
+    logger.warn("gpu-autoscale", "warm-up-failed", { error: err.message });
+    // 预热失败不影响上传响应，仅记录警告
+  }
+}
+
+module.exports = { ensureReady, recordActivity, warmUpGPU };
