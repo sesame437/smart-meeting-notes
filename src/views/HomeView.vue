@@ -114,7 +114,7 @@ h1 {
 }
 
 .skeleton-card {
-  background: linear-gradient(90deg, #1a2332 25%, #1f2937 50%, #1a2332 75%);
+  background: linear-gradient(90deg, #e8edf2 25%, #f5f5f5 50%, #e8edf2 75%);
   background-size: 200% 100%;
   animation: skeleton-loading 1.5s ease-in-out infinite;
   border-radius: 8px;

@@ -21,6 +21,7 @@ const meetingsRouter = require("./routes/meetings/index");
 const glossaryRouter = require("./routes/glossary");
 
 const app = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3300;
 
 app.use(cors({ origin: ["http://localhost:3300", "http://172.31.21.140:3300"] }));

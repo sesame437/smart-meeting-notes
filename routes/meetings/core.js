@@ -375,7 +375,7 @@ function register(router) {
       }
 
       // Update status to pending
-      const updateExpr = "SET #s = :s, updatedAt = :u";
+      const updateExpr = "#s = :s, updatedAt = :u";
       const names = { "#s": "status" };
       const values = { ":s": "pending", ":u": new Date().toISOString() };
       await store.updateMeeting(req.params.id, item.createdAt, [updateExpr], names, values);

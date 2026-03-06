@@ -94,17 +94,17 @@ function handleClick() {
 </script>
 <style scoped>
 .meeting-card {
-  background: #1a2332;
+  background: #ffffff;
   border-radius: 8px;
   padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #e8edf2;
   border-left: 3px solid transparent;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .meeting-card:hover {
-  background: #1f2937;
+  background: #fafafa;
   border-left-color: var(--color-orange);
 }
 
