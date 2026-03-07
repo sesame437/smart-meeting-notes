@@ -128,3 +128,23 @@ pending → processing → transcribed → reported → done
 
 ## 日期格式
 一律 ISO 8601 UTC：`"2026-02-27T15:30:00.000Z"`
+
+## DynamoDB 查询规范（重要）
+- **禁止 ScanCommand** 用于列表接口，费用高且随数据量线性增长
+- **listXxx() 标准做法**：对所有已知枚举值并行 QueryCommand，合并去重
+  ```js
+  // 示例：listMeetings() 按 status GSI 并行 Query
+  const statuses = ["pending", "processing", "transcribed", "reported", "completed", "failed", "created"];
+  const results = await Promise.all(statuses.map(status =>
+    docClient.send(new QueryCommand({
+      TableName: TABLE,
+      IndexName: "status-createdAt-index",
+      KeyConditionExpression: "#s = :s",
+      ExpressionAttributeNames: { "#s": "status" },
+      ExpressionAttributeValues: { ":s": status },
+    }))
+  ));
+  const items = results.flatMap(r => r.Items || []);
+  // 去重 + 排序
+  ```
+- **例外**：数据量极小（< 100条）且无 GSI 的辅助表（如 glossary），可保留 Scan 并加注释说明原因
