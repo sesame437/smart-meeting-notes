@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会议详情</title>
+  <link rel="stylesheet" href="css/style-v2.css">
+  <link rel="stylesheet" href="../css/font-awesome.min.css">
+</head>
+<body>
+
+  <!-- Masthead -->
+  <nav class="v2-masthead">
+    <div class="v2-masthead-logo">会议纪要 v2</div>
+    <div class="v2-masthead-nav">
+      <a href="./index.html">会议列表</a>
+      <a href="./glossary.html">词汇表</a>
+    </div>
+    <div class="v2-masthead-actions"></div>
+  </nav>
+
+  <div class="v2-layout">
+    <!-- Main Content (no sidebar on detail page, full width) -->
+    <main class="v2-main-wide">
+      <div id="meeting-content">
+        <div class="loading">加载中...</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="bottom-bar" id="bottom-bar"></div>
+
+  <!-- Mobile Tab Bar -->
+  <div class="v2-mobile-tab-bar">
+    <a href="./index.html" class="v2-mobile-tab"><i class="fa fa-list"></i>会议</a>
+    <a href="./glossary.html" class="v2-mobile-tab"><i class="fa fa-book"></i>词汇表</a>
+  </div>
+
+  <!-- Confirm Dialog -->
+  <div id="confirm-modal" class="confirm-overlay" style="display:none;" role="dialog" aria-modal="true">
+    <div class="confirm-box">
+      <div class="confirm-icon">&#9888;&#65039;</div>
+      <div class="confirm-title" id="confirm-title">确认删除</div>
+      <div class="confirm-body" id="confirm-body">确认要删除这条记录吗？</div>
+      <div class="confirm-actions">
+        <button class="btn btn-outline btn-sm" id="confirm-cancel-btn">取消</button>
+        <button class="btn confirm-delete-btn btn-sm" id="confirm-ok-btn">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app-v2.js"></script>
+</body>
+</html>

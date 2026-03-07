@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>词汇表管理</title>
+  <link rel="stylesheet" href="css/style-v2.css">
+  <link rel="stylesheet" href="../css/font-awesome.min.css">
+</head>
+<body>
+
+  <!-- Masthead -->
+  <nav class="v2-masthead">
+    <div class="v2-masthead-logo">会议纪要 v2</div>
+    <div class="v2-masthead-nav">
+      <a href="./index.html">会议列表</a>
+      <a href="./glossary.html" class="active">词汇表</a>
+    </div>
+    <div class="v2-masthead-actions">
+      <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,0.25);font-size:12px;" id="v2-add-term-toggle"><i class="fa fa-plus"></i> <span>添加术语</span></button>
+    </div>
+  </nav>
+
+  <div class="v2-layout">
+    <!-- Sidebar -->
+    <aside class="v2-sidebar">
+      <div class="v2-sidebar-search">
+        <i class="fa fa-search"></i>
+        <input type="text" id="glossary-search" placeholder="搜索术语...">
+      </div>
+
+      <div class="v2-sidebar-section">
+        <div class="v2-sidebar-label">分类</div>
+        <button class="v2-sidebar-item active" data-glossary-cat="all">全部</button>
+        <button class="v2-sidebar-item" data-glossary-cat="tech">技术术语</button>
+        <button class="v2-sidebar-item" data-glossary-cat="business">业务词汇</button>
+        <button class="v2-sidebar-item" data-glossary-cat="person">人员</button>
+        <button class="v2-sidebar-item" data-glossary-cat="org">组织</button>
+      </div>
+
+      <div class="v2-sidebar-section">
+        <div class="v2-sidebar-label">来源</div>
+        <button class="v2-sidebar-item" data-glossary-src="all">全部来源</button>
+        <button class="v2-sidebar-item" data-glossary-src="ai">AI 提取</button>
+        <button class="v2-sidebar-item" data-glossary-src="manual">手动添加</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="v2-main">
+      <!-- Add Term Card (collapsible) -->
+      <div class="v2-card" id="add-term-card" style="display:none;">
+        <div class="v2-card-title">
+          <i class="fa fa-plus-circle"></i> 添加术语
+          <span class="glossary-info-icon" title="" aria-label="字段说明">
+            <i class="fa fa-info-circle"></i>
+            <div class="glossary-tooltip">
+              <p><strong>术语</strong><br>核心词汇，如 <em>罗氏</em>、<em>MIH</em>。Bedrock 生成纪要时会优先识别。</p>
+              <p><strong>别名</strong><br>同一词的其他叫法，逗号分隔。<br>如 <em>Roche, 罗氏制药</em></p>
+              <p><strong>释义</strong><br>背景解释，帮助 Bedrock 理解上下文。</p>
+            </div>
+          </span>
+        </div>
+        <form id="add-term-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="add-term">术语</label>
+              <input type="text" class="form-control" id="add-term" name="term" placeholder="如：OKR" required>
+            </div>
+            <div class="form-group">
+              <label for="add-aliases">别名（逗号分隔）</label>
+              <input type="text" class="form-control" id="add-aliases" name="aliases" placeholder="如：Objectives and Key Results">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="add-definition">释义</label>
+            <textarea class="form-control" id="add-definition" name="definition" placeholder="背景说明、上下文..."></textarea>
+          </div>
+          <button type="submit" class="btn action-primary-btn"><i class="fa fa-plus"></i> 添加术语</button>
+        </form>
+      </div>
+
+      <!-- Glossary Tabs -->
+      <div class="v2-glossary-tabs">
+        <button class="v2-glossary-tab active" data-tab="all">全部</button>
+        <button class="v2-glossary-tab" data-tab="tech">技术</button>
+        <button class="v2-glossary-tab" data-tab="business">业务</button>
+        <button class="v2-glossary-tab" data-tab="person">人员</button>
+      </div>
+
+      <!-- Alpha Index -->
+      <div class="v2-alpha-index" id="v2-alpha-index">
+        <a href="#" data-letter="A">A</a><a href="#" data-letter="B">B</a><a href="#" data-letter="C">C</a>
+        <a href="#" data-letter="D">D</a><a href="#" data-letter="E">E</a><a href="#" data-letter="F">F</a>
+        <a href="#" data-letter="G">G</a><a href="#" data-letter="H">H</a><a href="#" data-letter="I">I</a>
+        <a href="#" data-letter="J">J</a><a href="#" data-letter="K">K</a><a href="#" data-letter="L">L</a>
+        <a href="#" data-letter="M">M</a><a href="#" data-letter="N">N</a><a href="#" data-letter="O">O</a>
+        <a href="#" data-letter="P">P</a><a href="#" data-letter="Q">Q</a><a href="#" data-letter="R">R</a>
+        <a href="#" data-letter="S">S</a><a href="#" data-letter="T">T</a><a href="#" data-letter="U">U</a>
+        <a href="#" data-letter="V">V</a><a href="#" data-letter="W">W</a><a href="#" data-letter="X">X</a>
+        <a href="#" data-letter="Y">Y</a><a href="#" data-letter="Z">Z</a>
+      </div>
+
+      <!-- Term Table -->
+      <div class="v2-card" style="padding:0;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>术语</th>
+                <th>别名</th>
+                <th>释义</th>
+                <th style="width:72px;"></th>
+              </tr>
+            </thead>
+            <tbody id="glossary-tbody">
+              <tr><td colspan="4" class="loading">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Mobile Tab Bar -->
+  <div class="v2-mobile-tab-bar">
+    <a href="./index.html" class="v2-mobile-tab"><i class="fa fa-list"></i>会议</a>
+    <a href="./glossary.html" class="v2-mobile-tab active"><i class="fa fa-book"></i>词汇表</a>
+    <button class="v2-mobile-tab" id="v2-mobile-add-term"><i class="fa fa-plus"></i>添加</button>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+      <h3><i class="fa fa-pencil"></i> 编辑术语</h3>
+      <form id="edit-term-form">
+        <div class="form-group">
+          <label for="edit-term">术语</label>
+          <input type="text" class="form-control" id="edit-term" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-aliases">别名</label>
+          <input type="text" class="form-control" id="edit-aliases">
+        </div>
+        <div class="form-group">
+          <label for="edit-definition">释义</label>
+          <textarea class="form-control" id="edit-definition"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-action="close-modal">取消</button>
+          <button type="submit" class="btn action-primary-btn">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/app-v2.js"></script>
+  <script>
+  // V2 glossary enhancements
+  (function() {
+    // Toggle add-term card
+    var addTermCard = document.getElementById('add-term-card');
+    var addToggle = document.getElementById('v2-add-term-toggle');
+    var mobileAddBtn = document.getElementById('v2-mobile-add-term');
+
+    function toggleAddCard() {
+      if (!addTermCard) return;
+      addTermCard.style.display = addTermCard.style.display === 'none' ? 'block' : 'none';
+      if (addTermCard.style.display === 'block') {
+        addTermCard.scrollIntoView({ behavior: 'smooth' });
+        var input = document.getElementById('add-term');
+        if (input) input.focus();
+      }
+    }
+
+    if (addToggle) addToggle.addEventListener('click', toggleAddCard);
+    if (mobileAddBtn) mobileAddBtn.addEventListener('click', toggleAddCard);
+  })();
+  </script>
+</body>
+</html>
