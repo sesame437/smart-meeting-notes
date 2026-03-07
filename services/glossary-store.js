@@ -8,6 +8,7 @@ const {
 
 const TABLE = process.env.GLOSSARY_TABLE;
 
+// Scan acceptable: glossary table has ~30 items, no GSI available
 async function listGlossary() {
   const items = [];
   let lastKey;

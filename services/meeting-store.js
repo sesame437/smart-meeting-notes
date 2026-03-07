@@ -11,18 +11,26 @@ const TABLE = process.env.DYNAMODB_TABLE;
 const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || process.env.DYNAMODB_TABLE;
 
 async function listMeetings() {
-  const items = [];
-  let lastKey;
-  do {
-    const params = {
+  const statuses = ["pending", "processing", "transcribed", "reported", "completed", "failed", "created"];
+  const queries = statuses.map(status =>
+    docClient.send(new QueryCommand({
       TableName: TABLE,
-    };
-    if (lastKey) params.ExclusiveStartKey = lastKey;
-    const resp = await docClient.send(new ScanCommand(params));
-    items.push(...(resp.Items || []));
-    lastKey = resp.LastEvaluatedKey;
-  } while (lastKey);
-  return items;
+      IndexName: "status-createdAt-index",
+      KeyConditionExpression: "#s = :s",
+      ExpressionAttributeNames: { "#s": "status" },
+      ExpressionAttributeValues: { ":s": status },
+    }))
+  );
+  const results = await Promise.all(queries);
+  const items = results.flatMap(r => r.Items || []);
+  const seen = new Set();
+  const unique = items.filter(item => {
+    const key = `${item.meetingId}#${item.createdAt}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return unique.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 async function createMeeting(item) {

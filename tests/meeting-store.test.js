@@ -1,6 +1,6 @@
 const { docClient } = require("../db/dynamodb")
 const {
-  ScanCommand,
+  QueryCommand,
   UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb")
 const {
@@ -30,16 +30,18 @@ describe("meeting-store", () => {
   describe("listMeetings", () => {
     it("should return array of meetings when Items exist", async () => {
       const mockItems = [{ meetingId: "1", createdAt: "2026-01-01T00:00:00.000Z" }]
+      // listMeetings 并行发 7 个 QueryCommand，每个返回空或 items
       docClient.send.mockResolvedValueOnce({ Items: mockItems })
+      docClient.send.mockResolvedValue({ Items: [] })
 
       const result = await listMeetings()
 
       expect(result).toEqual(mockItems)
-      expect(docClient.send).toHaveBeenCalledWith(expect.any(ScanCommand))
+      expect(docClient.send).toHaveBeenCalledWith(expect.any(QueryCommand))
     })
 
     it("should return empty array when Items is null", async () => {
-      docClient.send.mockResolvedValueOnce({ Items: null })
+      docClient.send.mockResolvedValue({ Items: null })
 
       const result = await listMeetings()
 
@@ -48,7 +50,7 @@ describe("meeting-store", () => {
 
     it("should propagate error when send throws", async () => {
       const error = new Error("DynamoDB error")
-      docClient.send.mockRejectedValueOnce(error)
+      docClient.send.mockRejectedValue(error)
 
       await expect(listMeetings()).rejects.toThrow("DynamoDB error")
     })
