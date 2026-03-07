@@ -4,6 +4,8 @@ const mockStore = {
   queryMeetingById: jest.fn(),
   updateMeeting: jest.fn(),
   deleteMeeting: jest.fn(),
+  retryMeeting: jest.fn(),
+  rollbackRetry: jest.fn(),
 };
 
 const mockS3 = {
@@ -188,6 +190,96 @@ describe("meetings-core-routes", () => {
       const res = await request(app).delete("/api/meetings/nonexistent");
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("POST /:id/start-transcription", () => {
+    it("should start transcription for uploaded meeting", async () => {
+      const mockMeeting = { meetingId: "123", status: "uploaded", createdAt: "2026-01-01T00:00:00Z", s3Key: "inbox/file.mp3" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+      mockStore.updateMeeting.mockResolvedValueOnce({});
+      mockSQS.sendMessage.mockResolvedValueOnce({});
+
+      const res = await request(app).post("/api/meetings/123/start-transcription");
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(mockSQS.sendMessage).toHaveBeenCalled();
+    });
+
+    it("should return 404 when meeting not found", async () => {
+      mockStore.queryMeetingById.mockResolvedValueOnce(null);
+
+      const res = await request(app).post("/api/meetings/nonexistent/start-transcription");
+
+      expect(res.status).toBe(404);
+    });
+
+    it("should return 400 for invalid status", async () => {
+      const mockMeeting = { meetingId: "123", status: "completed", createdAt: "2026-01-01T00:00:00Z" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+
+      const res = await request(app).post("/api/meetings/123/start-transcription");
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("INVALID_STATUS");
+    });
+  });
+
+  describe("POST /:id/retry", () => {
+    it("should retry failed meeting", async () => {
+      const mockMeeting = { meetingId: "123", status: "failed", createdAt: "2026-01-01T00:00:00Z", s3Key: "inbox/file.mp3" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+      mockStore.retryMeeting.mockResolvedValueOnce({});
+      mockSQS.sendMessage.mockResolvedValueOnce({});
+
+      const res = await request(app).post("/api/meetings/123/retry");
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it("should return 404 when meeting not found", async () => {
+      mockStore.queryMeetingById.mockResolvedValueOnce(null);
+
+      const res = await request(app).post("/api/meetings/nonexistent/retry");
+
+      expect(res.status).toBe(404);
+    });
+
+    it("should return 400 for non-failed meeting", async () => {
+      const mockMeeting = { meetingId: "123", status: "completed", createdAt: "2026-01-01T00:00:00Z" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+
+      const res = await request(app).post("/api/meetings/123/retry");
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("INVALID_STATUS");
+    });
+
+    it("should handle conditional check failure", async () => {
+      const mockMeeting = { meetingId: "123", status: "failed", createdAt: "2026-01-01T00:00:00Z" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+      const condErr = new Error("Condition failed");
+      condErr.name = "ConditionalCheckFailedException";
+      mockStore.retryMeeting.mockRejectedValueOnce(condErr);
+
+      const res = await request(app).post("/api/meetings/123/retry");
+
+      expect(res.status).toBe(409);
+    });
+
+    it("should rollback on SQS failure", async () => {
+      const mockMeeting = { meetingId: "123", status: "failed", createdAt: "2026-01-01T00:00:00Z", s3Key: "inbox/file.mp3" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+      mockStore.retryMeeting.mockResolvedValueOnce({});
+      mockStore.rollbackRetry.mockResolvedValueOnce({});
+      mockSQS.sendMessage.mockRejectedValueOnce(new Error("SQS error"));
+
+      const res = await request(app).post("/api/meetings/123/retry");
+
+      expect(res.status).toBe(500);
+      expect(mockStore.rollbackRetry).toHaveBeenCalled();
     });
   });
 });

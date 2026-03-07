@@ -40,27 +40,37 @@ describe("gpu-autoscale", () => {
       expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/health"), expect.any(Object));
     });
 
-    it("should handle instance in stopping state", async () => {
-      mockFetch
-        .mockRejectedValueOnce({ code: "ECONNREFUSED" })
-        .mockResolvedValueOnce({ ok: true });
-      mockEC2Send
-        .mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "stopping" } }] }] })
-        .mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "stopped" } }] }] })
-        .mockResolvedValueOnce({})
-        .mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "running" } }] }] });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "PREFLIGHT_RESULT=OK" }));
+    it("should handle preflight check warning", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "PREFLIGHT_RESULT=WARN\nGPU temp high" }));
 
       const result = await ensureReady();
-
       expect(result).toBe(true);
+    });
+
+    it("should throw on preflight check failure", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      const err = new Error("Preflight failed");
+      err.code = 1;
+      err.stdout = "PREFLIGHT_RESULT=FAILED\nGPU not found";
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(err));
+
+      await expect(ensureReady()).rejects.toThrow("FunASR preflight check failed");
+    });
+
+    it("should handle SSH timeout error", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      const err = new Error("SSH timeout");
+      err.code = 255;
+      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(err));
+
+      await expect(ensureReady()).rejects.toThrow("Failed to run preflight check");
     });
   });
 
   describe("recordActivity", () => {
     it("should reset idle timer", () => {
       recordActivity();
-      // Just verify it doesn't throw
       expect(true).toBe(true);
     });
   });

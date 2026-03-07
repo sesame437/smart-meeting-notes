@@ -11,10 +11,12 @@ jest.mock("@aws-sdk/client-s3", () => {
     S3Client: jest.fn().mockImplementation(() => ({ send: mockSend })),
     PutObjectCommand: jest.fn((params) => ({ ...params, _cmd: "PutObjectCommand" })),
     GetObjectCommand: jest.fn((params) => ({ ...params, _cmd: "GetObjectCommand" })),
+    DeleteObjectCommand: jest.fn((params) => ({ ...params, _cmd: "DeleteObjectCommand" })),
   }
 })
 
-const { uploadFile, getFile } = require("../services/s3")
+const { uploadFile, getFile, deleteObject, uploadStream } = require("../services/s3")
+const { Readable } = require("stream")
 
 describe("s3-service", () => {
   beforeEach(() => {
@@ -99,6 +101,65 @@ describe("s3-service", () => {
       error.name = "NoSuchKey"
       mockSend.mockRejectedValueOnce(error)
       await expect(getFile("nonexistent.json")).rejects.toThrow("NoSuchKey")
+    })
+  })
+
+  describe("deleteObject", () => {
+    it("should delete object from S3", async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await deleteObject("inbox/test.mp3")
+
+      expect(mockSend).toHaveBeenCalledTimes(1)
+      const callArg = mockSend.mock.calls[0][0]
+      expect(callArg.Bucket).toBe("test-bucket")
+      expect(callArg.Key).toBe("meeting-minutes/inbox/test.mp3")
+    })
+
+    it("should handle key with prefix", async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await deleteObject("meeting-minutes/inbox/test.mp3")
+
+      const callArg = mockSend.mock.calls[0][0]
+      expect(callArg.Key).toBe("meeting-minutes/inbox/test.mp3")
+    })
+
+    it("should skip deletion when key is empty", async () => {
+      await deleteObject("")
+      expect(mockSend).not.toHaveBeenCalled()
+    })
+
+    it("should skip deletion when key is null", async () => {
+      await deleteObject(null)
+      expect(mockSend).not.toHaveBeenCalled()
+    })
+
+    it("should propagate S3 errors", async () => {
+      mockSend.mockRejectedValueOnce(new Error("S3 delete failed"))
+      await expect(deleteObject("inbox/test.mp3")).rejects.toThrow("S3 delete failed")
+    })
+  })
+
+  describe("uploadStream", () => {
+    it("should upload stream to S3", async () => {
+      mockSend.mockResolvedValueOnce({})
+      const stream = Readable.from(["test data"])
+
+      const result = await uploadStream("inbox/stream.mp3", stream, "audio/mpeg")
+
+      expect(result).toBe("inbox/stream.mp3")
+      const callArg = mockSend.mock.calls[0][0]
+      expect(callArg.Bucket).toBe("test-bucket")
+      expect(callArg.Key).toBe("meeting-minutes/inbox/stream.mp3")
+      expect(callArg.ContentType).toBe("audio/mpeg")
+    })
+
+    it("should propagate S3 errors", async () => {
+      mockSend.mockRejectedValueOnce(new Error("S3 stream upload failed"))
+      const stream = Readable.from(["test data"])
+      await expect(uploadStream("inbox/stream.mp3", stream, "audio/mpeg"))
+        .rejects.toThrow("S3 stream upload failed")
     })
   })
 })
