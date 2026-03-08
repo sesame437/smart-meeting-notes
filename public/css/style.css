@@ -380,7 +380,8 @@ tr:hover .row-actions,
 li:hover .row-actions,
 .card ul li:hover .row-actions,
 .meeting-card:hover .row-actions,
-.meeting-card-item:hover .row-actions { opacity: 1; }
+.meeting-card-item:hover .row-actions,
+.participant-row:hover .row-actions { opacity: 1; }
 .row-actions .btn {
   background: transparent;
   border: none;
