@@ -2513,6 +2513,15 @@ function initParticipantNameSearch() {
     var input = e.target && e.target.closest ? e.target.closest(".participant-search-input") : null;
     if (!input) return;
 
+    // 如果刚刚通过下拉选了名字，忽略这次 input 事件
+    if (input.dataset.selectedName) {
+      input.value = input.dataset.selectedName;
+      delete input.dataset.selectedName;
+      var sugBox2 = input.parentElement.querySelector(".name-suggestions");
+      if (sugBox2) { sugBox2.style.display = "none"; sugBox2.innerHTML = ""; }
+      return;
+    }
+
     var val = input.value.trim().toLowerCase();
     var sugBox = input.parentElement.querySelector(".name-suggestions");
     if (!sugBox) return;
@@ -2548,7 +2557,12 @@ document.addEventListener("click", function(e) {
     var wrap = e.target.closest(".participant-search-wrap");
     if (wrap) {
       var inp = wrap.querySelector(".participant-search-input");
-      if (inp) inp.value = name;
+      if (inp) {
+        inp.value = name;
+        // 防止 input 事件把值清空，先暂时移除 input 监听
+        inp.dataset.selectedName = name;
+        inp.dispatchEvent(new Event("change", { bubbles: true }));
+      }
     }
     var sugBox = e.target.closest(".name-suggestions");
     if (sugBox) { sugBox.style.display = "none"; sugBox.innerHTML = ""; }
