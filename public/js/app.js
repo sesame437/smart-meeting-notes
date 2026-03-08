@@ -1255,10 +1255,9 @@ function renderMeetingDetail(m) {
         label = label.trim().replace(/[，,。.、]+$/, "").trim();
         if (!label) label = rawLabel; // fallback to original if fully stripped
 
-        // existing real name if already saved (keyed by label or by index)
-        const savedName = speakerMap[rawLabel] || speakerMap[label] || speakerMap[String(idx)] || "";
-
+        // existing real name if already saved (keyed by SPEAKER_idx first, then by label)
         const speakerKey = `SPEAKER_${idx}`;
+        const savedName = speakerMap[speakerKey] || speakerMap[rawLabel] || speakerMap[label] || speakerMap[String(idx)] || "";
         const speakerKeypoints = report.speakerKeypoints || {};
         const hints = speakerKeypoints[speakerKey] || [];
         const hintText = hints.length > 0 ? hints[0].slice(0, 60) + (hints[0].length > 60 ? "…" : "") : "";
@@ -1269,6 +1268,7 @@ function renderMeetingDetail(m) {
             <input type="text"
               class="form-control participant-name-input participant-search-input"
               data-participant-label="${escapeAttr(rawLabel)}"
+              data-speaker-key="${escapeAttr(speakerKey)}"
               value="${escapeAttr(savedName)}"
               placeholder="输入真实姓名（可从词汇表选择）" />
             <div class="name-suggestions" style="display:none;"></div>
@@ -1422,10 +1422,11 @@ async function applySpokenNames(meetingId) {
 async function saveSpeakerMap(meetingId) {
   const speakerMap = {};
 
-  // From participant name inputs (label → real name)
+  // From participant name inputs (SPEAKER_idx → real name)
   document.querySelectorAll('.participant-name-input').forEach(input => {
     const val = input.value.trim();
-    speakerMap[input.dataset.participantLabel] = val;
+    const key = input.dataset.speakerKey || input.dataset.participantLabel;
+    speakerMap[key] = val;
   });
 
   // Fallback: plain speaker inputs
