@@ -715,6 +715,7 @@ function renderListItem(item) {
 
 function renderMeetingDetail(m) {
   const content = document.getElementById("meeting-content");
+  const esc = escapeHtml;
   const report  = m.content || {};
   const title   = escapeHtml(m.title || m.meetingId);
   const time    = m.createdAt ? new Date(m.createdAt).toLocaleString("zh-CN") : "-";
@@ -971,7 +972,6 @@ function renderMeetingDetail(m) {
   }
 
   // ---- Weekly 专属字段 ----
-  const esc = escapeHtml;
 
   // teamKPI（weekly 专属）
   if (report.teamKPI) {
