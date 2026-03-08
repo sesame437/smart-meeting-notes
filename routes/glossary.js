@@ -15,7 +15,7 @@ const glossarySchema = z.object({
 
 const glossaryUpdateSchema = z.object({
   term: z.string().min(1).max(100),
-  definition: z.string().min(1).max(500).optional(),
+  definition: z.string().max(500).optional(),
   category: z.string().max(50).optional(),
   aliases: z.union([z.array(z.string()), z.string()]).optional(),
 });
