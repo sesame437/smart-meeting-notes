@@ -1413,8 +1413,13 @@ async function applySpokenNames(meetingId) {
   }
 
   try {
-    await API.post(`/api/meetings/${meetingId}/apply-speaker-names`, {});
-    Toast.success("已应用人名到报告");
+    const result = await API.post(`/api/meetings/${meetingId}/apply-speaker-names`, {});
+    let msg = "已应用人名到报告";
+    if (result.aliasReplacements && result.aliasReplacements.length > 0) {
+      const detail = result.aliasReplacements.map(r => `${r.from} → ${r.to}`).join("、");
+      msg += `\n名字纠错：${detail}`;
+    }
+    Toast.success(msg);
     fetchMeeting(meetingId);
   } catch (_) {}
 }

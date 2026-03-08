@@ -5,6 +5,7 @@ const { invokeModel } = require("../../services/bedrock");
 const { extractJsonFromLLMResponse } = require("../../services/report-builder");
 const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
+const glossaryStore = require("../../services/glossary-store");
 const {
   HAIKU_MODEL_ID,
   getMeetingById,
@@ -205,6 +206,40 @@ function register(router) {
       sortedEntries.forEach(([spk, name]) => {
         reportStr = reportStr.replaceAll(spk, name);
       });
+
+      // Apply glossary alias corrections
+      let appliedAliases = [];
+      try {
+        const glossaryItems = await glossaryStore.listGlossary();
+
+        // Build alias→term map (only process items with aliases)
+        const aliasMap = {};
+        glossaryItems.forEach(item => {
+          if (!item.aliases) return;
+          const aliases = typeof item.aliases === "string"
+            ? item.aliases.split(/[,，]/).map(s => s.trim()).filter(Boolean)
+            : item.aliases;
+          aliases.forEach(alias => {
+            if (alias && alias !== item.term) {
+              aliasMap[alias] = item.term;
+            }
+          });
+        });
+
+        // Apply alias replacements (sort by length desc to avoid partial replacements)
+        const sortedAliases = Object.keys(aliasMap).sort((a, b) => b.length - a.length);
+        sortedAliases.forEach(alias => {
+          // Check if alias exists in JSON string (need to handle JSON escaping)
+          const jsonEscapedAlias = JSON.stringify(alias).slice(1, -1);
+          if (reportStr.includes(jsonEscapedAlias)) {
+            reportStr = reportStr.replaceAll(alias, aliasMap[alias]);
+            appliedAliases.push({ from: alias, to: aliasMap[alias] });
+          }
+        });
+      } catch (err) {
+        logger.warn("meetings-route", "apply-speaker-names-glossary-failed", { error: err.message });
+      }
+
       const updatedReport = JSON.parse(reportStr);
 
       // Merge speakerKeypoints for duplicate names
@@ -241,7 +276,11 @@ function register(router) {
       // Write back to S3
       await uploadFile(reportKey, JSON.stringify(updatedReport, null, 2), "application/json");
 
-      res.json({ ok: true, appliedNames: Object.keys(nameMap).length });
+      res.json({
+        ok: true,
+        appliedNames: Object.keys(nameMap).length,
+        aliasReplacements: appliedAliases
+      });
     } catch (err) {
       next(err);
     }
