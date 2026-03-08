@@ -228,12 +228,31 @@ function register(router) {
 
         // Apply alias replacements (sort by length desc to avoid partial replacements)
         const sortedAliases = Object.keys(aliasMap).sort((a, b) => b.length - a.length);
+        const alreadyReplaced = new Set();
         sortedAliases.forEach(alias => {
-          // Check if alias exists in JSON string (need to handle JSON escaping)
+          const term = aliasMap[alias];
+          if (alias === term) return;
+          if (alreadyReplaced.has(alias)) return;
           const jsonEscapedAlias = JSON.stringify(alias).slice(1, -1);
-          if (reportStr.includes(jsonEscapedAlias)) {
-            reportStr = reportStr.replaceAll(alias, aliasMap[alias]);
-            appliedAliases.push({ from: alias, to: aliasMap[alias] });
+          if (!reportStr.includes(jsonEscapedAlias)) return;
+
+          if (term.includes(alias)) {
+            // alias is a substring of term (e.g. "佩佳" in "王佩佳")
+            // Only replace when alias is NOT already preceded by the term's prefix
+            const prefix = term.slice(0, term.indexOf(alias));
+            const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const safeRegex = new RegExp(`(?<!${escapedPrefix})${escapedAlias}`, 'g');
+            const before = reportStr;
+            reportStr = reportStr.replace(safeRegex, term);
+            if (reportStr !== before) {
+              appliedAliases.push({ from: alias, to: term });
+              Object.entries(aliasMap).forEach(([a, t]) => { if (t === term) alreadyReplaced.add(a); });
+            }
+          } else {
+            reportStr = reportStr.replaceAll(alias, term);
+            appliedAliases.push({ from: alias, to: term });
+            Object.entries(aliasMap).forEach(([a, t]) => { if (t === term) alreadyReplaced.add(a); });
           }
         });
       } catch (err) {
