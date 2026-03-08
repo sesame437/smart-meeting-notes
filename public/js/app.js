@@ -1386,16 +1386,17 @@ async function saveSpeakerMap(meetingId) {
   // From participant name inputs (label → real name)
   document.querySelectorAll('.participant-name-input').forEach(input => {
     const val = input.value.trim();
-    if (val) speakerMap[input.dataset.participantLabel] = val;
+    speakerMap[input.dataset.participantLabel] = val;
   });
 
   // Fallback: plain speaker inputs
   document.querySelectorAll('.speaker-name-input').forEach(input => {
     const val = input.value.trim();
-    if (val) speakerMap[input.dataset.speaker] = val;
+    speakerMap[input.dataset.speaker] = val;
   });
 
-  if (Object.keys(speakerMap).length === 0) {
+  const filledCount = Object.values(speakerMap).filter(v => v).length;
+  if (filledCount === 0) {
     Toast.error("请先填写至少一个真实姓名");
     return;
   }

@@ -18,7 +18,7 @@ const mergeSchema = z.object({
 });
 
 const speakerNamesSchema = z.object({
-  speakerMap: z.record(z.string().min(1), z.string().max(100)),
+  speakerMap: z.record(z.string().min(1), z.string()),
 });
 
 function register(router) {
