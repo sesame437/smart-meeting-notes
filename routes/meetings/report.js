@@ -166,6 +166,88 @@ function register(router) {
   });
 
   // Regenerate report using stored speakerMap
+  router.post("/:id/apply-speaker-names", async (req, res, next) => {
+    try {
+      const item = await getMeetingById(req.params.id);
+      if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
+
+      const speakerMap = item.speakerMap || {};
+      if (Object.keys(speakerMap).length === 0) {
+        return res.status(400).json({ error: { code: "NO_SPEAKER_MAP", message: "No speaker map saved" } });
+      }
+
+      // Load current report from S3
+      const reportKey = item.reportKey;
+      if (!reportKey) return res.status(400).json({ error: { code: "NO_REPORT", message: "No report found" } });
+
+      const stream = await getFile(reportKey);
+      const chunks = [];
+      for await (const chunk of stream) chunks.push(chunk);
+      const report = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+
+      // Build name replacement map (only entries with real names)
+      const nameMap = {};
+      Object.entries(speakerMap).forEach(([speakerKey, name]) => {
+        if (name && name.trim()) nameMap[speakerKey] = name.trim();
+      });
+
+      // Detect duplicate names (one person = multiple speakers → merge)
+      const nameToSpeakers = {};
+      Object.entries(nameMap).forEach(([spk, name]) => {
+        if (!nameToSpeakers[name]) nameToSpeakers[name] = [];
+        nameToSpeakers[name].push(spk);
+      });
+
+      // Apply: replace SPEAKER_X with real names throughout report JSON
+      let reportStr = JSON.stringify(report);
+      // Sort by key length desc to avoid partial replacements (SPEAKER_10 before SPEAKER_1)
+      const sortedEntries = Object.entries(nameMap).sort((a, b) => b[0].length - a[0].length);
+      sortedEntries.forEach(([spk, name]) => {
+        reportStr = reportStr.replaceAll(spk, name);
+      });
+      const updatedReport = JSON.parse(reportStr);
+
+      // Merge speakerKeypoints for duplicate names
+      if (updatedReport.speakerKeypoints) {
+        const merged = {};
+        Object.entries(updatedReport.speakerKeypoints).forEach(([key, points]) => {
+          if (!merged[key]) merged[key] = [];
+          merged[key] = merged[key].concat(points);
+        });
+        updatedReport.speakerKeypoints = merged;
+      }
+
+      // Deduplicate participants
+      if (Array.isArray(updatedReport.participants)) {
+        const seen = new Set();
+        updatedReport.participants = updatedReport.participants.filter(p => {
+          const key = typeof p === "string" ? p : JSON.stringify(p);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
+
+      // Deduplicate awsAttendees
+      if (Array.isArray(updatedReport.awsAttendees)) {
+        updatedReport.awsAttendees = [...new Set(updatedReport.awsAttendees)];
+      }
+
+      // Deduplicate customerInfo.attendees
+      if (updatedReport.customerInfo && Array.isArray(updatedReport.customerInfo.attendees)) {
+        updatedReport.customerInfo.attendees = [...new Set(updatedReport.customerInfo.attendees)];
+      }
+
+      // Write back to S3
+      await uploadFile(reportKey, JSON.stringify(updatedReport, null, 2), "application/json");
+
+      res.json({ ok: true, appliedNames: Object.keys(nameMap).length });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Regenerate report using stored speakerMap
   router.post("/:id/regenerate", async (req, res, next) => {
     try {
       const item = await getMeetingById(req.params.id);

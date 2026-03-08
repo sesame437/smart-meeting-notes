@@ -1258,6 +1258,11 @@ function renderMeetingDetail(m) {
         // existing real name if already saved (keyed by label or by index)
         const savedName = speakerMap[rawLabel] || speakerMap[label] || speakerMap[String(idx)] || "";
 
+        const speakerKey = `SPEAKER_${idx}`;
+        const speakerKeypoints = report.speakerKeypoints || {};
+        const hints = speakerKeypoints[speakerKey] || [];
+        const hintText = hints.length > 0 ? hints[0].slice(0, 60) + (hints[0].length > 60 ? "…" : "") : "";
+
         html += `<div class="participant-row">
           <div class="participant-label">${escapeHtml(label)}</div>
           <div class="participant-search-wrap">
@@ -1267,6 +1272,7 @@ function renderMeetingDetail(m) {
               value="${escapeAttr(savedName)}"
               placeholder="输入真实姓名（可从词汇表选择）" />
             <div class="name-suggestions" style="display:none;"></div>
+            ${hintText ? `<div class="speaker-hint">${escapeHtml(speakerKey)} · ${escapeHtml(hintText)}</div>` : ""}
           </div>
           <div class="row-actions">
             <button class="btn btn-outline btn-sm" data-action="edit-participant" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
@@ -1276,7 +1282,10 @@ function renderMeetingDetail(m) {
       });
 
       html += `</div>
-        <div style="text-align:right;margin-top:12px;">
+        <div style="text-align:right;margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-outline btn-sm" data-action="apply-speaker-names" data-id="${escapeAttr(m.meetingId)}">
+            <i class="fa fa-magic"></i> 应用到报告
+          </button>
           <button class="btn action-primary-btn btn-sm" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">
             <i class="fa fa-save"></i> 保存名字
           </button>
@@ -1378,6 +1387,36 @@ async function retryMeetingDetail(id) {
     startPolling();
     // Detail polling will be automatically set by fetchMeeting with dynamic interval
   } catch (_) { /* error already shown by API */ }
+}
+
+async function applySpokenNames(meetingId) {
+  // 先保存名字
+  await saveSpeakerMap(meetingId);
+
+  // 检测是否有重复名字（同一个真名对应多个 SPEAKER）
+  const inputs = document.querySelectorAll('.participant-name-input');
+  const nameToSpeakers = {};
+  inputs.forEach(input => {
+    const val = input.value.trim();
+    if (val) {
+      if (!nameToSpeakers[val]) nameToSpeakers[val] = [];
+      nameToSpeakers[val].push(input.dataset.participantLabel);
+    }
+  });
+  const duplicates = Object.entries(nameToSpeakers).filter(([, speakers]) => speakers.length > 1);
+
+  if (duplicates.length > 0) {
+    const msg = duplicates.map(([name, speakers]) =>
+      `「${name}」对应 ${speakers.length} 个 speaker（${speakers.join("、")}），将合并相关内容`
+    ).join("\n");
+    if (!confirm(`发现以下重复人名，应用后将自动合并：\n\n${msg}\n\n确认继续？`)) return;
+  }
+
+  try {
+    await API.post(`/api/meetings/${meetingId}/apply-speaker-names`, {});
+    Toast.success("已应用人名到报告");
+    fetchMeeting(meetingId);
+  } catch (_) {}
 }
 
 async function saveSpeakerMap(meetingId) {
@@ -2534,6 +2573,7 @@ document.addEventListener("click", function(e) {
     case "save-detail-edit":   saveDetailEdit(id); break;
     case "cancel-detail-edit": cancelDetailEdit(); break;
     case "save-speaker-map":   saveSpeakerMap(id); break;
+    case "apply-speaker-names": applySpokenNames(id); break;
     case "regenerate-report":  regenerateReport(id); break;
     case "send-email":         sendEmail(id); break;
     case "edit-term":          editTerm(id); break;
