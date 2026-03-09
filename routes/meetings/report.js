@@ -8,6 +8,13 @@ const store = require("../../services/meeting-store");
 const glossaryStore = require("../../services/glossary-store");
 const { normalizeAnonymousSpeakerReport } = require("../../services/report-speaker-normalizer");
 const {
+  collectSpeakerAliasMap,
+  buildSpeakerRoster,
+  replaceNameAlias,
+  normalizeDuplicateNames,
+  applyGlossaryAliases,
+} = require("../../services/speaker-roster");
+const {
   HAIKU_MODEL_ID,
   getMeetingById,
   validateSpeakerMap,
@@ -24,322 +31,10 @@ const speakerNamesSchema = z.object({
   speakerAliases: z.record(z.string().min(1), z.array(z.string())).optional(),
 });
 
-function collectSpeakerAliasMap(participants, nameMap, savedSpeakerAliases = {}, existingRoster = []) {
-  const aliasMap = {};
-  const isIgnorableAliasFragment = (value) => {
-    if (!value) return true;
-    if (/^SPEAKER_\d+$/.test(value)) return true;
-    if (/(方向|负责人|团队|开发者|角色|项目|平台|workshop|demo|SA|BD|IT|POC)/i.test(value)) return true;
-    if (/^[A-Z]{1,4}$/i.test(value)) return true;
-    return false;
-  };
-  const resolveRosterSpeakerKey = (entry, index) => {
-    const rawKey = entry && typeof entry.speakerKey === "string" ? entry.speakerKey.trim() : "";
-    if (/^SPEAKER_\d+$/.test(rawKey)) return rawKey;
-
-    const values = [
-      entry && entry.displayLabel,
-      entry && entry.possibleName,
-      ...(entry && Array.isArray(entry.aliases) ? entry.aliases : []),
-    ]
-      .filter(Boolean)
-      .map((value) => String(value));
-
-    const matchedByRealName = Object.entries(nameMap).filter(([, realName]) => values.some((value) => value.includes(realName)));
-    if (matchedByRealName.length === 1) return matchedByRealName[0][0];
-
-    const explicitSpeakerKey = values
-      .map((value) => value.match(/SPEAKER_\d+/))
-      .find(Boolean);
-    if (explicitSpeakerKey) return explicitSpeakerKey[0];
-
-    const displayMatch = values
-      .map((value) => value.match(/参会人\s*(\d+)/))
-      .find(Boolean);
-    if (displayMatch) return `SPEAKER_${Math.max(Number(displayMatch[1]) - 1, 0)}`;
-
-    return `SPEAKER_${index}`;
-  };
-  const addAliasVariants = (targetMap, realName, values = []) => {
-    const aliases = new Set();
-
-    values
-      .filter(Boolean)
-      .map((value) => String(value).trim())
-      .filter(Boolean)
-      .forEach((value) => {
-        aliases.add(value);
-
-        const withoutSpeakerKey = value.replace(/SPEAKER_\d+/g, "").replace(/\s+/g, " ").trim();
-        if (withoutSpeakerKey) aliases.add(withoutSpeakerKey);
-
-        const withoutParen = value.replace(/[（(][^）)]*[）)]/g, "").trim();
-        if (withoutParen) aliases.add(withoutParen);
-
-        [...value.matchAll(/[（(]([^）)]+)[）)]/g)].forEach((match) => {
-          const inner = match[1] || "";
-          inner
-            .split(/[\/、,，]/)
-            .map((part) => part.trim())
-            .filter(Boolean)
-            .forEach((part) => {
-              if (isIgnorableAliasFragment(part)) return;
-              aliases.add(part);
-            });
-        });
-
-        withoutSpeakerKey
-          .split(/[\/、,，]/)
-          .map((part) => part.trim())
-          .filter(Boolean)
-          .forEach((part) => {
-            if (isIgnorableAliasFragment(part)) return;
-            aliases.add(part);
-          });
-      });
-
-    aliases.forEach((alias) => {
-      if (!alias || alias === realName) return;
-      targetMap[alias] = realName;
-    });
-  };
-
-  Object.entries(savedSpeakerAliases || {}).forEach(([speakerKey, aliases]) => {
-    const realName = nameMap[speakerKey];
-    if (!realName || !Array.isArray(aliases)) return;
-    addAliasVariants(aliasMap, realName, aliases);
-  });
-
-  (participants || []).forEach((participant, index) => {
-    const raw = typeof participant === "string"
-      ? participant
-      : (participant && participant.name) || JSON.stringify(participant);
-    const matchedSpeakerKeys = raw.match(/SPEAKER_\d+/g) || [];
-    const fallbackSpeakerKey = `SPEAKER_${index}`;
-    const speakerKeys = matchedSpeakerKeys.length > 0
-      ? matchedSpeakerKeys
-      : (nameMap[fallbackSpeakerKey] ? [fallbackSpeakerKey] : []);
-
-    speakerKeys.forEach((speakerKey) => {
-      const realName = nameMap[speakerKey];
-      if (!realName) return;
-
-      const aliases = new Set([raw]);
-      const withoutSpeakerKey = raw
-        .replace(/[（(]\s*SPEAKER_\d+\s*[）)]/g, "")
-        .trim();
-      if (withoutSpeakerKey) aliases.add(withoutSpeakerKey);
-      const withoutParen = withoutSpeakerKey.replace(/[（(][^）)]*[）)]/g, "").trim();
-      if (withoutParen) aliases.add(withoutParen);
-
-      withoutSpeakerKey
-        .split(/[\/、,，]/)
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .forEach((alias) => aliases.add(alias));
-
-      withoutParen
-        .split(/[\/、,，]/)
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .forEach((alias) => aliases.add(alias));
-
-      addAliasVariants(aliasMap, realName, Array.from(aliases));
-    });
-  });
-
-  (existingRoster || []).forEach((entry, index) => {
-    if (!entry) return;
-    const speakerKey = resolveRosterSpeakerKey(entry, index);
-    const realName = nameMap[speakerKey];
-    if (!realName) return;
-
-    addAliasVariants(aliasMap, realName, [
-      entry.displayLabel,
-      entry.possibleName,
-      entry.resolvedName,
-      `参会人 ${index + 1}`,
-      ...(Array.isArray(entry.aliases) ? entry.aliases : []),
-    ]);
-  });
-
-  return aliasMap;
-}
-
-function normalizeDuplicateNames(value, names) {
-  if (typeof value === "string") {
-    let next = value;
-    names.forEach((name) => {
-      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      next = next.replace(new RegExp(`${name}[（(][^）)]*[）)]`, "g"), name);
-      next = next.replace(new RegExp(`(?:主持人|成员[A-Z]|参会人\\s*\\d+)[（(]${escapedName}[）)]`, "g"), name);
-      next = next.replace(new RegExp(`(?:主持人|成员[A-Z]|参会人\\s*\\d+)[（(]${escapedName}[^）)]*[）)]`, "g"), name);
-      next = next.split(`${name}（${name}）`).join(name);
-      next = next.split(`${name}(${name})`).join(name);
-      next = next.split(`${name}/${name}`).join(name);
-      next = next.split(`${name} / ${name}`).join(name);
-      next = next.split(`${name}（${name}/`).join(`${name}（`);
-      next = next.split(`${name}(${name}/`).join(`${name}(`);
-      next = next.split(`${name.charAt(0)}${name}`).join(name);
-    });
-    return next;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeDuplicateNames(item, names));
-  }
-
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, normalizeDuplicateNames(item, names)])
-    );
-  }
-
-  return value;
-}
-
-function replaceNameAlias(reportStr, alias, realName) {
-  if (!alias || !realName || alias === realName) return reportStr;
-
-  const aliasIndex = realName.indexOf(alias);
-  if (aliasIndex === -1) {
-    return reportStr.replaceAll(alias, realName);
-  }
-
-  const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const prefix = realName.slice(0, aliasIndex);
-  const suffix = realName.slice(aliasIndex + alias.length);
-  let pattern = "";
-
-  if (prefix) pattern += `(?<!${escapeRegex(prefix)})`;
-  pattern += escapeRegex(alias);
-  if (suffix) pattern += `(?!${escapeRegex(suffix)})`;
-
-  return reportStr.replace(new RegExp(pattern, "g"), realName);
-}
-
-function buildSpeakerRoster(report, nameMap, savedSpeakerAliases = {}, existingRoster = []) {
-  const stableKeypoints = report.speakerKeypoints || {};
-  const rosterMap = new Map();
-  const isIgnorableAliasFragment = (value) => {
-    if (!value) return true;
-    if (/^SPEAKER_\d+$/.test(value)) return true;
-    if (/(方向|负责人|团队|开发者|角色|项目|平台|workshop|demo|SA|BD|IT|POC)/i.test(value)) return true;
-    if (/^[A-Z]{1,4}$/i.test(value)) return true;
-    return false;
-  };
-  const resolveRosterSpeakerKey = (entry, index) => {
-    const rawKey = entry && typeof entry.speakerKey === "string" ? entry.speakerKey.trim() : "";
-    if (/^SPEAKER_\d+$/.test(rawKey)) return rawKey;
-
-    const values = [
-      entry && entry.displayLabel,
-      entry && entry.possibleName,
-      ...(entry && Array.isArray(entry.aliases) ? entry.aliases : []),
-    ]
-      .filter(Boolean)
-      .map((value) => String(value));
-
-    const matchedByRealName = Object.entries(nameMap).filter(([, realName]) => values.some((value) => value.includes(realName)));
-    if (matchedByRealName.length === 1) return matchedByRealName[0][0];
-
-    const explicitSpeakerKey = values
-      .map((value) => value.match(/SPEAKER_\d+/))
-      .find(Boolean);
-    if (explicitSpeakerKey) return explicitSpeakerKey[0];
-
-    const displayMatch = values
-      .map((value) => value.match(/参会人\s*(\d+)/))
-      .find(Boolean);
-    if (displayMatch) return `SPEAKER_${Math.max(Number(displayMatch[1]) - 1, 0)}`;
-
-    return `SPEAKER_${index}`;
-  };
-
-  (existingRoster || []).forEach((entry, index) => {
-    if (!entry) return;
-    const speakerKey = resolveRosterSpeakerKey(entry, index);
-    rosterMap.set(speakerKey, {
-      speakerKey,
-      displayLabel: entry.displayLabel || `参会人 ${Number(speakerKey.split("_")[1] || 0) + 1}`,
-      resolvedName: entry.resolvedName || nameMap[speakerKey] || "",
-      possibleName: entry.possibleName || "",
-      aliases: Array.isArray(entry.aliases) ? entry.aliases.filter(Boolean) : [],
-      keypoints: Array.isArray(entry.keypoints) ? entry.keypoints.filter(Boolean) : [],
-    });
-  });
-
-  Object.keys(stableKeypoints).forEach((speakerKey) => {
-    if (!/^SPEAKER_\d+$/.test(speakerKey)) return;
-    if (!rosterMap.has(speakerKey)) {
-      rosterMap.set(speakerKey, {
-        speakerKey,
-        displayLabel: `参会人 ${Number(speakerKey.split("_")[1] || 0) + 1}`,
-        resolvedName: nameMap[speakerKey] || "",
-        possibleName: "",
-        aliases: [],
-        keypoints: Array.isArray(stableKeypoints[speakerKey]) ? stableKeypoints[speakerKey] : [],
-      });
-      return;
-    }
-    const current = rosterMap.get(speakerKey);
-    current.keypoints = Array.isArray(stableKeypoints[speakerKey]) ? stableKeypoints[speakerKey] : current.keypoints;
-    current.resolvedName = nameMap[speakerKey] || current.resolvedName;
-  });
-
-  Object.entries(savedSpeakerAliases || {}).forEach(([speakerKey, aliases]) => {
-    if (!/^SPEAKER_\d+$/.test(speakerKey)) return;
-    if (!rosterMap.has(speakerKey)) {
-      rosterMap.set(speakerKey, {
-        speakerKey,
-        displayLabel: `参会人 ${Number(speakerKey.split("_")[1] || 0) + 1}`,
-        resolvedName: nameMap[speakerKey] || "",
-        possibleName: "",
-        aliases: [],
-        keypoints: [],
-      });
-    }
-    const current = rosterMap.get(speakerKey);
-    const aliasList = Array.isArray(aliases) ? aliases.filter(Boolean) : [];
-    current.aliases = Array.from(new Set([...(current.aliases || []), ...aliasList]));
-    if (!current.possibleName && current.aliases.length > 0) {
-      current.possibleName = current.aliases[0];
-    }
-    current.resolvedName = nameMap[speakerKey] || current.resolvedName;
-  });
-
-  return Array.from(rosterMap.values())
-    .sort((a, b) => Number(a.speakerKey.split("_")[1] || 0) - Number(b.speakerKey.split("_")[1] || 0))
-    .map((entry) => {
-      const aliases = Array.from(new Set((entry.aliases || []).filter(Boolean)));
-      const resolvedName = entry.resolvedName || "";
-      const candidateKeys = [
-        entry.speakerKey,
-        resolvedName,
-        entry.possibleName || "",
-        ...aliases.filter((alias) => !isIgnorableAliasFragment(alias)),
-      ].filter(Boolean);
-      const keypoints = candidateKeys.reduce((found, key) => {
-        if (found.length > 0) return found;
-        return Array.isArray(stableKeypoints[key]) ? stableKeypoints[key].filter(Boolean) : [];
-      }, Array.isArray(entry.keypoints) ? entry.keypoints.filter(Boolean) : []);
-
-      return {
-        speakerKey: entry.speakerKey,
-        displayLabel: `参会人 ${Number(entry.speakerKey.split("_")[1] || 0) + 1}`,
-        resolvedName,
-        possibleName: entry.possibleName || aliases[0] || "",
-        aliases,
-        keypoints,
-      };
-    });
-}
-
 function register(router) {
   // Merge multiple meetings into a combined report
   router.post("/merge", async (req, res, next) => {
     try {
-      // Validate request body with zod
       const parseResult = mergeSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
@@ -347,12 +42,10 @@ function register(router) {
 
       const { meetingIds, customPrompt } = parseResult.data;
 
-      // Additional validation: max 10 items
       if (meetingIds.length > 10) {
         return res.status(400).json({ error: { code: "MEETING_IDS_LIMIT_EXCEEDED", message: "meetingIds cannot exceed 10 items" } });
       }
 
-      // Fetch all meeting records
       const meetings = [];
       for (const id of meetingIds) {
         const item = await getMeetingById(id);
@@ -360,7 +53,6 @@ function register(router) {
         meetings.push(item);
       }
 
-      // Read report content from DynamoDB or S3 for each meeting
       const mergedParts = [];
       const skipped = [];
       const parentIds = [];
@@ -368,7 +60,6 @@ function register(router) {
       for (const m of meetings) {
         let content = m.content;
 
-        // If no content in DynamoDB but reportKey exists, load from S3
         if (!content && m.reportKey) {
           try {
             const stream = await getFile(m.reportKey);
@@ -399,34 +90,26 @@ function register(router) {
 
       const mergedText = mergedParts.join("\n\n");
 
-      // Fetch glossary terms
       let glossaryTerms = [];
       try {
-        const glossaryItems = await store.getGlossaryItems();
-        glossaryTerms = glossaryItems.map(i => i.termId).filter(Boolean);
+        const glossaryItems = await glossaryStore.listGlossary();
+        glossaryTerms = glossaryItems.map((i) => i.term).filter(Boolean);
       } catch (err) {
         logger.warn("meetings-route", "merge-fetch-glossary-failed", { error: err.message });
       }
 
-      // Call Bedrock
       const modelId = process.env.BEDROCK_MODEL_ID || undefined;
       const responseText = await invokeModel(mergedText, "merged", glossaryTerms, modelId, null, customPrompt || null);
 
-      // Parse report JSON
       let report = extractJsonFromLLMResponse(responseText);
-      if (!speakerMap || Object.keys(speakerMap).length === 0) {
-        report = normalizeAnonymousSpeakerReport(report);
-      }
+      report = normalizeAnonymousSpeakerReport(report);
 
-      // Create merged meeting record
       const meetingId = crypto.randomUUID();
       const now = new Date().toISOString();
 
-      // Upload report to S3
       const reportKey = `reports/${meetingId}/report.json`;
       await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
 
-      // Save to DynamoDB
       await store.saveReport({
         meetingId,
         meetingType: "merged",
@@ -440,7 +123,6 @@ function register(router) {
         createdAt: now,
       });
 
-      // Note: email is sent manually via POST /:id/send-email
       res.status(201).json({ meetingId, report, skipped });
     } catch (err) {
       next(err);
@@ -450,7 +132,6 @@ function register(router) {
   // Save speaker names only (no Bedrock regeneration)
   router.put("/:id/speaker-names", async (req, res, next) => {
     try {
-      // Validate request body with zod
       const parseResult = speakerNamesSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
@@ -483,7 +164,7 @@ function register(router) {
     }
   });
 
-  // Regenerate report using stored speakerMap
+  // Apply speaker names to existing report
   router.post("/:id/apply-speaker-names", async (req, res, next) => {
     try {
       const item = await getMeetingById(req.params.id);
@@ -494,7 +175,6 @@ function register(router) {
         return res.status(400).json({ error: { code: "NO_SPEAKER_MAP", message: "No speaker map saved" } });
       }
 
-      // Load current report from S3
       const reportKey = item.reportKey;
       if (!reportKey) return res.status(400).json({ error: { code: "NO_REPORT", message: "No report found" } });
 
@@ -503,7 +183,6 @@ function register(router) {
       for await (const chunk of stream) chunks.push(chunk);
       const report = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
 
-      // Build name replacement map (only entries with real names)
       const nameMap = {};
       Object.entries(speakerMap).forEach(([speakerKey, name]) => {
         if (name && name.trim()) nameMap[speakerKey] = name.trim();
@@ -516,16 +195,7 @@ function register(router) {
       );
       const speakerRoster = buildSpeakerRoster(report, nameMap, item.speakerAliases || {}, report.speakerRoster || []);
 
-      // Detect duplicate names (one person = multiple speakers → merge)
-      const nameToSpeakers = {};
-      Object.entries(nameMap).forEach(([spk, name]) => {
-        if (!nameToSpeakers[name]) nameToSpeakers[name] = [];
-        nameToSpeakers[name].push(spk);
-      });
-
-      // Apply: replace SPEAKER_X with real names throughout report JSON
       let reportStr = JSON.stringify(report);
-      // Sort by key length desc to avoid partial replacements (SPEAKER_10 before SPEAKER_1)
       const replacementEntries = {
         ...participantAliasMap,
         ...nameMap,
@@ -535,78 +205,31 @@ function register(router) {
         reportStr = replaceNameAlias(reportStr, alias, name);
       });
 
-      // Apply glossary alias corrections
       let appliedAliases = [];
       try {
         const glossaryItems = await glossaryStore.listGlossary();
-
-        // Build alias→term map (only process items with aliases)
-        const aliasMap = {};
-        glossaryItems.forEach(item => {
-          if (!item.aliases) return;
-          const aliases = typeof item.aliases === "string"
-            ? item.aliases.split(/[,，]/).map(s => s.trim()).filter(Boolean)
-            : item.aliases;
-          aliases.forEach(alias => {
-            if (alias && alias !== item.term) {
-              aliasMap[alias] = item.term;
-            }
-          });
-        });
-
-        // Apply alias replacements (sort by length desc to avoid partial replacements)
-        const sortedAliases = Object.keys(aliasMap).sort((a, b) => b.length - a.length);
-        const alreadyReplaced = new Set();
-        sortedAliases.forEach(alias => {
-          const term = aliasMap[alias];
-          if (alias === term) return;
-          if (alreadyReplaced.has(alias)) return;
-          const jsonEscapedAlias = JSON.stringify(alias).slice(1, -1);
-          if (!reportStr.includes(jsonEscapedAlias)) return;
-
-          if (term.includes(alias)) {
-            // alias is a substring of term (e.g. "佩佳" in "王佩佳")
-            // Only replace when alias is NOT already preceded by the term's prefix
-            const prefix = term.slice(0, term.indexOf(alias));
-            const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const safeRegex = new RegExp(`(?<!${escapedPrefix})${escapedAlias}`, 'g');
-            const before = reportStr;
-            reportStr = reportStr.replace(safeRegex, term);
-            if (reportStr !== before) {
-              appliedAliases.push({ from: alias, to: term });
-              Object.entries(aliasMap).forEach(([a, t]) => { if (t === term) alreadyReplaced.add(a); });
-            }
-          } else {
-            reportStr = reportStr.replaceAll(alias, term);
-            appliedAliases.push({ from: alias, to: term });
-            Object.entries(aliasMap).forEach(([a, t]) => { if (t === term) alreadyReplaced.add(a); });
-          }
-        });
+        const result = applyGlossaryAliases(reportStr, glossaryItems);
+        reportStr = result.reportStr;
+        appliedAliases = result.appliedAliases;
       } catch (err) {
         logger.warn("meetings-route", "apply-speaker-names-glossary-failed", { error: err.message });
       }
 
       const updatedReport = normalizeDuplicateNames(JSON.parse(reportStr), Object.values(nameMap));
 
-      // Preserve stable speaker keys for the UI; names live in speakerRoster.
       updatedReport.speakerKeypoints = report.speakerKeypoints || {};
       updatedReport.speakerRoster = speakerRoster;
 
-      // Deduplicate participants
       updatedReport.participants = speakerRoster.map((entry) => entry.resolvedName || entry.displayLabel);
 
-      // Deduplicate awsAttendees
       if (Array.isArray(updatedReport.awsAttendees)) {
         updatedReport.awsAttendees = [...new Set(updatedReport.awsAttendees)];
       }
 
-      // Deduplicate customerInfo.attendees
       if (updatedReport.customerInfo && Array.isArray(updatedReport.customerInfo.attendees)) {
         updatedReport.customerInfo.attendees = [...new Set(updatedReport.customerInfo.attendees)];
       }
 
-      // Write back to S3
       await uploadFile(reportKey, JSON.stringify(updatedReport, null, 2), "application/json");
       await store.updateMeetingReport(
         req.params.id,
@@ -645,11 +268,10 @@ function register(router) {
       const transcriptText = transcriptParts.join("\n\n");
       const meetingType = item.meetingType || "general";
 
-      // Fetch glossary terms
       let glossaryTerms = [];
       try {
-        const glossaryItems = await store.getGlossaryItems();
-        glossaryTerms = glossaryItems.map(i => i.termId).filter(Boolean);
+        const glossaryItems = await glossaryStore.listGlossary();
+        glossaryTerms = glossaryItems.map((i) => i.term).filter(Boolean);
       } catch (err) {
         logger.warn("meetings-route", "regenerate-fetch-glossary-failed", { error: err.message });
       }
@@ -679,82 +301,6 @@ function register(router) {
         }
       );
 
-      // Note: email is sent manually via POST /:id/send-email
-      res.json({ success: true, report });
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // Legacy: Update speaker map and regenerate report (kept for backwards compatibility)
-  router.put("/:id/speaker-map", async (req, res, next) => {
-    try {
-      // Validate request body with zod
-      const parseResult = speakerNamesSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
-      }
-
-      const { speakerMap } = parseResult.data;
-      const validationError = validateSpeakerMap(speakerMap);
-      if (validationError) {
-        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: validationError } });
-      }
-
-      const item = await getMeetingById(req.params.id);
-      if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
-
-      // Save speakerMap to DynamoDB
-      await store.updateMeetingReport(
-        req.params.id,
-        item.createdAt,
-        "SET speakerMap = :sm, updatedAt = :u",
-        {},
-        {
-          ":sm": speakerMap,
-          ":u": new Date().toISOString(),
-        }
-      );
-
-      const transcriptParts = await readTranscriptParts(item);
-      if (transcriptParts.length === 0) {
-        return res.status(400).json({ error: { code: "NO_TRANSCRIPT", message: "No transcript found for this meeting" } });
-      }
-
-      const transcriptText = transcriptParts.join("\n\n");
-      const meetingType = item.meetingType || "general";
-
-      let glossaryTerms = [];
-      try {
-        const glossaryItems = await store.getGlossaryItems();
-        glossaryTerms = glossaryItems.map(i => i.termId).filter(Boolean);
-      } catch (err) {
-        logger.warn("meetings-route", "speaker-map-fetch-glossary-failed", { error: err.message });
-      }
-
-      const modelId = process.env.BEDROCK_MODEL_ID || undefined;
-      const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, modelId, speakerMap);
-
-      const report = extractJsonFromLLMResponse(responseText);
-
-      const reportKey = `reports/${req.params.id}/report.json`;
-      await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
-
-      await store.updateMeetingReport(
-        req.params.id,
-        item.createdAt,
-        "SET content = :c, reportKey = :rk, #s = :s, stage = :stage, updatedAt = :u",
-        { "#s": "status" },
-        {
-          ":c": report,
-          ":rk": reportKey,
-          ":s": "reported",
-          ":stage": "done",
-          ":u": new Date().toISOString(),
-        }
-      );
-
-      // Note: email is sent manually via POST /:id/send-email
       res.json({ success: true, report });
     } catch (err) {
       next(err);
@@ -777,7 +323,6 @@ function register(router) {
       if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
       if (!item.reportKey) return res.status(400).json({ error: { code: "NO_REPORT", message: "No report exists for this meeting" } });
 
-      // Read current report from S3
       const stream = await getFile(item.reportKey);
       const chunks = [];
       for await (const chunk of stream) {
@@ -785,7 +330,6 @@ function register(router) {
       }
       const report = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
 
-      // Update the corresponding field
       const fieldMap = {
         summary: "summary",
         actions: "actions",
@@ -797,13 +341,10 @@ function register(router) {
         projectReviews: "projectReviews",
       };
       const primaryField = fieldMap[section];
-      // Always write to the canonical field name
       report[primaryField] = data;
 
-      // Write back to S3
       await uploadFile(item.reportKey, JSON.stringify(report, null, 2), "application/json");
 
-      // Update DynamoDB updatedAt
       await store.updateMeetingReport(
         req.params.id,
         item.createdAt,
@@ -828,7 +369,6 @@ function register(router) {
       if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
       if (!item.reportKey) return res.status(400).json({ error: { code: "REPORT_NOT_GENERATED", message: "Report not generated yet" } });
 
-      // Read report from S3
       const stream = await getFile(item.reportKey);
       const chunks = [];
       for await (const chunk of stream) {

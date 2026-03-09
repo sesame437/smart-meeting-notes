@@ -695,12 +695,36 @@ async function fetchMeeting(id) {
   try {
     const m = await API.get(`/api/meetings/${id}`);
     content.dataset.loaded = "1";
+    var inputState = captureSpeakerInputState();
     renderMeetingDetail(m);
+    restoreSpeakerInputState(inputState);
   } catch (_) {
     if (!content.dataset.loaded) {
       content.innerHTML = '<div class="empty-state">加载会议详情失败</div>';
     }
   }
+}
+
+function captureSpeakerInputState() {
+  var state = {};
+  document.querySelectorAll('.participant-name-input').forEach(function(input) {
+    var key = input.dataset.speakerKey;
+    if (key && document.activeElement === input) {
+      state[key] = { value: input.value, hasFocus: true };
+    }
+  });
+  return state;
+}
+
+function restoreSpeakerInputState(state) {
+  if (!state || Object.keys(state).length === 0) return;
+  document.querySelectorAll('.participant-name-input').forEach(function(input) {
+    var key = input.dataset.speakerKey;
+    if (state[key]) {
+      input.value = state[key].value;
+      if (state[key].hasFocus) input.focus();
+    }
+  });
 }
 
 function renderListItem(item) {
@@ -1443,6 +1467,7 @@ async function saveSpeakerMap(meetingId, options = {}) {
   }
 
   var btn = document.querySelector('[data-action="save-speaker-map"]');
+  var originalHtml = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.textContent = applyToReport ? "保存并应用中…" : "保存中…"; }
 
   try {
@@ -1465,73 +1490,7 @@ async function saveSpeakerMap(meetingId, options = {}) {
     /* error shown by API */
     return false;
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-save"></i> 保存并应用'; }
-  }
-}
-
-function applyNameMapping(speakerMap) {
-  // Build a lookup: extract the prefix before "（" from each key
-  // e.g. "成员A（佳园，...）" → prefix "成员A", value "家园"
-  var mappings = [];
-  Object.keys(speakerMap).forEach(function(key) {
-    var value = speakerMap[key];
-    if (!value) return;
-    var prefix = key.split("（")[0].split("(")[0].trim();
-    mappings.push({ key: key, prefix: prefix, value: value });
-  });
-
-  // Replace participant labels
-  document.querySelectorAll('.participant-label').forEach(function(el) {
-    var text = el.textContent;
-    mappings.forEach(function(m) {
-      if (text === m.key || text.indexOf(m.prefix) === 0) {
-        el.textContent = m.value;
-      }
-    });
-  });
-
-  // Replace action items owner cells (2nd column in action items table)
-  document.querySelectorAll('.card').forEach(function(card) {
-    var title = card.querySelector('.card-title');
-    if (!title) return;
-    var titleText = title.textContent;
-
-    // Action Items table
-    if (titleText.indexOf('Action Items') !== -1) {
-      card.querySelectorAll('tbody td:nth-child(2)').forEach(function(td) {
-        var ownerText = td.textContent;
-        mappings.forEach(function(m) {
-          if (ownerText.indexOf(m.prefix) !== -1) {
-            td.textContent = ownerText.replace(m.prefix, m.value);
-          }
-        });
-      });
-    }
-
-    // Key Decisions list items — replace owner references
-    if (titleText.indexOf('Decisions') !== -1 || titleText.indexOf('Risks') !== -1) {
-      card.querySelectorAll('li').forEach(function(li) {
-        var text = li.textContent;
-        mappings.forEach(function(m) {
-          if (text.indexOf(m.prefix) !== -1) {
-            // Preserve the ::before pseudo element by only replacing inner text
-            li.textContent = text.split(m.prefix).join(m.value);
-          }
-        });
-      });
-    }
-  });
-
-  // Replace in summary text
-  var summaryEl = document.querySelector('.summary-text');
-  if (summaryEl) {
-    var summaryText = summaryEl.textContent;
-    mappings.forEach(function(m) {
-      if (summaryText.indexOf(m.prefix) !== -1) {
-        summaryText = summaryText.split(m.prefix).join(m.value);
-      }
-    });
-    summaryEl.textContent = summaryText;
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
   }
 }
 

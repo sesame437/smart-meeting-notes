@@ -3,11 +3,27 @@ function escapeRegex(text) {
 }
 
 function extractPossibleName(raw) {
-  const cleaned = String(raw || "")
-    .replace(/[（(]\s*SPEAKER_\d+[^）)]*[）)]/g, "")
-    .replace(/[（(][^）)]*角色[^）)]*[）)]/g, "")
+  const str = String(raw || "");
+  const genericTerms = /^(主持人|成员[A-Z]?|参会人\s*\d*|负责人|团队.*|.*方向.*)$/;
+
+  // Collect all fragments: parts outside parens + parts inside parens (excluding SPEAKER keys)
+  const allParts = [];
+  const parenContents = [];
+  for (const match of str.matchAll(/[（(]([^）)]+)[）)]/g)) {
+    const inner = match[1] || "";
+    inner.split(/[/、,，]/).map((s) => s.trim()).filter(Boolean).forEach((p) => {
+      if (!/SPEAKER_\d+/.test(p)) parenContents.push(p);
+    });
+  }
+
+  const cleaned = str
+    .replace(/[（(][^）)]*[）)]/g, "")
     .trim();
-  return cleaned || String(raw || "");
+  cleaned.split(/[/、,，]/).map((s) => s.trim()).filter(Boolean).forEach((p) => allParts.push(p));
+  parenContents.forEach((p) => allParts.push(p));
+
+  const nameLike = allParts.find((p) => !genericTerms.test(p) && p.length >= 2 && p.length <= 6);
+  return nameLike || cleaned || str;
 }
 
 function buildAnonymousSpeakerRoster(report) {
@@ -24,9 +40,12 @@ function buildAnonymousSpeakerRoster(report) {
       const num = Number(speakerKey.split("_")[1] || index);
       const displayLabel = `参会人 ${num + 1}`;
       const aliases = new Set([raw]);
+      const withoutParen = raw.replace(/[（(][^）)]*[）)]/g, "").trim();
+      if (withoutParen) aliases.add(withoutParen);
+      withoutParen.split(/[/、,，]/).map((part) => part.trim()).filter(Boolean).forEach((alias) => aliases.add(alias));
       const possibleName = extractPossibleName(raw);
       if (possibleName) aliases.add(possibleName);
-      possibleName.split(/[\/、,，]/).map((part) => part.trim()).filter(Boolean).forEach((alias) => aliases.add(alias));
+      possibleName.split(/[/、,，]/).map((part) => part.trim()).filter(Boolean).forEach((alias) => aliases.add(alias));
       roster.set(speakerKey, {
         speakerKey,
         displayLabel,
