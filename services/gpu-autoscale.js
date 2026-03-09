@@ -1,10 +1,6 @@
 const { EC2Client, StartInstancesCommand, StopInstancesCommand, DescribeInstancesCommand, ModifyInstanceAttributeCommand } = require("@aws-sdk/client-ec2");
 const { DynamoDBClient, QueryCommand } = require("@aws-sdk/client-dynamodb");
-const { execFile } = require("child_process");
-const { promisify } = require("util");
 const logger = require("./logger");
-
-const execFileAsync = promisify(execFile);
 
 const INSTANCE_ID = process.env.FUNASR_INSTANCE_ID || "i-0f69617df5dc59d6b";
 const FUNASR_PRIVATE_IP = process.env.FUNASR_PRIVATE_IP || "172.31.27.101";
@@ -239,46 +235,15 @@ async function isFunASRReachable() {
   }
 }
 
-// Run preflight check on FunASR EC2 via SSH
+// Run preflight check via FunASR /health HTTP endpoint (no SSH required)
 async function runPreflightCheck() {
-  const SSH_KEY = process.env.SSH_KEY_PATH || "/home/qiankai/.ssh/clawd-ops-20260219.pem";
-  const SSH_USER = "ubuntu";
-  const SSH_HOST = FUNASR_PRIVATE_IP;
-  const PREFLIGHT_SCRIPT = "/home/ubuntu/preflight-check.sh";
-
-  try {
-    const { stdout, stderr } = await execFileAsync(
-      "ssh",
-      [
-        "-i", SSH_KEY,
-        "-o", "StrictHostKeyChecking=no",
-        "-o", "ConnectTimeout=60",
-        `${SSH_USER}@${SSH_HOST}`,
-        PREFLIGHT_SCRIPT,
-      ],
-      { timeout: 60000 }
-    );
-
-    const output = (stdout + stderr).trim();
-    logger.info("gpu-autoscale", "preflight check passed", { output });
-
-    // Check for WARN in output
-    if (output.includes("PREFLIGHT_RESULT=WARN")) {
-      logger.warn("gpu-autoscale", "preflight check warning", { output });
-    }
-  } catch (err) {
-    const output = (err.stdout || "") + (err.stderr || "");
-
-    // Exit code 1 means FAILED
-    if (err.code === 1 && output.includes("PREFLIGHT_RESULT=FAILED")) {
-      logger.error("gpu-autoscale", "preflight check failed", { output, error: err.message });
-      throw new Error(`[gpu-autoscale] FunASR preflight check failed: ${output}`, { cause: err });
-    }
-
-    // Other errors (SSH timeout, connection refused, etc.)
-    logger.error("gpu-autoscale", "preflight check error", { error: err.message, output });
-    throw new Error(`[gpu-autoscale] Failed to run preflight check: ${err.message}`, { cause: err });
+  const healthCheck = await isFunASRReachable();
+  if (healthCheck.reachable) {
+    logger.info("gpu-autoscale", "preflight check passed via /health endpoint");
+    return;
   }
+  logger.error("gpu-autoscale", "preflight check failed: /health not reachable", { reason: healthCheck.reason });
+  throw new Error(`[gpu-autoscale] FunASR preflight check failed: /health returned not reachable (reason: ${healthCheck.reason})`);
 }
 
 // 5. recordActivity — reset 30-min idle countdown
