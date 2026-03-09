@@ -299,7 +299,7 @@ async function processMessage(message) {
   // Dedup: check if this s3Key is already being processed (S3 events only)
   // Uses GSI (status-createdAt-index) Query + filter instead of full table Scan
   if (isS3Event) {
-    const statusesToCheck = ["pending", "processing", "reported", "completed"];
+    const statusesToCheck = ["uploaded", "pending", "processing", "transcribed", "reported", "completed", "failed"];
     let found = false;
     let foundMeetingId = null;
 

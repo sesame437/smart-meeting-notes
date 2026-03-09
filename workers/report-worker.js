@@ -4,6 +4,7 @@ const { recordActivity } = require("../services/gpu-autoscale");
 const { getFile, uploadFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
 const { extractJsonFromLLMResponse } = require("../services/report-builder");
+const { normalizeAnonymousSpeakerReport } = require("../services/report-speaker-normalizer");
 const logger = require("../services/logger");
 
 /**
@@ -259,7 +260,8 @@ async function processMessage(message) {
     // 2. Fetch glossary terms and call Bedrock Claude to generate structured report (with retry)
     const glossaryTerms = await fetchGlossaryTerms();
     // invokeModelWithRetry now returns parsed report object (includes JSON parsing with retry)
-    const report = await invokeModelWithRetry(finalTranscript, meetingType, glossaryTerms);
+    let report = await invokeModelWithRetry(finalTranscript, meetingType, glossaryTerms);
+    report = normalizeAnonymousSpeakerReport(report);
 
     // 4. Upload report to S3
     const reportKey = `reports/${meetingId}/report.json`;
@@ -269,11 +271,12 @@ async function processMessage(message) {
     await docClient.send(new UpdateCommand({
       TableName: TABLE,
       Key: { meetingId, createdAt },
-      UpdateExpression: "SET #s = :s, reportKey = :rk, updatedAt = :u, stage = :stage",
+      UpdateExpression: "SET #s = :s, reportKey = :rk, content = :c, updatedAt = :u, stage = :stage",
       ExpressionAttributeNames: { "#s": "status" },
       ExpressionAttributeValues: {
         ":s": "completed",
         ":rk": reportKey,
+        ":c": report,
         ":u": new Date().toISOString(),
         ":stage": "done",
       },

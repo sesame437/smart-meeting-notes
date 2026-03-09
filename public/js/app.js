@@ -675,7 +675,7 @@ function showUploadConfirmDialog(meetingId, title, meetingType) {
     modal.style.display = "none";
 
     try {
-      await API.delete(`/api/meetings/${meetingId}`);
+      await API.del(`/api/meetings/${meetingId}`);
       Toast.success("已取消上传");
       fetchMeetings();
     } catch (err) {
@@ -1233,61 +1233,44 @@ function renderMeetingDetail(m) {
   // ---- Participants ----
   {
     const speakerMap = m.speakerMap || {};
+    const speakerEntries = getSpeakerEntries(report, speakerMap);
 
     html += `
       <div class="card">
         <div class="card-title"><i class="fa fa-users"></i> 参会人员</div>`;
 
-    if (participants.length > 0) {
+    if (speakerEntries.length > 0) {
       html += `
         <div class="participant-list">`;
 
-      participants.forEach((p, idx) => {
-        const rawLabel = typeof p === "string" ? p : (p.name || JSON.stringify(p));
-        // Clean up label: remove noise phrases like "角色未明确", "角色不明", "未知"
-        const noisePatterns = ["角色未明确", "角色不明", "角色未知", "身份未知", "未知角色", "角色不详"];
-        let label = rawLabel;
-        // If label contains noise in parentheses, strip that part: "成员A（角色未明确）" → "成员A"
-        noisePatterns.forEach(noise => {
-          label = label.replace(new RegExp(`（[^）]*${noise}[^）]*）`, "g"), "");
-          label = label.replace(new RegExp(`\\([^)]*${noise}[^)]*\\)`, "g"), "");
-        });
-        label = label.trim().replace(/[，,。.、]+$/, "").trim();
-        if (!label) label = rawLabel; // fallback to original if fully stripped
-
-        // existing real name if already saved (keyed by SPEAKER_idx first, then by label)
-        const speakerKey = `SPEAKER_${idx}`;
-        const savedName = speakerMap[speakerKey] || speakerMap[rawLabel] || speakerMap[label] || speakerMap[String(idx)] || "";
-        const speakerKeypoints = report.speakerKeypoints || {};
-        const hints = speakerKeypoints[speakerKey] || [];
-        const hintText = hints.length > 0 ? hints[0].slice(0, 60) + (hints[0].length > 60 ? "…" : "") : "";
+      speakerEntries.forEach((entry) => {
+        const hintText = entry.keypoints.length > 0
+          ? truncateParticipantHint(entry.keypoints[0], 100)
+          : "";
+        const possibleNameText = entry.possibleName || "暂无候选姓名";
 
         html += `<div class="participant-row">
-          <div class="participant-label">${escapeHtml(label)}</div>
+          <div class="participant-label">${escapeHtml(entry.displayLabel)}</div>
           <div class="participant-search-wrap">
             <input type="text"
               class="form-control participant-name-input participant-search-input"
-              data-participant-label="${escapeAttr(rawLabel)}"
-              data-speaker-key="${escapeAttr(speakerKey)}"
-              value="${escapeAttr(savedName)}"
+              data-participant-label="${escapeAttr(entry.displayLabel)}"
+              data-speaker-key="${escapeAttr(entry.speakerKey)}"
+              data-possible-name="${escapeAttr(entry.possibleName)}"
+              data-current-name="${escapeAttr(entry.currentName)}"
+              value="${escapeAttr(entry.savedName)}"
               placeholder="输入真实姓名（可从词汇表选择）" />
             <div class="name-suggestions" style="display:none;"></div>
-            ${hintText ? `<div class="speaker-hint">${escapeHtml(speakerKey)} · ${escapeHtml(hintText)}</div>` : ""}
-          </div>
-          <div class="row-actions">
-            <button class="btn btn-outline btn-sm" data-action="edit-participant" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
-            <button class="btn btn-danger btn-sm" data-action="delete-participant" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+            <div class="speaker-hint">可能姓名：${escapeHtml(possibleNameText)}</div>
+            ${hintText ? `<div class="speaker-hint">关键发言：${escapeHtml(hintText)}</div>` : ""}
           </div>
         </div>`;
       });
 
       html += `</div>
         <div style="text-align:right;margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
-          <button class="btn btn-outline btn-sm" data-action="apply-speaker-names" data-id="${escapeAttr(m.meetingId)}">
-            <i class="fa fa-magic"></i> 应用到报告
-          </button>
           <button class="btn action-primary-btn btn-sm" data-action="save-speaker-map" data-id="${escapeAttr(m.meetingId)}">
-            <i class="fa fa-save"></i> 保存名字
+            <i class="fa fa-save"></i> 保存并应用
           </button>
         </div>`;
     } else {
@@ -1391,26 +1374,10 @@ async function retryMeetingDetail(id) {
 
 async function applySpokenNames(meetingId) {
   // 先保存名字
-  await saveSpeakerMap(meetingId);
+  const saved = await saveSpeakerMap(meetingId, { showSavedToast: false });
+  if (!saved) return;
 
-  // 检测是否有重复名字（同一个真名对应多个 SPEAKER）
-  const inputs = document.querySelectorAll('.participant-name-input');
-  const nameToSpeakers = {};
-  inputs.forEach(input => {
-    const val = input.value.trim();
-    if (val) {
-      if (!nameToSpeakers[val]) nameToSpeakers[val] = [];
-      nameToSpeakers[val].push(input.dataset.participantLabel);
-    }
-  });
-  const duplicates = Object.entries(nameToSpeakers).filter(([, speakers]) => speakers.length > 1);
-
-  if (duplicates.length > 0) {
-    const msg = duplicates.map(([name, speakers]) =>
-      `「${name}」对应 ${speakers.length} 个 speaker（${speakers.join("、")}），将合并相关内容`
-    ).join("\n");
-    if (!confirm(`发现以下重复人名，应用后将自动合并：\n\n${msg}\n\n确认继续？`)) return;
-  }
+  if (!confirmDuplicateParticipantNames()) return;
 
   try {
     const result = await API.post(`/api/meetings/${meetingId}/apply-speaker-names`, {});
@@ -1424,14 +1391,43 @@ async function applySpokenNames(meetingId) {
   } catch (_) {}
 }
 
-async function saveSpeakerMap(meetingId) {
+function confirmDuplicateParticipantNames() {
+  const inputs = document.querySelectorAll('.participant-name-input');
+  const nameToSpeakers = {};
+  inputs.forEach(input => {
+    const val = input.value.trim();
+    if (!val) return;
+    if (!nameToSpeakers[val]) nameToSpeakers[val] = [];
+    nameToSpeakers[val].push(input.dataset.participantLabel);
+  });
+
+  const duplicates = Object.entries(nameToSpeakers).filter(([, speakers]) => speakers.length > 1);
+  if (duplicates.length === 0) return true;
+
+  const msg = duplicates.map(([name, speakers]) =>
+    `「${name}」对应 ${speakers.length} 个参会人标签（${speakers.join("、")}），将合并相关内容`
+  ).join("\n");
+  return confirm(`发现以下重复人名，应用后将自动合并：\n\n${msg}\n\n确认继续？`);
+}
+
+async function saveSpeakerMap(meetingId, options = {}) {
+  const { applyToReport = false, showSavedToast = true } = options;
   const speakerMap = {};
+  const speakerAliases = {};
 
   // From participant name inputs (SPEAKER_idx → real name)
   document.querySelectorAll('.participant-name-input').forEach(input => {
     const val = input.value.trim();
     const key = input.dataset.speakerKey || input.dataset.participantLabel;
     speakerMap[key] = val;
+    const aliases = [];
+    const possibleName = (input.dataset.possibleName || "").trim();
+    const currentName = (input.dataset.currentName || "").trim();
+    const participantLabel = (input.dataset.participantLabel || "").trim();
+    if (possibleName) aliases.push(possibleName);
+    if (currentName) aliases.push(currentName);
+    if (participantLabel) aliases.push(participantLabel);
+    if (aliases.length > 0) speakerAliases[key] = Array.from(new Set(aliases));
   });
 
   // Fallback: plain speaker inputs
@@ -1443,20 +1439,33 @@ async function saveSpeakerMap(meetingId) {
   const filledCount = Object.values(speakerMap).filter(v => v).length;
   if (filledCount === 0) {
     Toast.error("请先填写至少一个真实姓名");
-    return;
+    return false;
   }
 
   var btn = document.querySelector('[data-action="save-speaker-map"]');
-  if (btn) { btn.disabled = true; btn.textContent = "保存中…"; }
+  if (btn) { btn.disabled = true; btn.textContent = applyToReport ? "保存并应用中…" : "保存中…"; }
 
   try {
-    await API.put(`/api/meetings/${meetingId}/speaker-names`, { speakerMap });
-    Toast.success("名字已保存");
-    applyNameMapping(speakerMap);
+    await API.put(`/api/meetings/${meetingId}/speaker-names`, { speakerMap, speakerAliases });
+    if (applyToReport) {
+      if (!confirmDuplicateParticipantNames()) return true;
+      const result = await API.post(`/api/meetings/${meetingId}/apply-speaker-names`, {});
+      let msg = "名字已保存并应用到报告";
+      if (result.aliasReplacements && result.aliasReplacements.length > 0) {
+        const detail = result.aliasReplacements.map(r => `${r.from} → ${r.to}`).join("、");
+        msg += `\n名字纠错：${detail}`;
+      }
+      Toast.success(msg);
+      fetchMeeting(meetingId);
+      return true;
+    }
+    if (showSavedToast) Toast.success("名字已保存");
+    return true;
   } catch (_) {
     /* error shown by API */
+    return false;
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-save"></i> 保存名字'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-save"></i> 保存并应用'; }
   }
 }
 
@@ -2503,6 +2512,76 @@ function escapeAttr(str) {
     .replace(/'/g, "&#39;");
 }
 
+function formatParticipantSpeakerLabel(speakerKey) {
+  const match = String(speakerKey || "").match(/^SPEAKER_(\d+)$/);
+  if (!match) return "参会人";
+  return `参会人 ${Number(match[1]) + 1}`;
+}
+
+function getSpeakerEntries(report, speakerMap) {
+  if (Array.isArray(report.speakerRoster) && report.speakerRoster.length > 0) {
+    return report.speakerRoster.map((entry, index) => ({
+      speakerKey: entry.speakerKey || `SPEAKER_${index}`,
+      displayLabel: entry.displayLabel || formatParticipantSpeakerLabel(entry.speakerKey || `SPEAKER_${index}`),
+      possibleName: entry.possibleName || entry.resolvedName || "",
+      currentName: entry.resolvedName || "",
+      keypoints: Array.isArray(entry.keypoints) ? entry.keypoints : [],
+      savedName: (speakerMap && speakerMap[entry.speakerKey]) || entry.resolvedName || "",
+    }));
+  }
+
+  const speakerKeypoints = report.speakerKeypoints || {};
+  const participantHints = new Map();
+  const participantNamesByIndex = [];
+  const speakerKeys = new Set();
+
+  (report.participants || []).forEach((participant, index) => {
+    const raw = typeof participant === "string"
+      ? participant
+      : (participant && participant.name) || JSON.stringify(participant);
+    participantNamesByIndex[index] = raw;
+    const matches = raw.match(/SPEAKER_\d+/g) || [];
+    matches.forEach((speakerKey) => {
+      speakerKeys.add(speakerKey);
+      if (!participantHints.has(speakerKey)) {
+        const cleaned = raw.replace(/[（(]\s*SPEAKER_\d+\s*[）)]/g, "").trim();
+        participantHints.set(speakerKey, cleaned || raw);
+      }
+    });
+  });
+
+  Object.keys(speakerKeypoints).forEach((speakerKey) => {
+    if (/^SPEAKER_\d+$/.test(speakerKey)) speakerKeys.add(speakerKey);
+  });
+
+  Object.keys(speakerMap || {}).forEach((speakerKey) => {
+    if (/^SPEAKER_\d+$/.test(speakerKey)) speakerKeys.add(speakerKey);
+  });
+
+  return Array.from(speakerKeys)
+    .sort((a, b) => Number(a.split("_")[1]) - Number(b.split("_")[1]))
+    .map((speakerKey, index) => ({
+      speakerKey,
+      displayLabel: formatParticipantSpeakerLabel(speakerKey),
+      possibleName: participantHints.get(speakerKey) || participantNamesByIndex[index] || "",
+      currentName: participantNamesByIndex[index] || "",
+      keypoints: speakerKeypoints[speakerKey]
+        || speakerKeypoints[(speakerMap && speakerMap[speakerKey]) || ""]
+        || speakerKeypoints[participantHints.get(speakerKey) || ""]
+        || speakerKeypoints[participantNamesByIndex[index] || ""]
+        || Object.values(speakerKeypoints)[index]
+        || [],
+      savedName: (speakerMap && speakerMap[speakerKey]) || "",
+    }));
+}
+
+function truncateParticipantHint(text, maxLength = 50) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  if (normalized.length <= maxLength) return normalized;
+  return normalized.slice(0, maxLength).trim() + "…";
+}
+
 function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
@@ -2548,6 +2627,32 @@ function initParticipantNameSearch() {
   });
 }
 
+function applyParticipantSuggestion(itemEl) {
+  var name = itemEl && itemEl.dataset ? itemEl.dataset.name : "";
+  var wrap = itemEl && itemEl.closest ? itemEl.closest(".participant-search-wrap") : null;
+  if (!name || !wrap) return;
+
+  var inp = wrap.querySelector(".participant-search-input");
+  var sugBox = wrap.querySelector(".name-suggestions");
+  if (!inp) return;
+
+  inp.value = name;
+  inp.dataset.selectedName = name;
+  if (sugBox) {
+    sugBox.style.display = "none";
+    sugBox.innerHTML = "";
+  }
+  inp.dispatchEvent(new Event("change", { bubbles: true }));
+  inp.focus();
+}
+
+document.addEventListener("mousedown", function(e) {
+  var item = e.target && e.target.closest ? e.target.closest(".suggestion-item") : null;
+  if (!item) return;
+  e.preventDefault();
+  applyParticipantSuggestion(item);
+});
+
 // Close all suggestion dropdowns when clicking outside
 document.addEventListener("click", function(e) {
   if (!e.target.closest(".participant-search-wrap")) {
@@ -2558,19 +2663,7 @@ document.addEventListener("click", function(e) {
   }
   // Handle suggestion item click via event delegation
   if (e.target.classList.contains("suggestion-item")) {
-    var name = e.target.dataset.name;
-    var wrap = e.target.closest(".participant-search-wrap");
-    if (wrap) {
-      var inp = wrap.querySelector(".participant-search-input");
-      if (inp) {
-        inp.value = name;
-        // 防止 input 事件把值清空，先暂时移除 input 监听
-        inp.dataset.selectedName = name;
-        inp.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-    }
-    var sugBox = e.target.closest(".name-suggestions");
-    if (sugBox) { sugBox.style.display = "none"; sugBox.innerHTML = ""; }
+    applyParticipantSuggestion(e.target);
     return;
   }
 });
@@ -2592,7 +2685,7 @@ document.addEventListener("click", function(e) {
     case "start-detail-edit":  startDetailEdit(id, el.dataset.title, el.dataset.type); break;
     case "save-detail-edit":   saveDetailEdit(id); break;
     case "cancel-detail-edit": cancelDetailEdit(); break;
-    case "save-speaker-map":   saveSpeakerMap(id); break;
+    case "save-speaker-map":   saveSpeakerMap(id, { applyToReport: true }); break;
     case "apply-speaker-names": applySpokenNames(id); break;
     case "regenerate-report":  regenerateReport(id); break;
     case "send-email":         sendEmail(id); break;

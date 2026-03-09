@@ -31,6 +31,61 @@ function escapeHtml(str) {
   return div.textContent;
 }
 
+function formatParticipantSpeakerLabel(speakerKey) {
+  const match = String(speakerKey || "").match(/^SPEAKER_(\d+)$/);
+  if (!match) return "参会人";
+  return `参会人 ${Number(match[1]) + 1}`;
+}
+
+function getSpeakerEntries(report, speakerMap) {
+  if (Array.isArray(report.speakerRoster) && report.speakerRoster.length > 0) {
+    return report.speakerRoster.map((entry, index) => ({
+      speakerKey: entry.speakerKey || `SPEAKER_${index}`,
+      displayLabel: entry.displayLabel || formatParticipantSpeakerLabel(entry.speakerKey || `SPEAKER_${index}`),
+      possibleName: entry.possibleName || entry.resolvedName || "",
+      currentName: entry.resolvedName || "",
+      keypoints: Array.isArray(entry.keypoints) ? entry.keypoints : [],
+      savedName: (speakerMap && speakerMap[entry.speakerKey]) || entry.resolvedName || "",
+    }));
+  }
+
+  const speakerKeypoints = report.speakerKeypoints || {};
+  const participantHints = new Map();
+  const speakerKeys = new Set();
+
+  (report.participants || []).forEach((participant) => {
+    const raw = typeof participant === "string"
+      ? participant
+      : (participant && participant.name) || JSON.stringify(participant);
+    const matches = raw.match(/SPEAKER_\d+/g) || [];
+    matches.forEach((speakerKey) => {
+      speakerKeys.add(speakerKey);
+      if (!participantHints.has(speakerKey)) {
+        const cleaned = raw.replace(/[（(]\s*SPEAKER_\d+\s*[）)]/g, "").trim();
+        participantHints.set(speakerKey, cleaned || raw);
+      }
+    });
+  });
+
+  Object.keys(speakerKeypoints).forEach((speakerKey) => {
+    if (/^SPEAKER_\d+$/.test(speakerKey)) speakerKeys.add(speakerKey);
+  });
+
+  Object.keys(speakerMap || {}).forEach((speakerKey) => {
+    if (/^SPEAKER_\d+$/.test(speakerKey)) speakerKeys.add(speakerKey);
+  });
+
+  return Array.from(speakerKeys)
+    .sort((a, b) => Number(a.split("_")[1]) - Number(b.split("_")[1]))
+    .map((speakerKey) => ({
+      speakerKey,
+      displayLabel: formatParticipantSpeakerLabel(speakerKey),
+      possibleName: participantHints.get(speakerKey) || "",
+      keypoints: speakerKeypoints[speakerKey] || [],
+      savedName: (speakerMap && speakerMap[speakerKey]) || "",
+    }));
+}
+
 function statusBadge(status) {
   const labels = {
     pending: "Pending", created: "Created",
@@ -251,5 +306,69 @@ describe("participants display count", () => {
   test("zero participants → length is 0 (detail shows '-')", () => {
     const blocks = renderDetailBlocks({ content: { participants: [] } });
     expect(blocks.participants.length).toBe(0);
+  });
+});
+
+describe("formatParticipantSpeakerLabel()", () => {
+  test("converts SPEAKER_0 to 参会人 1", () => {
+    expect(formatParticipantSpeakerLabel("SPEAKER_0")).toBe("参会人 1");
+  });
+
+  test("falls back to generic label for unknown keys", () => {
+    expect(formatParticipantSpeakerLabel("主持人")).toBe("参会人");
+  });
+});
+
+describe("getSpeakerEntries()", () => {
+  test("prefers stable speakerRoster when present", () => {
+    const entries = getSpeakerEntries({
+      speakerRoster: [
+        {
+          speakerKey: "SPEAKER_0",
+          displayLabel: "参会人 1",
+          possibleName: "主持人",
+          resolvedName: "Alice",
+          keypoints: ["开场"],
+        },
+      ],
+    }, { SPEAKER_0: "Alice" });
+
+    expect(entries).toEqual([
+      {
+        speakerKey: "SPEAKER_0",
+        displayLabel: "参会人 1",
+        possibleName: "主持人",
+        currentName: "Alice",
+        keypoints: ["开场"],
+        savedName: "Alice",
+      },
+    ]);
+  });
+
+  test("builds stable participant rows from speakerKeypoints and participants", () => {
+    const entries = getSpeakerEntries({
+      participants: ["主持人（SPEAKER_0）", "成员A/李龙（SPEAKER_1）"],
+      speakerKeypoints: {
+        SPEAKER_0: ["开场并分配任务"],
+        SPEAKER_1: ["汇报客户项目进展"],
+      },
+    }, { SPEAKER_1: "宋孜攀" });
+
+    expect(entries).toEqual([
+      {
+        speakerKey: "SPEAKER_0",
+        displayLabel: "参会人 1",
+        possibleName: "主持人",
+        keypoints: ["开场并分配任务"],
+        savedName: "",
+      },
+      {
+        speakerKey: "SPEAKER_1",
+        displayLabel: "参会人 2",
+        possibleName: "成员A/李龙",
+        keypoints: ["汇报客户项目进展"],
+        savedName: "宋孜攀",
+      },
+    ]);
   });
 });

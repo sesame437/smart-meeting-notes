@@ -60,7 +60,13 @@ describe("PUT /api/meetings/:id/speaker-names", () => {
     mockSend.mockResolvedValueOnce({});
 
     const handler = getRouteHandler("/:id/speaker-names", "put");
-    const req = { params: { id: "m1" }, body: { speakerMap: { "SPEAKER_0": "Alice" } } };
+    const req = {
+      params: { id: "m1" },
+      body: {
+        speakerMap: { "SPEAKER_0": "Alice" },
+        speakerAliases: { "SPEAKER_0": ["主持人"] },
+      },
+    };
     const res = createRes();
     const next = jest.fn();
 
@@ -68,6 +74,14 @@ describe("PUT /api/meetings/:id/speaker-names", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ success: true });
+    expect(mockSend).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        _cmd: "UpdateCommand",
+        ExpressionAttributeValues: expect.objectContaining({
+          ":sa": { "SPEAKER_0": ["主持人"] },
+        }),
+      })
+    );
     expect(invokeModel).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });
@@ -187,5 +201,195 @@ describe("POST /api/meetings/:id/regenerate", () => {
       undefined,
       { "SPEAKER_0": "Alice" }
     );
+  });
+});
+
+describe("POST /api/meetings/:id/apply-speaker-names", () => {
+  beforeEach(() => {
+    mockSend.mockReset();
+    getFile.mockReset();
+  });
+
+  test("updates DynamoDB content after applying speaker names", async () => {
+    const meetingItem = {
+      meetingId: "m1",
+      createdAt: "2026-01-01",
+      reportKey: "reports/m1/report.json",
+      speakerMap: { SPEAKER_0: "Alice" },
+      speakerAliases: { SPEAKER_0: ["主持人"] },
+    };
+    const reportJson = {
+      summary: "SPEAKER_0 跟进事项",
+      participants: ["主持人（SPEAKER_0）"],
+      actions: [{ task: "同步项目", owner: "主持人（江海负责人）", deadline: "", priority: "high" }],
+      speakerKeypoints: { SPEAKER_0: ["SPEAKER_0 说了重点"] },
+    };
+
+    mockSend
+      .mockResolvedValueOnce({ Items: [meetingItem] })
+      .mockResolvedValueOnce({ Items: [] })
+      .mockResolvedValueOnce({});
+    getFile.mockResolvedValueOnce((async function* () {
+      yield Buffer.from(JSON.stringify(reportJson));
+    })());
+
+    const handler = getRouteHandler("/:id/apply-speaker-names", "post");
+    const req = { params: { id: "m1" }, body: {} };
+    const res = createRes();
+    const next = jest.fn();
+
+    await handler(req, res, next);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(mockSend).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        _cmd: "UpdateCommand",
+        Key: { meetingId: "m1", createdAt: "2026-01-01" },
+        ExpressionAttributeValues: expect.objectContaining({
+          ":c": expect.objectContaining({
+            summary: "Alice 跟进事项",
+            participants: ["Alice"],
+            speakerKeypoints: { SPEAKER_0: ["SPEAKER_0 说了重点"] },
+            speakerRoster: [
+              expect.objectContaining({
+                speakerKey: "SPEAKER_0",
+                displayLabel: "参会人 1",
+                resolvedName: "Alice",
+                possibleName: "主持人",
+                keypoints: ["SPEAKER_0 说了重点"],
+              }),
+            ],
+            actions: [{ task: "同步项目", owner: "Alice", deadline: "", priority: "high" }],
+          }),
+        }),
+      })
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test("replaces owner aliases from stable speakerRoster even when participants are already normalized", async () => {
+    const meetingItem = {
+      meetingId: "m2",
+      createdAt: "2026-01-02",
+      reportKey: "reports/m2/report.json",
+      speakerMap: { SPEAKER_1: "李龙" },
+      speakerAliases: { SPEAKER_1: ["成员A", "参会人 2"] },
+    };
+    const reportJson = {
+      summary: "参会人 2 需要跟进",
+      participants: ["参会人 1", "参会人 2"],
+      actions: [{ task: "同步项目", owner: "成员A（强哥）", deadline: "", priority: "high" }],
+      speakerKeypoints: { SPEAKER_1: ["成员A 跟进客户迁移计划"] },
+      speakerRoster: [
+        {
+          speakerKey: "SPEAKER_0",
+          displayLabel: "参会人 1",
+          possibleName: "主持人",
+          aliases: ["主持人"],
+          keypoints: [],
+          resolvedName: "",
+        },
+        {
+          speakerKey: "SPEAKER_1",
+          displayLabel: "参会人 2",
+          possibleName: "成员A",
+          aliases: ["成员A", "成员A（强哥）", "参会人 2"],
+          keypoints: ["成员A 跟进客户迁移计划"],
+          resolvedName: "",
+        },
+      ],
+    };
+
+    mockSend
+      .mockResolvedValueOnce({ Items: [meetingItem] })
+      .mockResolvedValueOnce({ Items: [] })
+      .mockResolvedValueOnce({});
+    getFile.mockResolvedValueOnce((async function* () {
+      yield Buffer.from(JSON.stringify(reportJson));
+    })());
+
+    const handler = getRouteHandler("/:id/apply-speaker-names", "post");
+    const req = { params: { id: "m2" }, body: {} };
+    const res = createRes();
+    const next = jest.fn();
+
+    await handler(req, res, next);
+
+    expect(res.statusCode).toBe(200);
+    expect(mockSend).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        ExpressionAttributeValues: expect.objectContaining({
+          ":c": expect.objectContaining({
+            summary: "李龙 需要跟进",
+            participants: ["参会人 1", "李龙"],
+            actions: [{ task: "同步项目", owner: "李龙", deadline: "", priority: "high" }],
+            speakerRoster: expect.arrayContaining([
+              expect.objectContaining({
+                speakerKey: "SPEAKER_1",
+                resolvedName: "李龙",
+                possibleName: "成员A",
+              }),
+            ]),
+          }),
+        }),
+      })
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test("collapses anonymous owner wrappers when roster aliases expose nested real-name hints", async () => {
+    const meetingItem = {
+      meetingId: "m3",
+      createdAt: "2026-01-03",
+      reportKey: "reports/m3/report.json",
+      speakerMap: { SPEAKER_2: "梁睿" },
+      speakerAliases: {},
+    };
+    const reportJson = {
+      summary: "成员J（瑞远）需要跟进",
+      participants: ["参会人 1", "参会人 2", "参会人 3"],
+      actions: [{ task: "准备 kickoff", owner: "成员J（瑞远）", deadline: "", priority: "high" }],
+      speakerKeypoints: { SPEAKER_2: ["推进 kickoff"] },
+      speakerRoster: [
+        {
+          speakerKey: "梁睿",
+          displayLabel: "参会人 3",
+          possibleName: "成员F",
+          aliases: ["成员F（SPEAKER_2，瑞总/瑞远，资深SA）", "成员F"],
+          keypoints: ["推进 kickoff"],
+          resolvedName: "",
+        },
+      ],
+    };
+
+    mockSend
+      .mockResolvedValueOnce({ Items: [meetingItem] })
+      .mockResolvedValueOnce({ Items: [] })
+      .mockResolvedValueOnce({});
+    getFile.mockResolvedValueOnce((async function* () {
+      yield Buffer.from(JSON.stringify(reportJson));
+    })());
+
+    const handler = getRouteHandler("/:id/apply-speaker-names", "post");
+    const req = { params: { id: "m3" }, body: {} };
+    const res = createRes();
+    const next = jest.fn();
+
+    await handler(req, res, next);
+
+    expect(res.statusCode).toBe(200);
+    expect(mockSend).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        ExpressionAttributeValues: expect.objectContaining({
+          ":c": expect.objectContaining({
+            summary: "梁睿需要跟进",
+            actions: [{ task: "准备 kickoff", owner: "梁睿", deadline: "", priority: "high" }],
+            participants: ["梁睿"],
+          }),
+        }),
+      })
+    );
+    expect(next).not.toHaveBeenCalled();
   });
 });

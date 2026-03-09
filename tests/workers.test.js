@@ -89,7 +89,7 @@ describe("transcription-worker", () => {
         Items: [{ meetingId: "existing-id", s3Key, status: "processing" }],
       });
 
-      const statuses = ["pending", "processing", "reported", "completed"];
+      const statuses = ["uploaded", "pending", "processing", "transcribed", "reported", "completed", "failed"];
       let found = false;
 
       for (const st of statuses) {
@@ -118,7 +118,7 @@ describe("transcription-worker", () => {
       // Mock Query to return no items
       mockSend.mockResolvedValue({ Items: [] });
 
-      const statuses = ["pending", "processing", "reported", "completed"];
+      const statuses = ["uploaded", "pending", "processing", "transcribed", "reported", "completed", "failed"];
       let found = false;
 
       for (const st of statuses) {
@@ -138,7 +138,7 @@ describe("transcription-worker", () => {
       }
 
       expect(found).toBe(false);
-      expect(mockSend).toHaveBeenCalledTimes(4); // Called for each status
+      expect(mockSend).toHaveBeenCalledTimes(7); // Called for each status
     });
   });
 });
