@@ -379,6 +379,9 @@ th:has(.row-actions) {
 tr:hover .row-actions,
 li:hover .row-actions,
 .card ul li:hover .row-actions,
+.decision-card:hover .row-actions,
+.risk-card:hover .row-actions,
+.report-section > div:hover > .row-actions,
 .meeting-card:hover .row-actions,
 .meeting-card-item:hover .row-actions,
 .participant-row:hover .row-actions { opacity: 1; }
@@ -692,6 +695,16 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .card.summary-card { border-left: 4px solid var(--aws-orange); }
 .card.decisions-card { } /* 和其他 card 保持一致，无额外装饰 */
 .card.risks-card { border-left: 4px solid var(--aws-orange); background: #fff8e1; }
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--aws-dark);
+  background: linear-gradient(135deg, #fff8e1 0%, #fff3e0 100%);
+  border-left: 3px solid var(--aws-orange);
+  padding: 8px 14px;
+  border-radius: 0 6px 6px 0;
+  margin: 0 0 12px 0;
+}
 .summary-text { font-size: 15px; line-height: 1.7; color: var(--text); }
 .decisions-card ul { list-style: none; padding: 0; margin: 0; }
 .decisions-card li {
