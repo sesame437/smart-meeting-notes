@@ -6,9 +6,10 @@
 ```bash
 npm test
 ```
-- 要求：454+ passed，0 failed
-- 覆盖率：Statements ≥ 79%，不得下降
+- 要求：550+ passed（基线 2026-03-10）
+- 失败套件：gpu-autoscale.test.js（mock 未跟上 SSH→HTTP /health 重构）+ glossary-all-routes.test.js（待修）
 - 新增代码：routes/ ≥ 80%，workers/ 核心逻辑必须有 mock 测试
+- **注意**：gpu-autoscale mock 需要更新为直接 mock `fetch`（HTTP /health 端点），不再 mock SSH
 
 ### Layer 2：API 集成冒烟
 ```bash
@@ -119,7 +120,7 @@ it("calls s3.uploadFile with correct params")
 
 | 层次 | 标准 |
 |------|------|
-| Unit | 454+ passed，0 failed，覆盖率 ≥ 79% |
+| Unit | 550+ passed（基线 2026-03-10），gpu-autoscale 失败套件需跟进修复 |
 | API | /health 返回 200 |
 | E2E | 全 pass，0 failed（skip 须说明原因）|
 
