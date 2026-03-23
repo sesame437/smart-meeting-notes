@@ -5,6 +5,8 @@ const { getFile, uploadFile } = require("../services/s3");
 const { invokeModel } = require("../services/bedrock");
 const { extractJsonFromLLMResponse } = require("../services/report-builder");
 const { normalizeAnonymousSpeakerReport } = require("../services/report-speaker-normalizer");
+const { applyGlossaryToReport } = require("../services/report-post-processor");
+const glossaryStore = require("../services/glossary-store");
 const logger = require("../services/logger");
 
 /**
@@ -16,43 +18,26 @@ const logger = require("../services/logger");
 
 const { docClient } = require("../db/dynamodb");
 const { UpdateCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
-const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
-const { DynamoDBClient, ScanCommand } = require("@aws-sdk/client-dynamodb");
 
 const QUEUE_URL = process.env.SQS_REPORT_QUEUE;
 const _EXPORT_QUEUE_URL = process.env.SQS_EXPORT_QUEUE;
 const TABLE = process.env.DYNAMODB_TABLE;
-const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
-const REGION = process.env.AWS_REGION;
+const _GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
 
-const s3Client = new S3Client({ region: REGION });
-const dynamoClient = new DynamoDBClient({ region: REGION });
-
-// 内存缓存，TTL 10 分钟
+// Glossary cache (TTL 10 min) — returns full items with .term, .aliases
 let _glossaryCache = null;
 let _glossaryCacheAt = 0;
 const GLOSSARY_CACHE_TTL = 10 * 60 * 1000;
 
-async function fetchGlossaryTerms() {
+async function fetchGlossaryItems() {
   if (_glossaryCache && Date.now() - _glossaryCacheAt < GLOSSARY_CACHE_TTL) {
     return _glossaryCache;
   }
   try {
-    const terms = [];
-    let lastKey;
-    do {
-      const params = {
-        TableName: GLOSSARY_TABLE,
-        ProjectionExpression: "termId",
-      };
-      if (lastKey) params.ExclusiveStartKey = lastKey;
-      const resp = await dynamoClient.send(new ScanCommand(params));
-      terms.push(...(resp.Items || []).map(item => item.termId?.S).filter(Boolean));
-      lastKey = resp.LastEvaluatedKey;
-    } while (lastKey);
-    _glossaryCache = terms;
+    const items = await glossaryStore.listGlossary();
+    _glossaryCache = items;
     _glossaryCacheAt = Date.now();
-    return terms;
+    return items;
   } catch (err) {
     logger.warn("report-worker", "fetch-glossary-failed", { error: err.message });
     return [];
@@ -84,12 +69,9 @@ function extractTranscribeText(rawJson) {
 }
 
 async function readTranscript(transcribeKey, whisperKey) {
-  // 注意：不能用 `await getFile(key)` 作为 allSettled 的参数——
-  // await 在数组构造期就会求值，若抛错会绕过 allSettled 直接冒泡。
-  // 正确做法：把 Promise 工厂（不带 await）直接传给 allSettled。
   const results = await Promise.allSettled([
-    transcribeKey ? streamToString(getFile(transcribeKey)) : Promise.reject("no transcribeKey"),
-    whisperKey ? streamToString(getFile(whisperKey)) : Promise.reject("no whisperKey"),
+    transcribeKey ? getFile(transcribeKey).then(s => streamToString(s)) : Promise.reject("no transcribeKey"),
+    whisperKey ? getFile(whisperKey).then(s => streamToString(s)) : Promise.reject("no whisperKey"),
   ]);
 
   const rawTranscribeText = results[0].status === "fulfilled" ? results[0].value : null;
@@ -110,14 +92,9 @@ async function readTranscript(transcribeKey, whisperKey) {
 
 async function readFunASRResult(funasrKey) {
   if (!funasrKey) return null;
-  const PREFIX = process.env.S3_PREFIX || "meeting-minutes";
-  const fullKey = funasrKey.startsWith(PREFIX) ? funasrKey : `${PREFIX}/${funasrKey}`;
   try {
-    const resp = await s3Client.send(new GetObjectCommand({
-      Bucket: process.env.S3_BUCKET || "yc-projects-012289836917",
-      Key: fullKey,
-    }));
-    const body = await resp.Body.transformToString();
+    const stream = await getFile(funasrKey);
+    const body = await streamToString(stream);
     const data = JSON.parse(body);
     // 格式化带说话人标签的文本
     if (data.segments && data.segments.length > 0) {
@@ -252,16 +229,18 @@ async function processMessage(message) {
       transcriptParts.push(transcriptText);
     }
     if (funasrText) {
-      const truncated = funasrText.slice(0, 60000);
+      const truncated = funasrText.slice(0, 350000);  // Opus 4.6 1M context
       transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${truncated}`);
     }
     const finalTranscript = transcriptParts.join("\n\n");
 
-    // 2. Fetch glossary terms and call Bedrock Claude to generate structured report (with retry)
-    const glossaryTerms = await fetchGlossaryTerms();
+    // 2. Fetch glossary and call Bedrock Claude to generate structured report (with retry)
+    const glossaryItems = await fetchGlossaryItems();
+    const glossaryTerms = glossaryItems.map((i) => i.term).filter(Boolean);
     // invokeModelWithRetry now returns parsed report object (includes JSON parsing with retry)
     let report = await invokeModelWithRetry(finalTranscript, meetingType, glossaryTerms);
     report = normalizeAnonymousSpeakerReport(report);
+    report = applyGlossaryToReport(report, glossaryItems);
 
     // 4. Upload report to S3
     const reportKey = `reports/${meetingId}/report.json`;
@@ -286,23 +265,58 @@ async function processMessage(message) {
     logger.info("report-worker", "report-generated", { meetingId });
   } catch (err) {
     logger.error("report-worker", "processing-failed", { meetingId }, err);
+
+    // Retry count tracking — give up after 3 attempts to avoid infinite Bedrock API costs
+    let retryCount = 0;
+    try {
+      const { Item } = await docClient.send(new GetCommand({
+        TableName: TABLE,
+        Key: { meetingId, createdAt },
+      }));
+      retryCount = Item?.retryCount || 0;
+    } catch (getErr) {
+      logger.warn("report-worker", "read-retryCount-failed", { meetingId, error: getErr.message });
+    }
+
+    if (retryCount >= 3) {
+      logger.error("report-worker", "giving-up-after-retries", { meetingId, retries: retryCount });
+      try {
+        await docClient.send(new UpdateCommand({
+          TableName: TABLE,
+          Key: { meetingId, createdAt },
+          UpdateExpression: "SET #s = :s, errorMessage = :em, stage = :stage, updatedAt = :u",
+          ExpressionAttributeNames: { "#s": "status" },
+          ExpressionAttributeValues: {
+            ":s": "failed",
+            ":em": `${err.message} (retried ${retryCount} times)`,
+            ":stage": "failed",
+            ":u": new Date().toISOString(),
+          },
+        }));
+      } catch (updateErr) {
+        logger.error("report-worker", "update-error-status-failed", { meetingId }, updateErr);
+      }
+      return; // Don't re-throw — let SQS message be deleted
+    }
+
     try {
       await docClient.send(new UpdateCommand({
         TableName: TABLE,
         Key: { meetingId, createdAt },
-        UpdateExpression: "SET #s = :s, errorMessage = :em, stage = :stage, updatedAt = :u",
+        UpdateExpression: "SET #s = :s, errorMessage = :em, stage = :stage, retryCount = :rc, updatedAt = :u",
         ExpressionAttributeNames: { "#s": "status" },
         ExpressionAttributeValues: {
           ":s": "failed",
           ":em": err.message,
           ":stage": "failed",
+          ":rc": retryCount + 1,
           ":u": new Date().toISOString(),
         },
       }));
     } catch (updateErr) {
       logger.error("report-worker", "update-error-status-failed", { meetingId }, updateErr);
     }
-    throw err; // Re-throw so message is NOT deleted from SQS (visibility timeout retry)
+    throw err; // Re-throw so message stays in SQS for retry
   }
 }
 

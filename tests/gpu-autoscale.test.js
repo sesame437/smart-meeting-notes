@@ -1,6 +1,5 @@
 const mockEC2Send = jest.fn();
 const mockDynamoSend = jest.fn();
-const mockExecFile = jest.fn();
 const mockFetch = jest.fn();
 
 jest.mock("@aws-sdk/client-ec2", () => ({
@@ -16,10 +15,6 @@ jest.mock("@aws-sdk/client-dynamodb", () => ({
   QueryCommand: jest.fn((input) => ({ input })),
 }));
 
-jest.mock("child_process", () => ({
-  execFile: (...args) => mockExecFile(...args),
-}));
-
 global.fetch = mockFetch;
 
 const { ensureReady, recordActivity, warmUpGPU } = require("../services/gpu-autoscale");
@@ -32,8 +27,11 @@ describe("gpu-autoscale", () => {
 
   describe("ensureReady", () => {
     it("should return true when FunASR is already reachable", async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "PREFLIGHT_RESULT=OK" }));
+      // First fetch: isFunASRReachable in ensureReady → reachable
+      // Second fetch: isFunASRReachable in runPreflightCheck → reachable
+      mockFetch
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true });
 
       const result = await ensureReady();
 
@@ -41,43 +39,41 @@ describe("gpu-autoscale", () => {
       expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("/health"), expect.any(Object));
     });
 
-    it("should handle preflight check warning", async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "PREFLIGHT_RESULT=WARN\nGPU temp high" }));
-
-      const result = await ensureReady();
-      expect(result).toBe(true);
-    });
-
-    it("should throw on preflight check failure", async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true });
-      const err = new Error("Preflight failed");
-      err.code = 1;
-      err.stdout = "PREFLIGHT_RESULT=FAILED\nGPU not found";
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(err));
+    it("should throw on preflight check failure (HTTP /health not ok)", async () => {
+      // First fetch: reachable
+      // Second fetch (preflight): not ok → loading state
+      mockFetch
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: false });
 
       await expect(ensureReady()).rejects.toThrow("FunASR preflight check failed");
     });
 
-    it("should throw on SSH timeout error", async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true });
-      const err = new Error("SSH timeout");
-      err.code = 255;
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(err));
+    it("should throw on preflight check network error", async () => {
+      // First fetch: reachable
+      // Second fetch (preflight): ECONNREFUSED
+      const connErr = new Error("Connection refused");
+      connErr.cause = { code: "ECONNREFUSED" };
+      mockFetch
+        .mockResolvedValueOnce({ ok: true })
+        .mockRejectedValueOnce(connErr)
+        .mockRejectedValueOnce(connErr);
 
-      await expect(ensureReady()).rejects.toThrow("Failed to run preflight check");
+      await expect(ensureReady()).rejects.toThrow("FunASR preflight check failed");
     });
 
     it("should start stopped instance and wait for FunASR", async () => {
       jest.useFakeTimers();
+      const connErr = new Error("Connection refused");
+      connErr.code = "ECONNREFUSED";
       mockFetch
-        .mockRejectedValueOnce({ code: "ECONNREFUSED" })
-        .mockResolvedValueOnce({ ok: true });
+        .mockRejectedValueOnce(connErr)         // ensureReady: not reachable
+        .mockResolvedValueOnce({ ok: true })     // poll: reachable
+        .mockResolvedValueOnce({ ok: true });    // preflight: ok
       mockEC2Send
         .mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "stopped" } }] }] })
-        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({})  // StartInstances
         .mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "running" } }] }] });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "OK" }));
 
       const promise = ensureReady();
       await jest.runAllTimersAsync();
@@ -89,15 +85,17 @@ describe("gpu-autoscale", () => {
 
     it("should wait for stopping instance then start", async () => {
       jest.useFakeTimers();
+      const connErr = new Error("Connection refused");
+      connErr.code = "ECONNREFUSED";
       mockFetch
-        .mockRejectedValueOnce({ code: "ECONNREFUSED" })
-        .mockResolvedValueOnce({ ok: true });
+        .mockRejectedValueOnce(connErr)         // not reachable
+        .mockResolvedValueOnce({ ok: true })     // poll: reachable
+        .mockResolvedValueOnce({ ok: true });    // preflight
       mockEC2Send
         .mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "stopping" } }] }] })
         .mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "stopped" } }] }] })
-        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({})  // StartInstances
         .mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "running" } }] }] });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "OK" }));
 
       const promise = ensureReady();
       await jest.runAllTimersAsync();
@@ -107,7 +105,9 @@ describe("gpu-autoscale", () => {
     });
 
     it("should throw on unexpected instance state", async () => {
-      mockFetch.mockRejectedValueOnce({ code: "ECONNREFUSED" });
+      const connErr = new Error("Connection refused");
+      connErr.code = "ECONNREFUSED";
+      mockFetch.mockRejectedValueOnce(connErr);
       mockEC2Send.mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "terminated" } }] }] });
 
       await expect(ensureReady()).rejects.toThrow("unexpected state");
@@ -115,11 +115,13 @@ describe("gpu-autoscale", () => {
 
     it("should poll FunASR with not_started reason", async () => {
       jest.useFakeTimers();
+      const connErr = new Error("Connection refused");
+      connErr.cause = { code: "ECONNREFUSED" };
       mockFetch
-        .mockRejectedValueOnce({ cause: { code: "ECONNREFUSED" } })
-        .mockResolvedValueOnce({ ok: true });
+        .mockRejectedValueOnce(connErr)          // not reachable (not_started)
+        .mockResolvedValueOnce({ ok: true })      // poll: reachable
+        .mockResolvedValueOnce({ ok: true });     // preflight
       mockEC2Send.mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "running" } }] }] });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "OK" }));
 
       const promise = ensureReady();
       await jest.runAllTimersAsync();
@@ -131,10 +133,10 @@ describe("gpu-autoscale", () => {
     it("should poll FunASR with loading reason", async () => {
       jest.useFakeTimers();
       mockFetch
-        .mockResolvedValueOnce({ ok: false })
-        .mockResolvedValueOnce({ ok: true });
+        .mockResolvedValueOnce({ ok: false })     // not reachable (loading)
+        .mockResolvedValueOnce({ ok: true })       // poll: reachable
+        .mockResolvedValueOnce({ ok: true });      // preflight
       mockEC2Send.mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "running" } }] }] });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "OK" }));
 
       const promise = ensureReady();
       await jest.runAllTimersAsync();
@@ -145,7 +147,9 @@ describe("gpu-autoscale", () => {
 
     it("should return false after max wait timeout", async () => {
       jest.useFakeTimers();
-      mockFetch.mockRejectedValue({ code: "ECONNREFUSED" });
+      const connErr = new Error("Connection refused");
+      connErr.code = "ECONNREFUSED";
+      mockFetch.mockRejectedValue(connErr);
       mockEC2Send.mockResolvedValue({ Reservations: [{ Instances: [{ State: { Name: "running" } }] }] });
 
       const promise = ensureReady();
@@ -157,11 +161,12 @@ describe("gpu-autoscale", () => {
     });
 
     it("should handle fetch timeout and fallback to root", async () => {
+      // First /health: timeout → catch → try root endpoint → status 200 → reachable
+      // Preflight: /health ok
       mockFetch
         .mockRejectedValueOnce(new Error("timeout"))
-        .mockResolvedValueOnce({ status: 200 });
-      mockEC2Send.mockResolvedValueOnce({ Reservations: [{ Instances: [{ State: { Name: "running" } }] }] });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "OK" }));
+        .mockResolvedValueOnce({ status: 200 })   // root fallback → reachable
+        .mockResolvedValueOnce({ ok: true });      // preflight
 
       await ensureReady();
     });
@@ -170,10 +175,10 @@ describe("gpu-autoscale", () => {
       jest.useFakeTimers();
       mockFetch
         .mockRejectedValueOnce(new Error("timeout"))
-        .mockResolvedValueOnce({ status: 503 })
-        .mockResolvedValueOnce({ ok: true });
+        .mockResolvedValueOnce({ status: 503 })     // root fallback → loading
+        .mockResolvedValueOnce({ ok: true })         // poll: reachable
+        .mockResolvedValueOnce({ ok: true });        // preflight
       mockEC2Send.mockResolvedValue({ Reservations: [{ Instances: [{ State: { Name: "running" } }] }] });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "OK" }));
 
       const promise = ensureReady();
       await jest.runAllTimersAsync();
@@ -184,12 +189,14 @@ describe("gpu-autoscale", () => {
 
     it("should handle ECONNREFUSED in root endpoint fallback", async () => {
       jest.useFakeTimers();
+      const connErr = new Error("Connection refused");
+      connErr.cause = { code: "ECONNREFUSED" };
       mockFetch
         .mockRejectedValueOnce(new Error("timeout"))
-        .mockRejectedValueOnce({ cause: { code: "ECONNREFUSED" } })
-        .mockResolvedValueOnce({ ok: true });
+        .mockRejectedValueOnce(connErr)              // root fallback → not_started
+        .mockResolvedValueOnce({ ok: true })          // poll: reachable
+        .mockResolvedValueOnce({ ok: true });         // preflight
       mockEC2Send.mockResolvedValue({ Reservations: [{ Instances: [{ State: { Name: "running" } }] }] });
-      mockExecFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: "OK" }));
 
       const promise = ensureReady();
       await jest.runAllTimersAsync();
@@ -199,7 +206,9 @@ describe("gpu-autoscale", () => {
     });
 
     it("should throw when instance not found", async () => {
-      mockFetch.mockRejectedValueOnce({ code: "ECONNREFUSED" });
+      const connErr = new Error("Connection refused");
+      connErr.code = "ECONNREFUSED";
+      mockFetch.mockRejectedValueOnce(connErr);
       mockEC2Send.mockResolvedValueOnce({ Reservations: [] });
 
       await expect(ensureReady()).rejects.toThrow("not found");
@@ -220,7 +229,7 @@ describe("gpu-autoscale", () => {
         .mockResolvedValueOnce({});
 
       recordActivity();
-      
+
       await jest.advanceTimersByTimeAsync(30 * 60 * 1000);
 
       expect(mockEC2Send).toHaveBeenCalled();

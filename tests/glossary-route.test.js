@@ -89,13 +89,19 @@ describe("PUT /glossary/:id", () => {
     expect(callArgs.ExpressionAttributeValues[":a"]).toBe("");
   });
 
-  test("缺少 term 字段时：返回 400", async () => {
+  test("缺少 term 字段时：部分更新返回 200", async () => {
+    const fakeAttributes = {
+      termId: "abc-123",
+      definition: "A greeting",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    mockSend.mockResolvedValueOnce({ Attributes: fakeAttributes });
+
     app = buildApp();
     const res = await request(app)
       .put("/glossary/abc-123")
       .send({ definition: "A greeting" });
 
-    expect(res.status).toBe(400);
-    expect(mockSend).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
   });
 });

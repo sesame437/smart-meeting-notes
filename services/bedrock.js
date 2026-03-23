@@ -7,15 +7,16 @@ const bedrockClient = new BedrockRuntimeClient({
   region: process.env.BEDROCK_REGION || process.env.AWS_REGION || "us-west-2",
 });
 
-const DEFAULT_MODEL_ID = process.env.BEDROCK_MODEL_ID || "global.anthropic.claude-sonnet-4-6";
+const DEFAULT_MODEL_ID = process.env.BEDROCK_MODEL_ID || "global.anthropic.claude-opus-4-6-v1";
 
 function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speakerMap = null, customPrompt = null) {
   let speakerNote = "";
   if (speakerMap && Object.keys(speakerMap).length > 0) {
     const mapping = Object.entries(speakerMap).map(([k, v]) => `${k}: ${v}`).join(", ");
-    speakerNote = `以下是参会人真实姓名映射，请在纪要中使用真实姓名：{${mapping}}\n\n同时，请在 JSON 输出的 speakerKeypoints 字段中，为每位说话人提取最多3条核心发言要点。\n\n`;
+    const nameList = [...new Set(Object.values(speakerMap))].join("、");
+    speakerNote = `以下是参会人真实姓名映射，请在纪要中使用真实姓名：{${mapping}}\n\n重要：只允许使用以上真实姓名（${nameList}），严禁使用"成员A"、"成员B"、"成员C"、"成员D"、"主持人"等匿名代号。所有提及参会人的地方必须使用映射中的真实姓名。\n\n同时，请在 JSON 输出的 speakerKeypoints 字段中，为每位说话人提取最多3条核心发言要点。每条要点必须至少80个中文字，完整描述该说话人的具体观点、提出的数据/方案和上下文背景，不要只写一句话摘要。\n\n`;
   } else if (transcriptText.includes("[SPEAKER_")) {
-    speakerNote = `转录文本中包含说话人标签（如 [SPEAKER_0]、[SPEAKER_1]），请根据每位说话人的发言内容、语气和角色推断其身份（如"主持人"、"成员A"、"客户代表"等），在纪要中使用推断的角色名称而非 SPEAKER_X 编号。若无法推断具体身份，可使用"成员A/B/C"等匿名标注。\n\n同时，请在 JSON 输出的 speakerKeypoints 字段中，为每位说话人（SPEAKER_0、SPEAKER_1 等）提取最多3条核心发言要点。\n\n`;
+    speakerNote = `转录文本中包含说话人标签（如 [SPEAKER_0]、[SPEAKER_1]），请根据每位说话人的发言内容、语气和角色推断其身份（如"主持人"、"成员A"、"客户代表"等），在纪要中使用推断的角色名称而非 SPEAKER_X 编号。若无法推断具体身份，可使用"成员A/B/C"等匿名标注。\n\n同时，请在 JSON 输出的 speakerKeypoints 字段中，为每位说话人（SPEAKER_0、SPEAKER_1 等）提取最多3条核心发言要点。每条要点必须至少80个中文字，完整描述该说话人的具体观点、提出的数据/方案和上下文背景，不要只写一句话摘要。\n\n`;
   }
 
   const glossaryNote = glossaryTerms.length > 0
@@ -90,8 +91,8 @@ ${transcriptText}
   "lowlights": [{ "point": "问题/风险", "detail": "详情" }],
   "nextMeeting": "下次会议时间（如有提及）",
   "speakerKeypoints": {
-    "SPEAKER_0": ["该说话人的核心发言要点1", "要点2", "要点3"],
-    "SPEAKER_1": ["该说话人的核心发言要点1", "要点2"]
+    "SPEAKER_0": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"],
+    "SPEAKER_1": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"]
   }
 }
 只输出 JSON。`;
@@ -115,8 +116,8 @@ ${transcriptText}
   "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
   "techStack": ["涉及的技术/工具/框架"],
   "speakerKeypoints": {
-    "SPEAKER_0": ["该说话人的核心发言要点1", "要点2", "要点3"],
-    "SPEAKER_1": ["该说话人的核心发言要点1", "要点2"]
+    "SPEAKER_0": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"],
+    "SPEAKER_1": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"]
   }
 }
 只输出 JSON。`;
@@ -179,14 +180,14 @@ ${transcriptText}
   "actions": [{ "task": "行动项", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low" }],
   "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
   "speakerKeypoints": {
-    "SPEAKER_0": ["该说话人的核心发言要点1", "要点2", "要点3"],
-    "SPEAKER_1": ["该说话人的核心发言要点1", "要点2"]
+    "SPEAKER_0": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"],
+    "SPEAKER_1": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"]
   }
 }
 
 转录文本：${transcriptText}
 
-注意：speakerKeypoints 字段仅当转录文本中包含 [SPEAKER_X] 标签时提取，每位说话人最多3条核心发言要点。若无说话人标签，则输出空对象 {}。只输出 JSON。`;
+注意：speakerKeypoints 字段仅当转录文本中包含 [SPEAKER_X] 标签时提取，每位说话人最多3条核心发言要点，每条至少50个中文字。若无说话人标签，则输出空对象 {}。只输出 JSON。`;
   }
 
   // general (default)
@@ -209,8 +210,8 @@ ${transcriptText}
   "participants": ["发言人角色"],
   "nextMeeting": "下次会议时间（如有提及）",
   "speakerKeypoints": {
-    "SPEAKER_0": ["该说话人的核心发言要点1", "要点2", "要点3"],
-    "SPEAKER_1": ["该说话人的核心发言要点1", "要点2"]
+    "SPEAKER_0": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"],
+    "SPEAKER_1": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"]
   }
 }
 
@@ -218,8 +219,8 @@ ${transcriptText}
 }
 
 function truncateTranscript(text) {
-  const MAX_TOTAL = 120000;
-  const MAX_EACH = 60000;
+  const MAX_TOTAL = 700000;  // Opus 4.6 native 1M context (~930K tokens input budget)
+  const MAX_EACH = 350000;
 
   // FunASR-only 模式：整体截断（已在 report-worker 层截过 60k）
   if (text.includes("[FunASR 转录（含说话人标签）]") && !text.includes("[AWS Transcribe 转录]")) {
@@ -253,7 +254,7 @@ async function invokeModel(transcriptText, meetingType = "general", glossaryTerm
       accept: "application/json",
       body: JSON.stringify({
         anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 32000,
+        max_tokens: 64000,
         messages: [{ role: "user", content: prompt }],
       }),
     })

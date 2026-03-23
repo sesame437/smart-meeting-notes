@@ -158,7 +158,7 @@ describe("getMeetingPrompt — weekly template structure", () => {
 
 describe("truncateTranscript — FunASR-only mode", () => {
   const FUNASR_LABEL = "[FunASR 转录（含说话人标签）]";
-  const MAX_EACH = 60000;
+  const MAX_EACH = 350000;
 
   test("FunASR-only text is truncated at MAX_EACH characters after the label", () => {
     const longContent = "A".repeat(MAX_EACH + 10000);
@@ -188,8 +188,8 @@ describe("truncateTranscript — FunASR-only mode", () => {
 
 describe("truncateTranscript — dual-track (AWS Transcribe + Whisper)", () => {
   test("dual-track text uses original split logic, not FunASR path", () => {
-    const transcribePart = "T".repeat(80000);
-    const whisperPart = "W".repeat(80000);
+    const transcribePart = "T".repeat(400000);
+    const whisperPart = "W".repeat(400000);
     const text = `[AWS Transcribe 转录]\n${transcribePart}\n\n[Whisper 转录]\n${whisperPart}`;
     const result = truncateTranscriptFn(text);
     expect(result).toContain("[AWS Transcribe 转录]");

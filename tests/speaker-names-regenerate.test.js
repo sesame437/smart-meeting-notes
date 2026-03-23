@@ -193,7 +193,10 @@ describe("POST /api/meetings/:id/regenerate", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.report).toEqual(reportJson);
+    // Post-processing adds speakerRoster and speakerKeypoints when speakerMap exists
+    expect(res.body.report.summary).toBe("Test summary");
+    expect(res.body.report.speakerRoster).toBeDefined();
+    expect(res.body.report.speakerKeypoints).toBeDefined();
     expect(invokeModel).toHaveBeenCalledWith(
       expect.stringContaining("Hello this is the transcript"),
       "general",

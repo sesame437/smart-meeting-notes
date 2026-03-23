@@ -36,7 +36,8 @@ const API = {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `HTTP ${res.status}`);
+        const msg = (body.error && body.error.message) || (typeof body.error === "string" ? body.error : null) || `HTTP ${res.status}`;
+        throw new Error(msg);
       }
       if (res.status === 204) return null;
       return res.json();
@@ -730,8 +731,8 @@ function restoreSpeakerInputState(state) {
 function renderListItem(item) {
   if (typeof item === "string") return item;
   if (typeof item === "object" && item !== null) {
-    return item.point || item.text || item.content || item.description
-      || item.action || item.decision || item.risk || item.issue
+    return item.point || item.content || item.description
+      || item.action || item.decision || item.risk
       || item.item || item.name || JSON.stringify(item);
   }
   return String(item);
@@ -749,10 +750,10 @@ function renderMeetingDetail(m) {
   const lowlights   = report.lowlights   || [];
   const actions     = report.actions     || [];
   const decisions   = report.decisions   || [];
-  const risks       = report.risks       || report.issues || [];
+  const risks       = report.risks       || [];
   const participants= report.participants|| [];
-  const topics      = report.topics      || report.agenda_items || [];
-  const summary     = report.summary     || report.executive_summary || "暂无摘要";
+  const topics      = report.topics      || [];
+  const summary     = report.summary     || "暂无摘要";
   const duration    = report.duration    || m.duration || "-";
 
   // ---- Pipeline Stage Indicator ----
@@ -1198,9 +1199,9 @@ function renderMeetingDetail(m) {
               const prio = (a.priority || "").toLowerCase();
               const prioLabel = a.priority || "-";
               return `<tr id="action-row-${idx}">
-                <td>${escapeHtml(a.task || a.action || "")}</td>
-                <td>${escapeHtml(a.owner || a.assignee || "-")}</td>
-                <td>${formatDeadline(a.deadline || a.dueDate || "-")}</td>
+                <td>${escapeHtml(a.task || "")}</td>
+                <td>${escapeHtml(a.owner || "-")}</td>
+                <td>${formatDeadline(a.deadline || "-")}</td>
                 <td class="td-priority-actions">
                   <span class="priority-badge priority-${prio}">${escapeHtml(prioLabel)}</span>
                   <div class="row-actions"><button class="btn btn-outline btn-sm" data-action="edit-action-item" data-index="${idx}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
@@ -1268,8 +1269,8 @@ function renderMeetingDetail(m) {
         <div class="participant-list">`;
 
       speakerEntries.forEach((entry) => {
-        const hintText = entry.keypoints.length > 0
-          ? truncateParticipantHint(entry.keypoints[0], 100)
+        const keypointsList = entry.keypoints.length > 0
+          ? entry.keypoints.map((kp) => `<li>${escapeHtml(kp)}</li>`).join("")
           : "";
         const possibleNameText = entry.possibleName || "暂无候选姓名";
 
@@ -1286,7 +1287,7 @@ function renderMeetingDetail(m) {
               placeholder="输入真实姓名（可从词汇表选择）" />
             <div class="name-suggestions" style="display:none;"></div>
             <div class="speaker-hint">可能姓名：${escapeHtml(possibleNameText)}</div>
-            ${hintText ? `<div class="speaker-hint">关键发言：${escapeHtml(hintText)}</div>` : ""}
+            ${keypointsList ? `<div class="speaker-keypoints"><span class="keypoints-label">关键发言：</span><ul>${keypointsList}</ul></div>` : ""}
           </div>
         </div>`;
       });
@@ -1331,7 +1332,7 @@ function renderMeetingDetail(m) {
     if (!window._detailPollingTimer || window._detailPollingInterval !== interval) {
       if (window._detailPollingTimer) clearInterval(window._detailPollingTimer);
       window._detailPollingInterval = interval;
-      window._detailPollingTimer = setInterval(() => fetchMeeting(id), interval);
+      window._detailPollingTimer = setInterval(() => fetchMeeting(m.meetingId), interval);
     }
   } else {
     // Stop polling for terminal states
@@ -1824,8 +1825,6 @@ async function saveDecisionItem(index, meetingId) {
     var d = decisions[index];
     if (d.decision !== undefined) d.decision = newText;
     else if (d.point !== undefined) d.point = newText;
-    else if (d.text !== undefined) d.text = newText;
-    else if (d.content !== undefined) d.content = newText;
     else d.decision = newText;
   } else {
     decisions[index] = newText;
@@ -1944,8 +1943,6 @@ async function saveHighlight(index, meetingId) {
   if (typeof highlights[index] === "object" && highlights[index] !== null) {
     var h = highlights[index];
     if (h.point !== undefined) h.point = newText;
-    else if (h.text !== undefined) h.text = newText;
-    else if (h.content !== undefined) h.content = newText;
     else h.point = newText;
   } else {
     highlights[index] = newText;
@@ -2019,8 +2016,6 @@ async function saveLowlight(index, meetingId) {
   if (typeof lowlights[index] === "object" && lowlights[index] !== null) {
     var l = lowlights[index];
     if (l.point !== undefined) l.point = newText;
-    else if (l.text !== undefined) l.text = newText;
-    else if (l.content !== undefined) l.content = newText;
     else l.point = newText;
   } else {
     lowlights[index] = newText;

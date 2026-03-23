@@ -159,6 +159,40 @@ describe("normalizeDuplicateNames", () => {
     expect(normalizeDuplicateNames(42, ["Alice"])).toBe(42);
     expect(normalizeDuplicateNames(null, ["Alice"])).toBe(null);
   });
+
+  test("deduplicates same name in、-separated lists", () => {
+    const input = "汇报了李来、莫沙东、魏一博、拜尔、魏一博、太美、魏一博、瑞康、魏一博、魏一博、罗氏、NexusAI";
+    const result = normalizeDuplicateNames(input, ["魏一博"]);
+    expect(result).toBe("汇报了李来、莫沙东、魏一博、拜尔、太美、瑞康、罗氏、NexusAI");
+  });
+
+  test("deduplicates multiple names in same list", () => {
+    const input = "钱凯、魏一博、Alice、钱凯、魏一博";
+    const result = normalizeDuplicateNames(input, ["钱凯", "魏一博"]);
+    expect(result).toBe("钱凯、魏一博、Alice");
+  });
+
+  test("handles consecutive duplicates", () => {
+    const input = "魏一博、魏一博、魏一博";
+    const result = normalizeDuplicateNames(input, ["魏一博"]);
+    expect(result).toBe("魏一博");
+  });
+
+  test("does not deduplicate names across sentence boundaries", () => {
+    const input = "魏一博负责A项目。魏一博也参与了B项目";
+    const result = normalizeDuplicateNames(input, ["魏一博"]);
+    expect(result).toBe("魏一博负责A项目。魏一博也参与了B项目");
+  });
+
+  test("deduplicates in nested report objects", () => {
+    const report = {
+      summary: "参会人有魏一博、Alice、魏一博、Bob、魏一博",
+      actions: [{ owner: "魏一博" }],
+    };
+    const result = normalizeDuplicateNames(report, ["魏一博"]);
+    expect(result.summary).toBe("参会人有魏一博、Alice、Bob");
+    expect(result.actions[0].owner).toBe("魏一博");
+  });
 });
 
 describe("applyGlossaryAliases", () => {

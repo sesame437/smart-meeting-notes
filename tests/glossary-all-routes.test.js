@@ -127,13 +127,16 @@ describe("POST /api/glossary", () => {
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
 
-  test("returns 400 if definition is missing (zod validation)", async () => {
+  test("returns 201 when definition is omitted (optional field with default)", async () => {
+    mockDynamoSend.mockResolvedValueOnce({});
+
     const res = await request(createApp())
       .post("/api/glossary")
       .send({ term: "Some term" });
 
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.status).toBe(201);
+    expect(res.body.term).toBe("Some term");
+    expect(res.body.definition).toBe("");
   });
 
   test("returns 400 if term exceeds max length", async () => {
@@ -164,13 +167,16 @@ describe("PUT /api/glossary/:id", () => {
     expect(res.body.term).toBe("Updated Term");
   });
 
-  test("returns 400 if term is missing (zod validation)", async () => {
+  test("returns 200 when term is omitted (partial update)", async () => {
+    mockDynamoSend.mockResolvedValueOnce({
+      Attributes: { termId: "t1", definition: "Definition without term" },
+    });
+
     const res = await request(createApp())
       .put("/api/glossary/t1")
       .send({ definition: "Definition without term" });
 
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.status).toBe(200);
   });
 
   test("returns 400 if term is empty string (zod validation)", async () => {

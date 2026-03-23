@@ -32,7 +32,7 @@ function extractJsonFromLLMResponse(text) {
   try {
     // eslint-disable-next-line no-control-regex
     let cleaned = jsonCandidate.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
-    cleaned = cleaned.replace(/([^\\])\n/g, "$1\\n");
+    cleaned = cleaned.replace(/(?<![\\])\n/g, "\\n");
     return JSON.parse(cleaned);
   } catch (cleanupErr) {
     throw new Error(`Failed to parse Bedrock JSON response: ${cleanupErr.message}`, { cause: cleanupErr });

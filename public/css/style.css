@@ -561,6 +561,25 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.speaker-keypoints {
+  font-size: 12px;
+  color: #879596;
+  margin-top: 6px;
+  line-height: 1.6;
+}
+.speaker-keypoints .keypoints-label {
+  font-weight: 600;
+  color: #687078;
+}
+.speaker-keypoints ul {
+  margin: 4px 0 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+.speaker-keypoints li {
+  margin-bottom: 4px;
+  white-space: normal;
+}
 .participant-label {
   flex: 0 0 auto;
   width: 220px;

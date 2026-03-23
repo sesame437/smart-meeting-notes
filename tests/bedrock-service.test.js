@@ -119,7 +119,7 @@ describe("bedrock-service", () => {
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
           input: expect.objectContaining({
-            modelId: "global.anthropic.claude-sonnet-4-6",
+            modelId: "global.anthropic.claude-opus-4-6-v1",
             contentType: "application/json",
             accept: "application/json",
           }),
@@ -239,7 +239,7 @@ describe("bedrock-service", () => {
 
       const callBody = JSON.parse(mockSend.mock.calls[0][0].input.body)
       expect(callBody.anthropic_version).toBe("bedrock-2023-05-31")
-      expect(callBody.max_tokens).toBe(32000)
+      expect(callBody.max_tokens).toBe(64000)
     })
   })
 })

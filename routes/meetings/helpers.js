@@ -132,7 +132,7 @@ async function readTranscriptParts(item) {
           }
         }
         if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
-        const funasrText = lines.join("\n").slice(0, 60000);
+        const funasrText = lines.join("\n").slice(0, 350000);
         transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${funasrText}`);
       } else if (data.text) {
         transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${data.text}`);

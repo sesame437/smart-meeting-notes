@@ -82,7 +82,7 @@ function normalizeDuplicateNames(value, names) {
     let next = value;
     names.forEach((name) => {
       const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      next = next.replace(new RegExp(`${name}[（(][^）)]*[）)]`, "g"), name);
+      next = next.replace(new RegExp(`${esc}[（(][^）)]*[）)]`, "g"), name);
       next = next.replace(new RegExp(`(?:主持人|成员[A-Z]|参会人\\s*\\d+)[（(]${esc}[）)]`, "g"), name);
       next = next.replace(new RegExp(`(?:主持人|成员[A-Z]|参会人\\s*\\d+)[（(]${esc}[^）)]*[）)]`, "g"), name);
       [`${name}（${name}）`, `${name}(${name})`, `${name}/${name}`, `${name} / ${name}`]
@@ -90,6 +90,17 @@ function normalizeDuplicateNames(value, names) {
       next = next.split(`${name}（${name}/`).join(`${name}（`);
       next = next.split(`${name}(${name}/`).join(`${name}(`);
       next = next.split(`${name.charAt(0)}${name}`).join(name);
+
+      // Deduplicate name in、-separated lists:
+      // "A、魏一博、B、魏一博、C、魏一博" → "A、魏一博、B、C"
+      let prev;
+      do {
+        prev = next;
+        next = next.replace(
+          new RegExp(`(${esc})((?:、(?:(?!${esc})[^、。！？\\n])+)*)、${esc}`, "g"),
+          "$1$2"
+        );
+      } while (next !== prev);
     });
     return next;
   }
@@ -137,7 +148,25 @@ function buildSpeakerRoster(report, nameMap, savedSpeakerAliases = {}, existingR
     }));
   });
   Object.keys(stableKP).forEach((spk) => {
-    if (!/^SPEAKER_\d+$/.test(spk)) return;
+    if (!/^SPEAKER_\d+$/.test(spk)) {
+      // LLM sometimes uses real names as keys — reverse-lookup SPEAKER_X from nameMap
+      const matched = Object.entries(nameMap).find(([, rn]) => rn === spk);
+      if (matched) {
+        const speakerKey = matched[0];
+        if (!rosterMap.has(speakerKey)) {
+          rosterMap.set(speakerKey, makeRosterEntry(speakerKey, {
+            resolvedName: spk,
+            keypoints: Array.isArray(stableKP[spk]) ? stableKP[spk] : [],
+          }));
+        } else {
+          const cur = rosterMap.get(speakerKey);
+          if (!cur.keypoints || cur.keypoints.length === 0) {
+            cur.keypoints = Array.isArray(stableKP[spk]) ? stableKP[spk] : cur.keypoints;
+          }
+        }
+      }
+      return;
+    }
     if (!rosterMap.has(spk)) {
       rosterMap.set(spk, makeRosterEntry(spk, {
         resolvedName: nameMap[spk] || "",

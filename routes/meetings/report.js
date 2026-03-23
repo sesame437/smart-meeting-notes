@@ -7,13 +7,7 @@ const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
 const glossaryStore = require("../../services/glossary-store");
 const { normalizeAnonymousSpeakerReport } = require("../../services/report-speaker-normalizer");
-const {
-  collectSpeakerAliasMap,
-  buildSpeakerRoster,
-  replaceNameAlias,
-  normalizeDuplicateNames,
-  applyGlossaryAliases,
-} = require("../../services/speaker-roster");
+const { applyNamesToReport } = require("../../services/report-post-processor");
 const {
   HAIKU_MODEL_ID,
   getMeetingById,
@@ -187,48 +181,17 @@ function register(router) {
       Object.entries(speakerMap).forEach(([speakerKey, name]) => {
         if (name && name.trim()) nameMap[speakerKey] = name.trim();
       });
-      const participantAliasMap = collectSpeakerAliasMap(
-        report.participants,
-        nameMap,
-        item.speakerAliases || {},
-        report.speakerRoster || []
-      );
-      const speakerRoster = buildSpeakerRoster(report, nameMap, item.speakerAliases || {}, report.speakerRoster || []);
 
-      let reportStr = JSON.stringify(report);
-      const replacementEntries = {
-        ...participantAliasMap,
-        ...nameMap,
-      };
-      const sortedEntries = Object.entries(replacementEntries).sort((a, b) => b[0].length - a[0].length);
-      sortedEntries.forEach(([alias, name]) => {
-        reportStr = replaceNameAlias(reportStr, alias, name);
-      });
-
-      let appliedAliases = [];
+      let glossaryItems = [];
       try {
-        const glossaryItems = await glossaryStore.listGlossary();
-        const result = applyGlossaryAliases(reportStr, glossaryItems);
-        reportStr = result.reportStr;
-        appliedAliases = result.appliedAliases;
+        glossaryItems = await glossaryStore.listGlossary();
       } catch (err) {
         logger.warn("meetings-route", "apply-speaker-names-glossary-failed", { error: err.message });
       }
 
-      const updatedReport = normalizeDuplicateNames(JSON.parse(reportStr), Object.values(nameMap));
-
-      updatedReport.speakerKeypoints = report.speakerKeypoints || {};
-      updatedReport.speakerRoster = speakerRoster;
-
-      updatedReport.participants = speakerRoster.map((entry) => entry.resolvedName || entry.displayLabel);
-
-      if (Array.isArray(updatedReport.awsAttendees)) {
-        updatedReport.awsAttendees = [...new Set(updatedReport.awsAttendees)];
-      }
-
-      if (updatedReport.customerInfo && Array.isArray(updatedReport.customerInfo.attendees)) {
-        updatedReport.customerInfo.attendees = [...new Set(updatedReport.customerInfo.attendees)];
-      }
+      const { report: updatedReport, appliedAliases } = applyNamesToReport(
+        report, nameMap, item.speakerAliases || {}, report.speakerRoster || [], glossaryItems
+      );
 
       await uploadFile(reportKey, JSON.stringify(updatedReport, null, 2), "application/json");
       await store.updateMeetingReport(
@@ -268,9 +231,10 @@ function register(router) {
       const transcriptText = transcriptParts.join("\n\n");
       const meetingType = item.meetingType || "general";
 
+      let glossaryItems = [];
       let glossaryTerms = [];
       try {
-        const glossaryItems = await glossaryStore.listGlossary();
+        glossaryItems = await glossaryStore.listGlossary();
         glossaryTerms = glossaryItems.map((i) => i.term).filter(Boolean);
       } catch (err) {
         logger.warn("meetings-route", "regenerate-fetch-glossary-failed", { error: err.message });
@@ -282,6 +246,13 @@ function register(router) {
       let report = extractJsonFromLLMResponse(responseText);
       if (!speakerMap || Object.keys(speakerMap).length === 0) {
         report = normalizeAnonymousSpeakerReport(report);
+      } else {
+        const nameMap = {};
+        Object.entries(speakerMap).forEach(([k, v]) => { if (v && v.trim()) nameMap[k] = v.trim(); });
+        const result = applyNamesToReport(
+          report, nameMap, item.speakerAliases || {}, (item.content && item.content.speakerRoster) || [], glossaryItems
+        );
+        report = result.report;
       }
 
       const reportKey = `reports/${req.params.id}/report.json`;
@@ -311,9 +282,15 @@ function register(router) {
   router.patch("/:id/report", async (req, res, next) => {
     try {
       const { section, data } = req.body;
-      const validSections = ["summary", "actions", "decisions", "participants", "highlights", "lowlights", "announcements", "projectReviews"];
-      if (!validSections.includes(section)) {
-        return res.status(400).json({ error: { code: "INVALID_SECTION", message: "Invalid section" } });
+      const validSections = [
+        "summary", "actions", "decisions", "participants", "highlights", "lowlights",
+        "announcements", "projectReviews",
+        "topics", "teamKPI", "nextMeeting", "risks", "keyTopics", "sourceMeetings",
+        "customerInfo", "customerNeeds", "painPoints", "solutionsDiscussed",
+        "commitments", "nextSteps", "awsAttendees",
+      ];
+      if (!section || !validSections.includes(section)) {
+        return res.status(400).json({ error: { code: "INVALID_SECTION", message: `Invalid section. Allowed: ${validSections.join(", ")}` } });
       }
       if (data === undefined || data === null) {
         return res.status(400).json({ error: { code: "DATA_REQUIRED", message: "data is required" } });
