@@ -7,7 +7,7 @@
 npm test
 ```
 - 要求：550+ passed（基线 2026-03-10）
-- 失败套件：gpu-autoscale.test.js（mock 未跟上 SSH→HTTP /health 重构）+ glossary-all-routes.test.js（待修）
+- 失败套件：gpu-autoscale.test.js（mock 需改为直接 mock `fetch` 而不是 SSH，因为已重构为 HTTP /health 端点）+ glossary-all-routes.test.js（待修）
 - 新增代码：routes/ ≥ 80%，workers/ 核心逻辑必须有 mock 测试
 - **注意**：gpu-autoscale mock 需要更新为直接 mock `fetch`（HTTP /health 端点），不再 mock SSH
 
