@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    env:
+      AWS_REGION: us-west-2
+      S3_BUCKET: test-bucket
+      S3_PREFIX: test
+      DYNAMODB_TABLE: test-meetings
+      GLOSSARY_TABLE: test-glossary
+      SQS_TRANSCRIPTION_QUEUE: https://sqs.us-west-2.amazonaws.com/000000000000/test-queue
+      SQS_REPORT_QUEUE: https://sqs.us-west-2.amazonaws.com/000000000000/test-report
+      SQS_EXPORT_QUEUE: https://sqs.us-west-2.amazonaws.com/000000000000/test-export
+      BEDROCK_MODEL_ID: anthropic.claude-sonnet-4-20250514
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx jest --no-coverage --forceExit
+      - run: npx jest --coverage --forceExit
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(npx jest --coverage --forceExit 2>&1 | grep "All files" | awk '{print $4}')
+          echo "Statement coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 85" | bc -l) )); then
+            echo "Coverage below 85% threshold"
+            exit 1
+          fi
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
