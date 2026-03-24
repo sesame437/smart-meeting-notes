@@ -156,6 +156,8 @@ async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, 
       const isRetryable =
         errorName.includes("ThrottlingException") ||
         errorName.includes("ServiceUnavailableException") ||
+        errorName === "AbortError" ||
+        errorName === "TimeoutError" ||
         errorCode === 429 ||
         errorCode === 503 ||
         errorMessage.includes("Failed to parse Bedrock JSON response");
@@ -190,13 +192,23 @@ async function processMessage(message) {
   const { meetingId, transcribeKey, whisperKey, createdAt } = body;
   logger.info("report-worker", "generating-report", { meetingId });
 
-  // Update stage to "generating"
-  await docClient.send(new UpdateCommand({
-    TableName: TABLE,
-    Key: { meetingId, createdAt },
-    UpdateExpression: "SET stage = :stage, updatedAt = :u",
-    ExpressionAttributeValues: { ":stage": "generating", ":u": new Date().toISOString() },
-  }));
+  // Update stage to "generating" with condition to prevent duplicate processing
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE,
+      Key: { meetingId, createdAt },
+      UpdateExpression: "SET stage = :stage, updatedAt = :u",
+      ConditionExpression: "stage <> :stage",
+      ExpressionAttributeValues: { ":stage": "generating", ":u": new Date().toISOString() },
+    }));
+  } catch (err) {
+    if (err.name === "ConditionalCheckFailedException") {
+      logger.warn("report-worker", "skipping-duplicate", { meetingId, reason: "already generating" });
+      await deleteMessage(QUEUE_URL, message.ReceiptHandle);
+      return;
+    }
+    throw err;
+  }
 
   try {
     // Determine meeting type

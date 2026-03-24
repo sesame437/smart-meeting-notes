@@ -247,18 +247,26 @@ async function invokeModel(transcriptText, meetingType = "general", glossaryTerm
   const truncated = truncateTranscript(transcriptText);
   const prompt = getMeetingPrompt(truncated, meetingType, glossaryTerms, speakerMap, customPrompt);
 
-  const resp = await bedrockClient.send(
-    new InvokeModelCommand({
-      modelId,
-      contentType: "application/json",
-      accept: "application/json",
-      body: JSON.stringify({
-        anthropic_version: "bedrock-2023-05-31",
-        max_tokens: 64000,
-        messages: [{ role: "user", content: prompt }],
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 600_000); // 10 min
+  let resp;
+  try {
+    resp = await bedrockClient.send(
+      new InvokeModelCommand({
+        modelId,
+        contentType: "application/json",
+        accept: "application/json",
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: 64000,
+          messages: [{ role: "user", content: prompt }],
+        }),
       }),
-    })
-  );
+      { abortSignal: controller.signal }
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const result = JSON.parse(new TextDecoder().decode(resp.body));
   return result.content[0].text;
