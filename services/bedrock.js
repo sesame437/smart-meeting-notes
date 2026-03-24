@@ -265,13 +265,18 @@ async function invokeModel(transcriptText, meetingType = "general", glossaryTerm
       { abortSignal: controller.signal }
     );
 
-    const chunks = [];
+    const textParts = [];
     for await (const event of resp.body) {
-      if (event.chunk?.bytes) chunks.push(event.chunk.bytes);
+      if (event.chunk?.bytes) {
+        try {
+          const evt = JSON.parse(new TextDecoder().decode(event.chunk.bytes));
+          if (evt.type === 'content_block_delta' && evt.delta?.text) {
+            textParts.push(evt.delta.text);
+          }
+        } catch (_) { /* skip non-JSON or partial chunks */ }
+      }
     }
-    const decoded = new TextDecoder().decode(Buffer.concat(chunks));
-    const result = JSON.parse(decoded);
-    return result.content[0].text;
+    return textParts.join('');
   } finally {
     clearTimeout(timeout);
   }

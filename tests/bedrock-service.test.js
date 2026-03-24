@@ -1,11 +1,18 @@
 const mockSend = jest.fn()
 
 function makeStreamBody(jsonObj) {
-  const bytes = new TextEncoder().encode(JSON.stringify(jsonObj))
+  const text = jsonObj.content[0].text
+  const events = [
+    { type: 'message_start', message: { id: 'msg_test', type: 'message', role: 'assistant', content: [] } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } },
+    { type: 'message_stop' },
+  ]
   return {
     body: {
       async *[Symbol.asyncIterator]() {
-        yield { chunk: { bytes } }
+        for (const evt of events) {
+          yield { chunk: { bytes: new TextEncoder().encode(JSON.stringify(evt)) } }
+        }
       },
     },
   }
@@ -199,7 +206,8 @@ describe("bedrock-service", () => {
         },
       })
 
-      await expect(invokeModel("Test", "general")).rejects.toThrow()
+      const result = await invokeModel("Test", "general")
+      expect(result).toBe("")
     })
 
     it("should propagate Bedrock errors", async () => {
