@@ -98,6 +98,15 @@ function register(router) {
         }
       }
 
+      // Detect stale generation: stage=generating for over 15 minutes
+      const STALE_MINUTES = 15
+      if (item.stage === 'generating' && item.updatedAt) {
+        const elapsed = Date.now() - new Date(item.updatedAt).getTime()
+        if (elapsed > STALE_MINUTES * 60 * 1000) {
+          item.isStale = true
+        }
+      }
+
       res.json(item);
     } catch (err) {
       next(err);

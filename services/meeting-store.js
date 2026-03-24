@@ -139,6 +139,20 @@ async function markEmailSent(meetingId, createdAt) {
   }));
 }
 
+async function findStaleMeetings(staleMinutes = 15) {
+  const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000).toISOString()
+  // Query status=transcribed (that's the status when stage=generating)
+  const { Items } = await docClient.send(new QueryCommand({
+    TableName: TABLE,
+    IndexName: 'status-createdAt-index',
+    KeyConditionExpression: '#s = :s',
+    FilterExpression: 'stage = :stage AND updatedAt < :cutoff',
+    ExpressionAttributeNames: { '#s': 'status' },
+    ExpressionAttributeValues: { ':s': 'transcribed', ':stage': 'generating', ':cutoff': cutoff },
+  }))
+  return Items || []
+}
+
 async function queryMeetingById(id) {
   const { Items } = await docClient.send(new QueryCommand({
     TableName: TABLE,
@@ -164,4 +178,5 @@ module.exports = {
   updateMeetingReport,
   markEmailSent,
   queryMeetingById,
+  findStaleMeetings,
 };

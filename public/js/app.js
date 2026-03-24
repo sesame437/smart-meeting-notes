@@ -801,6 +801,15 @@ function renderMeetingDetail(m) {
         <button class="btn" style="border:1px solid #FF9900;color:#FF9900;background:transparent;font-size:13px;padding:6px 16px;border-radius:4px;cursor:pointer;" data-action="retry-detail" data-id="${escapeAttr(m.meetingId)}">🔄 重试</button>
       </div>`;
     }
+
+    // Stale generation warning
+    if (m.isStale && stage === "generating") {
+      stageHtml += `<div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:16px 20px;margin:8px 0 16px;">
+        <div style="font-size:15px;font-weight:700;color:#e65100;margin-bottom:8px;">⏱ 生成超时</div>
+        <div style="font-size:13px;color:#bf360c;margin-bottom:12px;">报告生成已超过 15 分钟，系统正在自动重试。如仍无响应，请手动重新生成。</div>
+        <button class="btn" style="border:1px solid #FF9900;color:#FF9900;background:transparent;font-size:13px;padding:6px 16px;border-radius:4px;cursor:pointer;" data-action="regenerate-report" data-id="${escapeAttr(m.meetingId)}">🔄 重新生成</button>
+      </div>`;
+    }
   }
 
   // ---- Header (Cloudscape style) ----

@@ -43,6 +43,58 @@ async function fetchGlossaryItems() {
   }
 }
 
+const { sendMessage } = require('../services/sqs')
+const store = require('../services/meeting-store')
+
+const STALE_THRESHOLD_MINUTES = 15
+const MAX_STALE_RETRIES = 3
+
+async function recoverStaleMeetings() {
+  try {
+    const stale = await store.findStaleMeetings(STALE_THRESHOLD_MINUTES)
+    for (const item of stale) {
+      const retryCount = item.retryCount || 0
+      if (retryCount >= MAX_STALE_RETRIES) {
+        logger.warn('report-worker', 'stale-giving-up', { meetingId: item.meetingId, retryCount })
+        await docClient.send(new UpdateCommand({
+          TableName: TABLE,
+          Key: { meetingId: item.meetingId, createdAt: item.createdAt },
+          UpdateExpression: 'SET #s = :s, stage = :stage, errorMessage = :em, updatedAt = :u',
+          ExpressionAttributeNames: { '#s': 'status' },
+          ExpressionAttributeValues: {
+            ':s': 'failed',
+            ':stage': 'failed',
+            ':em': `Report generation timed out after ${MAX_STALE_RETRIES} retries`,
+            ':u': new Date().toISOString(),
+          },
+        }))
+        continue
+      }
+      logger.info('report-worker', 'stale-recovery', { meetingId: item.meetingId, retryCount: retryCount + 1 })
+      await docClient.send(new UpdateCommand({
+        TableName: TABLE,
+        Key: { meetingId: item.meetingId, createdAt: item.createdAt },
+        UpdateExpression: 'SET stage = :stage, retryCount = :rc, updatedAt = :u',
+        ExpressionAttributeValues: {
+          ':stage': 'reporting',
+          ':rc': retryCount + 1,
+          ':u': new Date().toISOString(),
+        },
+      }))
+      await sendMessage(QUEUE_URL, {
+        meetingId: item.meetingId,
+        transcribeKey: item.transcribeKey || null,
+        whisperKey: item.whisperKey || null,
+        funasrKey: item.funasrKey || null,
+        meetingType: item.meetingType || 'general',
+        createdAt: item.createdAt,
+      })
+    }
+  } catch (err) {
+    logger.error('report-worker', 'stale-recovery-error', {}, err)
+  }
+}
+
 const POLL_INTERVAL = 5000;
 
 async function streamToString(stream) {
@@ -335,6 +387,7 @@ async function poll() {
   logger.info("report-worker", "started");
   while (true) {
     try {
+      await recoverStaleMeetings();
       const messages = await receiveMessages(QUEUE_URL);
       for (const msg of messages) {
         try {
