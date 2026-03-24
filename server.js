@@ -31,8 +31,8 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],          // 禁止内联 script（强制 CSP 合规）
-      styleSrc: ["'self'", "'unsafe-inline'"],   // 允许 inline style（表单控件需要）
-      fontSrc: ["'self'", "data:"],   // 本地字体 + data URI
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googlefonts.cn"],   // 允许 inline style + Google Fonts CSS
+      fontSrc: ["'self'", "data:", "https://fonts.googlefonts.cn"],   // 本地字体 + Google Fonts CN
       imgSrc: ["'self'", "data:", "blob:"],
       connectSrc: ["'self'"],         // 只允许同源 API 请求
       objectSrc: ["'none'"],

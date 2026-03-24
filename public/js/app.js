@@ -1296,7 +1296,7 @@ function renderMeetingDetail(m) {
               placeholder="输入真实姓名（可从词汇表选择）" />
             <div class="name-suggestions" style="display:none;"></div>
             <div class="speaker-hint">可能姓名：${escapeHtml(possibleNameText)}</div>
-            ${keypointsList ? `<div class="speaker-keypoints"><span class="keypoints-label">关键发言：</span><ul>${keypointsList}</ul></div>` : ""}
+            ${keypointsList ? `<div class="speaker-keypoints"><span class="keypoints-toggle"><i class="fa fa-chevron-right"></i> 关键发言（${entry.keypoints.length}）</span><ul>${keypointsList}</ul></div>` : ""}
           </div>
         </div>`;
       });
@@ -2628,6 +2628,14 @@ document.addEventListener("click", function(e) {
   if (e.target.classList.contains("suggestion-item")) {
     applyParticipantSuggestion(e.target);
     return;
+  }
+});
+
+/* Keypoints toggle (expand/collapse) */
+document.addEventListener("click", function(e) {
+  const toggle = e.target.closest(".keypoints-toggle");
+  if (toggle) {
+    toggle.parentElement.classList.toggle("expanded");
   }
 });
 

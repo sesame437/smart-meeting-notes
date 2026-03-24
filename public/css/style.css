@@ -45,7 +45,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', Arial, sans-serif;
+  font-family: 'Instrument Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 15px;
@@ -542,10 +542,12 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .participant-list { display: flex; flex-direction: column; gap: 12px; }
 .participant-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border-subtle);
+  overflow: visible;
+  position: relative;
 }
 .participant-row:last-child { border-bottom: none; }
 .speaker-hint {
@@ -568,11 +570,27 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   font-weight: 600;
   color: var(--text);
 }
+.speaker-keypoints .keypoints-toggle {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+.speaker-keypoints .keypoints-toggle:hover { color: var(--accent); }
+.speaker-keypoints .keypoints-toggle .fa { font-size: 10px; transition: transform 0.2s; }
+.speaker-keypoints.expanded .keypoints-toggle .fa { transform: rotate(90deg); }
 .speaker-keypoints ul {
   margin: 4px 0 0 0;
   padding-left: 18px;
   list-style: disc;
+  display: none;
 }
+.speaker-keypoints.expanded ul { display: block; }
 .speaker-keypoints li {
   margin-bottom: 4px;
   white-space: normal;
@@ -823,7 +841,6 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .report-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
   margin-top: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -838,10 +855,12 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   border-bottom: none;
   letter-spacing: 0.3px;
 }
-.report-table thead th:first-child { width: auto; }
-.report-table thead th:nth-child(2) { width: 100px; }
-.report-table thead th:nth-child(3) { width: 100px; }
-.report-table thead th:last-child { width: 72px; }
+/* Fixed column widths only for 4-column follow-up tables (跟进事项/负责人/截止/操作) */
+.report-table:has(th:nth-child(4)) { table-layout: fixed; }
+.report-table:has(th:nth-child(4)) thead th:first-child { width: auto; }
+.report-table:has(th:nth-child(4)) thead th:nth-child(2) { width: 100px; }
+.report-table:has(th:nth-child(4)) thead th:nth-child(3) { width: 100px; }
+.report-table:has(th:nth-child(4)) thead th:last-child { width: 72px; }
 .report-table tbody td {
   padding: 10px 14px;
   font-size: 13px;
@@ -1120,17 +1139,17 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 
 /* ===== 13. Name Search Suggestions ===== */
-.participant-search-wrap { position: relative; flex: 1; }
+.participant-search-wrap { position: relative; flex: 1; overflow: visible; }
 .name-suggestions {
   position: absolute;
-  top: 100%;
+  top: 36px;
   left: 0;
   right: 0;
   background: var(--bg-card);
   border: 1px solid var(--accent);
   border-radius: var(--radius-xs);
   box-shadow: var(--shadow-lg);
-  z-index: 200;
+  z-index: 500;
   max-height: 240px;
   overflow-y: auto;
 }
