@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>词汇表管理</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/font-awesome.min.css">
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:6px;">
+        <rect width="24" height="24" rx="6" fill="#C2550A"/>
+        <path d="M7 8h10M7 12h7M7 16h10" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      Smart Meeting Notes
+    </div>
+    <div class="navbar-links">
+      <a href="index.html">Meetings</a>
+      <a href="glossary.html" class="active">Glossary</a>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <!-- Add Term -->
+    <div class="card">
+      <div class="card-title">
+        <i class="fa fa-plus-circle"></i> 添加术语
+        <span class="glossary-info-icon" title="" aria-label="字段说明">
+          <i class="fa fa-info-circle"></i>
+          <div class="glossary-tooltip">
+            <p><strong>术语</strong><br>核心词汇，如 <em>罗氏</em>、<em>MIH</em>。Bedrock 生成纪要时会优先识别。</p>
+            <p><strong>别名</strong><br>同一词的其他叫法，逗号分隔。<br>如 <em>Roche, 罗氏制药</em>——任何别名都会被归一化成术语。</p>
+            <p><strong>释义</strong><br>背景解释，帮助 Bedrock 理解上下文，生成更准确的纪要。<br>如 <em>瑞士跨国制药公司，AWS 医疗行业重点客户</em>。</p>
+          </div>
+        </span>
+      </div>
+      <form id="add-term-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="add-term">术语</label>
+            <input type="text" class="form-control" id="add-term" name="term" placeholder="如：OKR" required>
+          </div>
+          <div class="form-group">
+            <label for="add-aliases">别名（逗号分隔）</label>
+            <input type="text" class="form-control" id="add-aliases" name="aliases" placeholder="如：Objectives and Key Results, KPI">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="add-definition">释义</label>
+          <textarea class="form-control" id="add-definition" name="definition" placeholder="背景说明、上下文..."></textarea>
+        </div>
+        <button type="submit" class="btn action-primary-btn"><i class="fa fa-plus"></i> 添加术语</button>
+      </form>
+    </div>
+
+    <!-- Term List -->
+    <div class="card">
+      <div class="card-title"><i class="fa fa-book"></i> 术语列表</div>
+      <div class="search-bar">
+        <i class="fa fa-search"></i>
+        <input type="text" id="glossary-search" placeholder="搜索术语...">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>术语</th>
+              <th>别名</th>
+              <th>释义</th>
+              <th style="width:72px;"></th>
+            </tr>
+          </thead>
+          <tbody id="glossary-tbody">
+            <tr><td colspan="4" class="loading">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+      <h3><i class="fa fa-pencil"></i> 编辑术语</h3>
+      <form id="edit-term-form">
+        <div class="form-group">
+          <label for="edit-term">术语</label>
+          <input type="text" class="form-control" id="edit-term" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-aliases">别名</label>
+          <input type="text" class="form-control" id="edit-aliases">
+        </div>
+        <div class="form-group">
+          <label for="edit-definition">释义</label>
+          <textarea class="form-control" id="edit-definition"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-action="close-modal">取消</button>
+          <button type="submit" class="btn action-primary-btn">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  
+</body>
+</html>

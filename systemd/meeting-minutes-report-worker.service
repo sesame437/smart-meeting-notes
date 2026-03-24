@@ -1,0 +1,14 @@
+[Unit]
+Description=Meeting Minutes Report Worker
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/qiankai/projects/meeting-minutes
+ExecStart=/home/qiankai/.nvm/versions/node/v24.13.0/bin/node workers/report-worker.js
+Restart=always
+RestartSec=10
+EnvironmentFile=/home/qiankai/projects/meeting-minutes/.env
+
+[Install]
+WantedBy=default.target
