@@ -22,7 +22,6 @@ const { UpdateCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const QUEUE_URL = process.env.SQS_REPORT_QUEUE;
 const _EXPORT_QUEUE_URL = process.env.SQS_EXPORT_QUEUE;
 const TABLE = process.env.DYNAMODB_TABLE;
-const _GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
 
 // Glossary cache (TTL 10 min) — returns full items with .term, .aliases
 let _glossaryCache = null;
