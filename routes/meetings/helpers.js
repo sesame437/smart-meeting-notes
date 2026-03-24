@@ -40,9 +40,12 @@ const upload = multer({
   },
 });
 
+// eslint-disable-next-line no-control-regex
+const DANGEROUS_CHARS = /[<>:"/\\|?*\x00-\x1f]/g;
+
 function sanitizeFilename(name) {
   return name
-    .replace(/[^\w\-_.]/g, "_")
+    .replace(DANGEROUS_CHARS, "_")
     .replace(/\.{2,}/g, "_")
     .substring(0, 200);
 }

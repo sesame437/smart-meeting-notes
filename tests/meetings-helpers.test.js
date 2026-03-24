@@ -59,8 +59,14 @@ describe("meetings-helpers", () => {
   });
 
   describe("sanitizeFilename", () => {
-    it("should replace special characters with underscore", () => {
-      expect(sanitizeFilename("test file!@#.mp3")).toBe("test_file___.mp3");
+    it("should replace dangerous characters with underscore", () => {
+      expect(sanitizeFilename('test<file>.mp3')).toBe("test_file_.mp3");
+      expect(sanitizeFilename('test"file.mp3')).toBe("test_file.mp3");
+    });
+
+    it("should preserve spaces and CJK characters", () => {
+      expect(sanitizeFilename("test file!@#.mp3")).toBe("test file!@#.mp3");
+      expect(sanitizeFilename("会议录音.mp3")).toBe("会议录音.mp3");
     });
 
     it("should truncate to 200 chars", () => {

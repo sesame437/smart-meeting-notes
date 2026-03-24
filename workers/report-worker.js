@@ -20,7 +20,6 @@ const { docClient } = require("../db/dynamodb");
 const { UpdateCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
 
 const QUEUE_URL = process.env.SQS_REPORT_QUEUE;
-const _EXPORT_QUEUE_URL = process.env.SQS_EXPORT_QUEUE;
 const TABLE = process.env.DYNAMODB_TABLE;
 
 // Glossary cache (TTL 10 min) — returns full items with .term, .aliases
@@ -379,15 +378,22 @@ async function processMessage(message) {
     } catch (updateErr) {
       logger.error("report-worker", "update-error-status-failed", { meetingId }, updateErr);
     }
-    throw err; // Re-throw so message stays in SQS for retry
+    // Don't re-throw — let SQS message be deleted to avoid duplicate Bedrock calls.
+    // stale recovery will re-enqueue if retryCount < 3.
   }
 }
+
+const STALE_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+let _lastStaleCheck = 0;
 
 async function poll() {
   logger.info("report-worker", "started");
   while (true) {
     try {
-      await recoverStaleMeetings();
+      if (Date.now() - _lastStaleCheck > STALE_CHECK_INTERVAL) {
+        await recoverStaleMeetings();
+        _lastStaleCheck = Date.now();
+      }
       const messages = await receiveMessages(QUEUE_URL);
       for (const msg of messages) {
         try {

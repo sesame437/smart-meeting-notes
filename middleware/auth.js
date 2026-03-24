@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const logger = require("../services/logger");
 
 /**
@@ -42,7 +43,9 @@ function authenticateAPIKey(req, res, next) {
     });
   }
 
-  if (providedKey !== configuredKey) {
+  const a = Buffer.from(providedKey);
+  const b = Buffer.from(configuredKey);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     logger.warn("auth", "invalid-credentials", {
       ip: req.ip,
       path: req.path,

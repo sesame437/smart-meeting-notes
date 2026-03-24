@@ -504,7 +504,7 @@ async function processMessage(message) {
     } catch (updateErr) {
       logger.error("transcription-worker", "update-error-status-failed", { meetingId }, updateErr);
     }
-    throw err; // Re-throw so message is NOT deleted from SQS (visibility timeout retry)
+    // Don't re-throw — let SQS message be deleted after final failure
   }
 }
 

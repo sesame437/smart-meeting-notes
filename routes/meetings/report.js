@@ -307,18 +307,8 @@ function register(router) {
       }
       const report = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
 
-      const fieldMap = {
-        summary: "summary",
-        actions: "actions",
-        decisions: "decisions",
-        participants: "participants",
-        highlights: "highlights",
-        lowlights: "lowlights",
-        announcements: "announcements",
-        projectReviews: "projectReviews",
-      };
-      const primaryField = fieldMap[section];
-      report[primaryField] = data;
+      // section is already validated against validSections whitelist
+      report[section] = data;
 
       await uploadFile(item.reportKey, JSON.stringify(report, null, 2), "application/json");
 

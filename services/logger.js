@@ -10,6 +10,7 @@ function fmt(level, module, event, meta = {}) {
 
 /* eslint-disable no-console */
 const logger = {
+  debug: (module, event, meta) => { if (process.env.LOG_LEVEL === "debug") console.log(fmt("debug", module, event, meta)); },
   info:  (module, event, meta) => console.log(fmt("info",  module, event, meta)),
   warn:  (module, event, meta) => console.warn(fmt("warn",  module, event, meta)),
   error: (module, event, meta, err) => console.error(fmt("error", module, event,
