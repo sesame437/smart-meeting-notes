@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会议纪要</title>
+  <link href="https://fonts.googlefonts.cn/css2?family=Instrument+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/font-awesome.min.css">
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:6px;">
+        <rect width="24" height="24" rx="6" fill="#C2550A"/>
+        <path d="M7 8h10M7 12h7M7 16h10" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      Smart Meeting Notes
+    </div>
+    <div class="navbar-links">
+      <a href="index.html" class="active">Meetings</a>
+      <a href="glossary.html">Glossary</a>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <!-- Upload Area -->
+    <div class="card">
+      <div class="card-title"><i class="fa fa-cloud-upload"></i> 上传音频 / 视频</div>
+      <div class="upload-area" id="upload-area">
+        <input type="file" id="upload-input" accept=".mp4,.mp3,.m4a,.ogg" multiple>
+        <i class="fa fa-cloud-upload"></i>
+        <p>拖放 MP4 / MP3 / OGG 文件到此处，或点击选择</p>
+        <p class="upload-hint">支持多段录音，最多 10 个文件</p>
+      </div>
+      <div class="upload-progress" id="upload-progress">
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-text" id="progress-text">上传中...</div>
+      </div>
+    </div>
+
+    <!-- Meeting List -->
+    <div class="card">
+      <div class="card-title"><i class="fa fa-list"></i> 会议列表</div>
+      <div class="meeting-filter-bar" id="filter-bar">
+        <div class="filter-tabs">
+          <button class="filter-tab active" data-filter="all">全部</button>
+        </div>
+        <div class="filter-search">
+          <i class="fa fa-search" style="color:#879596;"></i>
+          <input type="text" id="meeting-search" placeholder="搜索会议名称…">
+        </div>
+      </div>
+      <div class="meeting-card-list" id="meetings-list">
+        <div class="loading">加载中...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/app.js?v=20260308"></script>
+  
+<!-- Confirm Dialog -->
+<div id="confirm-modal" class="confirm-overlay" style="display:none;" role="dialog" aria-modal="true">
+  <div class="confirm-box">
+    <div class="confirm-icon">⚠️</div>
+    <div class="confirm-title" id="confirm-title">确认删除</div>
+    <div class="confirm-body" id="confirm-body">确认要删除这条记录吗？</div>
+    <div class="confirm-actions">
+      <button class="btn action-primary-btn btn-sm" id="confirm-cancel-btn">取消</button>
+      <button class="btn confirm-delete-btn btn-sm" id="confirm-ok-btn">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Confirmation Dialog -->
+<div id="upload-confirm-modal" class="confirm-overlay" style="display:none;" role="dialog" aria-modal="true">
+  <div class="confirm-box" style="width: 500px;">
+    <div class="confirm-icon">✅</div>
+    <div class="confirm-title">上传成功，请确认会议信息</div>
+    <div class="confirm-body">
+      <div style="text-align: left; margin-top: 16px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 500;">会议名称：</label>
+        <input type="text" id="upload-confirm-title" style="width: 100%; padding: 8px; border: 1px solid #444; background: #1a1a1a; color: #fff; border-radius: 4px; font-size: 14px;" />
+
+        <label style="display: block; margin-top: 16px; margin-bottom: 8px; font-weight: 500;">会议类型：</label>
+        <div class="meeting-type-pills">
+          <input type="radio" name="uploadConfirmMeetingType" id="uc-mt-general" value="general" checked>
+          <label for="uc-mt-general">通用</label>
+          <input type="radio" name="uploadConfirmMeetingType" id="uc-mt-weekly" value="weekly">
+          <label for="uc-mt-weekly">周会</label>
+          <input type="radio" name="uploadConfirmMeetingType" id="uc-mt-tech" value="tech">
+          <label for="uc-mt-tech">技术讨论</label>
+          <input type="radio" name="uploadConfirmMeetingType" id="uc-mt-customer" value="customer">
+          <label for="uc-mt-customer">客户</label>
+        </div>
+      </div>
+    </div>
+    <div class="confirm-actions">
+      <button class="btn btn-sm" id="upload-confirm-cancel-btn" style="background: #333; color: #fff;">取消</button>
+      <button class="btn btn-sm" id="upload-confirm-ok-btn" style="background: #4a9eff; color: #fff;">开始转录</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
