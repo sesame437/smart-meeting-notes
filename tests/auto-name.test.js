@@ -37,6 +37,7 @@ const mockBedrockSend = jest.fn();
 jest.mock("@aws-sdk/client-bedrock-runtime", () => ({
   BedrockRuntimeClient: jest.fn(() => ({ send: mockBedrockSend })),
   InvokeModelCommand: jest.fn((p) => ({ _cmd: "InvokeModelCommand", ...p })),
+  InvokeModelWithResponseStreamCommand: jest.fn(),
 }));
 
 jest.mock("multer", () => {

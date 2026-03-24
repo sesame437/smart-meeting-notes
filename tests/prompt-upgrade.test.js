@@ -11,7 +11,7 @@ jest.mock("@aws-sdk/client-bedrock-runtime", () => ({
   BedrockRuntimeClient: jest.fn().mockImplementation(() => ({
     send: jest.fn(),
   })),
-  InvokeModelCommand: jest.fn(),
+  InvokeModelWithResponseStreamCommand: jest.fn(),
 }));
 
 jest.mock("@aws-sdk/client-dynamodb", () => {

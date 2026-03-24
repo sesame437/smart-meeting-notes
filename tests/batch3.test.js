@@ -16,7 +16,7 @@ jest.mock("dotenv", () => ({ config: jest.fn() }));
 // bedrock.js 依赖
 jest.mock("@aws-sdk/client-bedrock-runtime", () => ({
   BedrockRuntimeClient: jest.fn().mockImplementation(() => ({ send: jest.fn() })),
-  InvokeModelCommand: jest.fn(),
+  InvokeModelWithResponseStreamCommand: jest.fn(),
 }));
 
 // export-worker.js 依赖

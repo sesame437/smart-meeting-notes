@@ -7,14 +7,19 @@
 
 // Mock @aws-sdk/client-bedrock-runtime before requiring bedrock.js
 jest.mock("@aws-sdk/client-bedrock-runtime", () => {
+  const bytes = new TextEncoder().encode(
+    JSON.stringify({ content: [{ text: '{"summary":"test"}' }] })
+  );
   const mockSend = jest.fn().mockResolvedValue({
-    body: new TextEncoder().encode(
-      JSON.stringify({ content: [{ text: '{"summary":"test"}' }] })
-    ),
+    body: {
+      async *[Symbol.asyncIterator]() {
+        yield { chunk: { bytes } }
+      },
+    },
   });
   return {
     BedrockRuntimeClient: jest.fn().mockImplementation(() => ({ send: mockSend })),
-    InvokeModelCommand: jest.fn(),
+    InvokeModelWithResponseStreamCommand: jest.fn(),
   };
 });
 

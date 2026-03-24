@@ -1,11 +1,22 @@
 const mockSend = jest.fn()
 
+function makeStreamBody(jsonObj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(jsonObj))
+  return {
+    body: {
+      async *[Symbol.asyncIterator]() {
+        yield { chunk: { bytes } }
+      },
+    },
+  }
+}
+
 jest.mock("@aws-sdk/client-bedrock-runtime", () => {
   return {
     BedrockRuntimeClient: jest.fn().mockImplementation(() => ({
       send: mockSend,
     })),
-    InvokeModelCommand: jest.fn((input) => ({ input })),
+    InvokeModelWithResponseStreamCommand: jest.fn((input) => ({ input })),
   }
 })
 
@@ -104,14 +115,9 @@ describe("bedrock-service", () => {
 
   describe("invokeModel", () => {
     it("should invoke Bedrock model and return text response", async () => {
-      const mockResponse = {
-        body: new TextEncoder().encode(
-          JSON.stringify({
-            content: [{ text: '{"summary": "Meeting summary"}' }],
-          })
-        ),
-      }
-      mockSend.mockResolvedValueOnce(mockResponse)
+      mockSend.mockResolvedValueOnce(
+        makeStreamBody({ content: [{ text: '{"summary": "Meeting summary"}' }] })
+      )
 
       const result = await invokeModel("Test transcript", "general")
 
@@ -123,19 +129,15 @@ describe("bedrock-service", () => {
             contentType: "application/json",
             accept: "application/json",
           }),
-        })
+        }),
+        expect.anything()
       )
     })
 
     it("should use custom modelId when provided", async () => {
-      const mockResponse = {
-        body: new TextEncoder().encode(
-          JSON.stringify({
-            content: [{ text: "Response" }],
-          })
-        ),
-      }
-      mockSend.mockResolvedValueOnce(mockResponse)
+      mockSend.mockResolvedValueOnce(
+        makeStreamBody({ content: [{ text: "Response" }] })
+      )
 
       await invokeModel("Test", "general", [], "custom-model-id")
 
@@ -144,19 +146,15 @@ describe("bedrock-service", () => {
           input: expect.objectContaining({
             modelId: "custom-model-id",
           }),
-        })
+        }),
+        expect.anything()
       )
     })
 
     it("should pass glossaryTerms to prompt generation", async () => {
-      const mockResponse = {
-        body: new TextEncoder().encode(
-          JSON.stringify({
-            content: [{ text: "Response" }],
-          })
-        ),
-      }
-      mockSend.mockResolvedValueOnce(mockResponse)
+      mockSend.mockResolvedValueOnce(
+        makeStreamBody({ content: [{ text: "Response" }] })
+      )
       const glossaryTerms = ["Term1", "Term2"]
 
       await invokeModel("Test", "general", glossaryTerms)
@@ -167,14 +165,9 @@ describe("bedrock-service", () => {
     })
 
     it("should pass speakerMap to prompt generation", async () => {
-      const mockResponse = {
-        body: new TextEncoder().encode(
-          JSON.stringify({
-            content: [{ text: "Response" }],
-          })
-        ),
-      }
-      mockSend.mockResolvedValueOnce(mockResponse)
+      mockSend.mockResolvedValueOnce(
+        makeStreamBody({ content: [{ text: "Response" }] })
+      )
       const speakerMap = { SPEAKER_01: "Alice" }
 
       await invokeModel("Test", "general", [], "global.anthropic.claude-sonnet-4-6", speakerMap)
@@ -185,14 +178,9 @@ describe("bedrock-service", () => {
     })
 
     it("should truncate transcript if too long", async () => {
-      const mockResponse = {
-        body: new TextEncoder().encode(
-          JSON.stringify({
-            content: [{ text: "Response" }],
-          })
-        ),
-      }
-      mockSend.mockResolvedValueOnce(mockResponse)
+      mockSend.mockResolvedValueOnce(
+        makeStreamBody({ content: [{ text: "Response" }] })
+      )
       const longTranscript = "a".repeat(200000)
 
       await invokeModel(longTranscript, "general")
@@ -202,10 +190,14 @@ describe("bedrock-service", () => {
     })
 
     it("should handle JSON parsing errors", async () => {
-      const mockResponse = {
-        body: new TextEncoder().encode("invalid json"),
-      }
-      mockSend.mockResolvedValueOnce(mockResponse)
+      const bytes = new TextEncoder().encode("invalid json")
+      mockSend.mockResolvedValueOnce({
+        body: {
+          async *[Symbol.asyncIterator]() {
+            yield { chunk: { bytes } }
+          },
+        },
+      })
 
       await expect(invokeModel("Test", "general")).rejects.toThrow()
     })
@@ -226,14 +218,9 @@ describe("bedrock-service", () => {
     })
 
     it("should send correct anthropic_version and max_tokens", async () => {
-      const mockResponse = {
-        body: new TextEncoder().encode(
-          JSON.stringify({
-            content: [{ text: "Response" }],
-          })
-        ),
-      }
-      mockSend.mockResolvedValueOnce(mockResponse)
+      mockSend.mockResolvedValueOnce(
+        makeStreamBody({ content: [{ text: "Response" }] })
+      )
 
       await invokeModel("Test", "general")
 

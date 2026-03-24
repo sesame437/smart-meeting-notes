@@ -6,7 +6,7 @@
 // Mock AWS SDK 避免真实调用
 jest.mock('@aws-sdk/client-bedrock-runtime', () => ({
   BedrockRuntimeClient: jest.fn().mockImplementation(() => ({})),
-  InvokeModelCommand: jest.fn(),
+  InvokeModelWithResponseStreamCommand: jest.fn(),
 }));
 
 const { getMeetingPrompt } = require('../services/bedrock.js');

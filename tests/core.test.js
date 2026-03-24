@@ -79,7 +79,7 @@ jest.mock("@aws-sdk/client-bedrock-runtime", () => {
   });
   return {
     BedrockRuntimeClient: jest.fn().mockImplementation(() => ({ send: mockSend })),
-    InvokeModelCommand:   jest.fn(),
+    InvokeModelWithResponseStreamCommand:   jest.fn(),
   };
 });
 

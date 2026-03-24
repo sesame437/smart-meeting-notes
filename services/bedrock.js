@@ -1,6 +1,6 @@
 const {
   BedrockRuntimeClient,
-  InvokeModelCommand,
+  InvokeModelWithResponseStreamCommand,
 } = require("@aws-sdk/client-bedrock-runtime");
 
 const bedrockClient = new BedrockRuntimeClient({
@@ -248,28 +248,33 @@ async function invokeModel(transcriptText, meetingType = "general", glossaryTerm
   const prompt = getMeetingPrompt(truncated, meetingType, glossaryTerms, speakerMap, customPrompt);
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 600_000); // 10 min
+  const timeout = setTimeout(() => controller.abort(), 1_800_000); // 30 min
   let resp;
   try {
     resp = await bedrockClient.send(
-      new InvokeModelCommand({
+      new InvokeModelWithResponseStreamCommand({
         modelId,
-        contentType: "application/json",
-        accept: "application/json",
+        contentType: 'application/json',
+        accept: 'application/json',
         body: JSON.stringify({
-          anthropic_version: "bedrock-2023-05-31",
+          anthropic_version: 'bedrock-2023-05-31',
           max_tokens: 64000,
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: 'user', content: prompt }],
         }),
       }),
       { abortSignal: controller.signal }
     );
+
+    const chunks = [];
+    for await (const event of resp.body) {
+      if (event.chunk?.bytes) chunks.push(event.chunk.bytes);
+    }
+    const decoded = new TextDecoder().decode(Buffer.concat(chunks));
+    const result = JSON.parse(decoded);
+    return result.content[0].text;
   } finally {
     clearTimeout(timeout);
   }
-
-  const result = JSON.parse(new TextDecoder().decode(resp.body));
-  return result.content[0].text;
 }
 
 module.exports = { invokeModel, getMeetingPrompt };
