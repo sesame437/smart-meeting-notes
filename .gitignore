@@ -6,6 +6,7 @@ CLAUDE.md
 CLAUDE.local.md
 AGENTS.md
 .claude/
+_archive/
 playwright-report/
 test-results/
 dist/
