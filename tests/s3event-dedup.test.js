@@ -47,7 +47,7 @@ function makeS3EventBody(key) {
     Records: [
       {
         s3: {
-          bucket: { name: "yc-projects-012289836917" },
+          bucket: { name: "test-bucket" },
           object: { key },
         },
       },

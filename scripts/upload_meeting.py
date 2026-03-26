@@ -28,12 +28,12 @@ except ImportError:
     sys.exit(1)
 
 # --- 配置（与服务器 .env 保持一致）---
-AWS_REGION          = "us-west-2"
-AWS_PROFILE         = "default"
-S3_BUCKET           = "yc-projects-012289836917"
-S3_PREFIX           = "meeting-minutes"
-DYNAMODB_TABLE      = "meeting-minutes-meetings"
-SQS_QUEUE_URL       = "https://sqs.us-west-2.amazonaws.com/012289836917/mm-transcription-queue"
+AWS_REGION          = os.environ.get("AWS_REGION", "us-west-2")
+AWS_PROFILE         = os.environ.get("AWS_PROFILE", "default")
+S3_BUCKET           = os.environ.get("S3_BUCKET", "")
+S3_PREFIX           = os.environ.get("S3_PREFIX", "meeting-minutes")
+DYNAMODB_TABLE      = os.environ.get("DYNAMODB_TABLE", "meeting-minutes-meetings")
+SQS_QUEUE_URL       = os.environ.get("SQS_TRANSCRIPTION_QUEUE", "")
 
 ALLOWED_EXTENSIONS  = {".mp3", ".mp4", ".m4a", ".wav", ".ogg", ".webm", ".mov", ".flac", ".aac"}
 MAX_FILE_SIZE_GB    = 2

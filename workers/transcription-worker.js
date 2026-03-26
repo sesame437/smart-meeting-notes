@@ -46,7 +46,7 @@ async function runFunASR(meetingId, s3Key) {
     const fullS3Key = s3Key.startsWith(PREFIX) ? s3Key : `${PREFIX}/${s3Key}`;
     const formData = new FormData();
     formData.append("s3_key", fullS3Key);
-    formData.append("s3_bucket", process.env.S3_BUCKET || "yc-projects-012289836917");
+    formData.append("s3_bucket", BUCKET);
     formData.append("language", "zh");
 
     const controller = new AbortController();
@@ -74,7 +74,7 @@ async function runFunASR(meetingId, s3Key) {
     // 上传结果到 S3
     const s3Body = JSON.stringify(result);
     await s3.send(new PutObjectCommand({
-      Bucket: process.env.S3_BUCKET || "yc-projects-012289836917",
+      Bucket: BUCKET,
       Key: s3OutputKey,
       Body: s3Body,
       ContentType: "application/json",

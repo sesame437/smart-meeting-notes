@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 PORT = int(os.environ.get("FUNASR_PORT", 9002))
 REGION = os.environ.get("AWS_REGION", "us-east-1")
-DEFAULT_BUCKET = os.environ.get("S3_BUCKET", "yc-projects-012289836917")
+DEFAULT_BUCKET = os.environ.get("S3_BUCKET", "")
 CACHE_DIR = "/opt/dlami/nvme/funasr-cache"
 CACHE_TTL_SECONDS = 24 * 3600  # 24 hours
 IDLE_TIMEOUT_SECONDS = 30 * 60  # 30 minutes

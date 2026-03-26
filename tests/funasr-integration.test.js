@@ -111,7 +111,7 @@ function buildRunFunASR({ FUNASR_URL, fetchFn, s3SendFn, S3_BUCKET }) {
       console.log(`[FunASR] Sending s3_key to ${FUNASR_URL}/asr`);
       const formData = new FormData();
       formData.append("s3_key", s3Key);
-      formData.append("s3_bucket", S3_BUCKET || "yc-projects-012289836917");
+      formData.append("s3_bucket", S3_BUCKET || "test-bucket");
       formData.append("language", "zh");
 
       const controller = new AbortController();
@@ -137,7 +137,7 @@ function buildRunFunASR({ FUNASR_URL, fetchFn, s3SendFn, S3_BUCKET }) {
       if (result.error) throw new Error(`FunASR error: ${result.error}`);
 
       await s3SendFn(new PutObjectCommand({
-        Bucket: S3_BUCKET || "yc-projects-012289836917",
+        Bucket: S3_BUCKET || "test-bucket",
         Key: outputKey,
         Body: JSON.stringify(result),
         ContentType: "application/json",
@@ -162,7 +162,7 @@ function buildReadFunASRResult({ s3SendFn, S3_BUCKET }) {
     if (!funasrKey) return null;
     try {
       const resp = await s3SendFn(new GetObjectCommand({
-        Bucket: S3_BUCKET || "yc-projects-012289836917",
+        Bucket: S3_BUCKET || "test-bucket",
         Key: funasrKey,
       }));
       const body = await resp.Body.transformToString();
