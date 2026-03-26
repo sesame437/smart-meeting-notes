@@ -53,11 +53,11 @@ describe("transcription-worker error handling", () => {
 
   test("errorMessage 包含原始错误信息", async () => {
     const updateMeetingStatus = jest.fn().mockResolvedValue(undefined);
-    const err = new Error("Whisper API returned 500: upstream unavailable");
+    const err = new Error("FunASR /asr returned 500: upstream unavailable");
 
     await expect(
       handleTranscriptionWorkerError("m-err2", "2026-02-19T00:00:00.000Z", err, updateMeetingStatus)
-    ).rejects.toThrow("Whisper API returned 500");
+    ).rejects.toThrow("FunASR /asr returned 500");
 
     const extraAttrs = updateMeetingStatus.mock.calls[0][3];
     expect(extraAttrs.errorMessage).toContain("upstream unavailable");

@@ -78,39 +78,6 @@ function validateSpeakerMap(speakerMap) {
 async function readTranscriptParts(item) {
   const transcriptParts = [];
 
-  if (item.transcribeKey) {
-    try {
-      const stream = await getFile(item.transcribeKey);
-      const chunks = [];
-      for await (const chunk of stream) {
-        chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-      }
-      const raw = Buffer.concat(chunks).toString("utf-8");
-      try {
-        const data = JSON.parse(raw);
-        const text = data?.results?.transcripts?.[0]?.transcript;
-        if (text) transcriptParts.push(`[AWS Transcribe 转录]\n${text}`);
-        else transcriptParts.push(raw);
-      } catch { transcriptParts.push(raw); }
-    } catch (err) {
-      logger.warn("meetings-route", "read-transcribeKey-failed", { error: err.message });
-    }
-  }
-
-  if (item.whisperKey) {
-    try {
-      const stream = await getFile(item.whisperKey);
-      const chunks = [];
-      for await (const chunk of stream) {
-        chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-      }
-      const text = Buffer.concat(chunks).toString("utf-8");
-      transcriptParts.push(`[Whisper 转录]\n${text}`);
-    } catch (err) {
-      logger.warn("meetings-route", "read-whisperKey-failed", { error: err.message });
-    }
-  }
-
   if (item.funasrKey) {
     try {
       const stream = await getFile(item.funasrKey);

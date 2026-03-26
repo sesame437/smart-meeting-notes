@@ -43,13 +43,6 @@ jest.mock("@aws-sdk/client-s3", () => ({
   PutObjectCommand: jest.fn(),
 }));
 
-jest.mock("@aws-sdk/client-transcribe", () => ({
-  TranscribeClient:              jest.fn().mockImplementation(() => ({ send: jest.fn() })),
-  StartTranscriptionJobCommand:  jest.fn(),
-  GetTranscriptionJobCommand:    jest.fn(),
-  ListVocabulariesCommand:       jest.fn(),
-}));
-
 jest.mock("@aws-sdk/client-ses", () => ({
   SESClient:            jest.fn().mockImplementation(() => ({ send: jest.fn() })),
   SendRawEmailCommand:  jest.fn(),
@@ -158,8 +151,6 @@ describe("Suite 1 — createdAt 传播", () => {
     // 直接模拟 sendMessage 被调用时的参数
     await sendMessage("http://sqs.report-queue", {
       meetingId,
-      transcribeKey:  "transcripts/meeting-test-001/transcribe.json",
-      whisperKey:     null,
       meetingType:    "weekly",
       createdAt,
     });
@@ -528,13 +519,12 @@ describe("Suite 5 — Batch 1 修复专项测试", () => {
     await mockDynamoSend(new UpdateCommand({
       TableName: "meeting-minutes-meetings",
       Key: { meetingId, createdAt },  // ← 必须包含 createdAt SK
-      UpdateExpression: "SET #s = :s, #u = :u, transcribeKey = :tk, whisperKey = :wk",
+      UpdateExpression: "SET #s = :s, #u = :u, funasrKey = :fk",
       ExpressionAttributeNames: { "#s": "status", "#u": "updatedAt" },
       ExpressionAttributeValues: {
         ":s": "transcribed",
         ":u": new Date().toISOString(),
-        ":tk": "transcripts/meeting-sig-001/transcribe.json",
-        ":wk": "",
+        ":fk": "transcripts/meeting-sig-001/funasr.json",
       },
     }));
 

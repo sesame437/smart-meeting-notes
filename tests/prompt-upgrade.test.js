@@ -177,33 +177,11 @@ describe("truncateTranscript — FunASR-only mode", () => {
     expect(result).toContain(shortContent);
   });
 
-  test("FunASR-only text does NOT trigger dual-track logic", () => {
+  test("FunASR-only text does NOT contain Whisper markers", () => {
     const longContent = "C".repeat(MAX_EACH + 5000);
     const text = `${FUNASR_LABEL}\n${longContent}`;
     const result = truncateTranscriptFn(text);
-    // Should not contain [Whisper 转录] (dual-track marker)
     expect(result).not.toContain("[Whisper 转录]");
-  });
-});
-
-describe("truncateTranscript — dual-track (AWS Transcribe + Whisper)", () => {
-  test("dual-track text uses original split logic, not FunASR path", () => {
-    const transcribePart = "T".repeat(400000);
-    const whisperPart = "W".repeat(400000);
-    const text = `[AWS Transcribe 转录]\n${transcribePart}\n\n[Whisper 转录]\n${whisperPart}`;
-    const result = truncateTranscriptFn(text);
-    expect(result).toContain("[AWS Transcribe 转录]");
-    expect(result).toContain("[Whisper 转录]");
-    // Each part should be truncated
-    expect(result.length).toBeLessThan(text.length);
-  });
-
-  test("dual-track text does NOT hit FunASR branch", () => {
-    const text = `[AWS Transcribe 转录]\nhello\n\n[Whisper 转录]\nworld`;
-    const result = truncateTranscriptFn(text);
-    // Both parts present and intact (short content)
-    expect(result).toContain("hello");
-    expect(result).toContain("world");
   });
 });
 

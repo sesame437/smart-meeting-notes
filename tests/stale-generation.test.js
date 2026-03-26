@@ -106,8 +106,6 @@ describe('stale recovery logic', () => {
       }))
       await sendMessage(QUEUE_URL, {
         meetingId: item.meetingId,
-        transcribeKey: item.transcribeKey || null,
-        whisperKey: item.whisperKey || null,
         funasrKey: item.funasrKey || null,
         meetingType: item.meetingType || 'general',
         createdAt: item.createdAt,

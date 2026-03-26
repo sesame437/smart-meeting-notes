@@ -82,8 +82,6 @@ async function recoverStaleMeetings() {
       }))
       await sendMessage(QUEUE_URL, {
         meetingId: item.meetingId,
-        transcribeKey: item.transcribeKey || null,
-        whisperKey: item.whisperKey || null,
         funasrKey: item.funasrKey || null,
         meetingType: item.meetingType || 'general',
         createdAt: item.createdAt,
@@ -102,42 +100,6 @@ async function streamToString(stream) {
     chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
   }
   return Buffer.concat(chunks).toString("utf-8");
-}
-
-function extractTranscribeText(rawJson) {
-  try {
-    const data = JSON.parse(rawJson);
-    // AWS Transcribe JSON 格式：results.transcripts[0].transcript
-    const transcript = data?.results?.transcripts?.[0]?.transcript;
-    if (transcript) return transcript;
-    // 如果解析不到，原样返回（可能已经是纯文本）
-    return rawJson;
-  } catch (_e) {
-    // 不是 JSON，已经是纯文本
-    return rawJson;
-  }
-}
-
-async function readTranscript(transcribeKey, whisperKey) {
-  const results = await Promise.allSettled([
-    transcribeKey ? getFile(transcribeKey).then(s => streamToString(s)) : Promise.reject("no transcribeKey"),
-    whisperKey ? getFile(whisperKey).then(s => streamToString(s)) : Promise.reject("no whisperKey"),
-  ]);
-
-  const rawTranscribeText = results[0].status === "fulfilled" ? results[0].value : null;
-  const whisperText = results[1].status === "fulfilled" ? results[1].value : null;
-
-  // AWS Transcribe 返回 JSON，需要提取纯文本
-  const transcribeText = rawTranscribeText ? extractTranscribeText(rawTranscribeText) : null;
-
-  if (!transcribeText && !whisperText) {
-    throw new Error("Both transcription sources failed");
-  }
-
-  if (transcribeText && whisperText) {
-    return `[AWS Transcribe 转录]\n${transcribeText}\n\n[Whisper 转录]\n${whisperText}`;
-  }
-  return transcribeText || whisperText;
 }
 
 async function readFunASRResult(funasrKey) {
@@ -240,7 +202,7 @@ async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, 
 
 async function processMessage(message) {
   const body = JSON.parse(message.Body);
-  const { meetingId, transcribeKey, whisperKey, createdAt } = body;
+  const { meetingId, createdAt } = body;
   logger.info("report-worker", "generating-report", { meetingId });
 
   // Update stage to "generating" with condition to prevent duplicate processing
@@ -266,35 +228,15 @@ async function processMessage(message) {
     const meetingType = await getMeetingType(meetingId, createdAt, body.meetingType);
     logger.info("report-worker", "meeting-type-resolved", { meetingId, meetingType });
 
-    // 1. Read transcript — try Transcribe/Whisper first, then FunASR
-    let transcriptText = null;
-
-    if (transcribeKey || whisperKey) {
-      try {
-        transcriptText = await readTranscript(transcribeKey, whisperKey);
-      } catch (err) {
-        logger.warn("report-worker", "transcribe-whisper-unavailable", { error: err.message });
-      }
-    }
-
-    // 加入 FunASR 转录（含说话人标签）
+    // Read FunASR transcript (with speaker labels)
     const funasrText = await readFunASRResult(body.funasrKey);
 
-    // 至少需要一个转录来源
-    if (!transcriptText && !funasrText) {
-      throw new Error("All transcription sources failed (Transcribe, Whisper, FunASR)");
+    if (!funasrText) {
+      throw new Error("FunASR transcription not available");
     }
 
-    // 拼装最终转录内容
-    const transcriptParts = [];
-    if (transcriptText) {
-      transcriptParts.push(transcriptText);
-    }
-    if (funasrText) {
-      const truncated = funasrText.slice(0, 350000);  // Opus 4.6 1M context
-      transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${truncated}`);
-    }
-    const finalTranscript = transcriptParts.join("\n\n");
+    const truncated = funasrText.slice(0, 350000);  // Opus 4.6 1M context
+    const finalTranscript = `[FunASR 转录（含说话人标签）]\n${truncated}`;
 
     // 2. Fetch glossary and call Bedrock Claude to generate structured report (with retry)
     const glossaryItems = await fetchGlossaryItems();

@@ -128,31 +128,6 @@ describe("meetings-helpers", () => {
       expect(result).toEqual([]);
     });
 
-    it("should read transcribeKey as JSON", async () => {
-      const mockData = { results: { transcripts: [{ transcript: "Test transcript" }] } };
-      mockGetFile.mockResolvedValueOnce((async function* () {
-        yield Buffer.from(JSON.stringify(mockData));
-      })());
-
-      const result = await readTranscriptParts({ transcribeKey: "s3://bucket/transcribe.json" });
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toContain("AWS Transcribe");
-      expect(result[0]).toContain("Test transcript");
-    });
-
-    it("should read whisperKey as text", async () => {
-      mockGetFile.mockResolvedValueOnce((async function* () {
-        yield Buffer.from("Whisper transcript text");
-      })());
-
-      const result = await readTranscriptParts({ whisperKey: "s3://bucket/whisper.txt" });
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toContain("Whisper 转录");
-      expect(result[0]).toContain("Whisper transcript text");
-    });
-
     it("should read funasrKey with segments", async () => {
       const mockData = {
         segments: [
@@ -176,31 +151,9 @@ describe("meetings-helpers", () => {
     it("should handle getFile errors gracefully", async () => {
       mockGetFile.mockRejectedValueOnce(new Error("S3 error"));
 
-      const result = await readTranscriptParts({ transcribeKey: "s3://bucket/missing.json" });
+      const result = await readTranscriptParts({ funasrKey: "s3://bucket/missing.json" });
 
       expect(result).toEqual([]);
-    });
-
-    it("should handle invalid JSON in transcribeKey", async () => {
-      mockGetFile.mockResolvedValueOnce((async function* () {
-        yield Buffer.from("invalid json");
-      })());
-
-      const result = await readTranscriptParts({ transcribeKey: "s3://bucket/invalid.json" });
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toBe("invalid json");
-    });
-
-    it("should handle transcribeKey with missing transcript field", async () => {
-      mockGetFile.mockResolvedValueOnce((async function* () {
-        yield Buffer.from(JSON.stringify({ results: {} }));
-      })());
-
-      const result = await readTranscriptParts({ transcribeKey: "s3://bucket/empty.json" });
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toContain('{"results":{}}');
     });
 
     it("should handle funasrKey with text field", async () => {
@@ -212,38 +165,6 @@ describe("meetings-helpers", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]).toContain("FunASR text output");
-    });
-
-    it("should handle multiple transcript keys", async () => {
-      mockGetFile
-        .mockResolvedValueOnce((async function* () {
-          yield Buffer.from(JSON.stringify({ results: { transcripts: [{ transcript: "AWS" }] } }));
-        })())
-        .mockResolvedValueOnce((async function* () {
-          yield Buffer.from("Whisper");
-        })())
-        .mockResolvedValueOnce((async function* () {
-          yield Buffer.from(JSON.stringify({ text: "FunASR" }));
-        })());
-
-      const result = await readTranscriptParts({
-        transcribeKey: "s3://bucket/transcribe.json",
-        whisperKey: "s3://bucket/whisper.txt",
-        funasrKey: "s3://bucket/funasr.json",
-      });
-
-      expect(result).toHaveLength(3);
-      expect(result[0]).toContain("AWS");
-      expect(result[1]).toContain("Whisper");
-      expect(result[2]).toContain("FunASR");
-    });
-
-    it("should handle whisperKey error gracefully", async () => {
-      mockGetFile.mockRejectedValueOnce(new Error("S3 error"));
-
-      const result = await readTranscriptParts({ whisperKey: "s3://bucket/missing.txt" });
-
-      expect(result).toEqual([]);
     });
 
     it("should handle funasrKey error gracefully", async () => {

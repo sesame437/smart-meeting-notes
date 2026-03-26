@@ -1,11 +1,5 @@
 require("dotenv").config();
 const { randomUUID } = require("crypto");
-const {
-  TranscribeClient,
-  StartTranscriptionJobCommand,
-  GetTranscriptionJobCommand,
-  ListVocabulariesCommand,
-} = require("@aws-sdk/client-transcribe");
 const { S3Client, GetObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { UpdateCommand, PutCommand, GetCommand, QueryCommand } = require("@aws-sdk/lib-dynamodb");
 const { docClient } = require("../db/dynamodb");
@@ -30,136 +24,13 @@ const BUCKET = process.env.S3_BUCKET;
 const PREFIX = process.env.S3_PREFIX || "meeting-minutes";
 const REGION = process.env.AWS_REGION;
 const DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || "meeting-minutes-meetings";
-const WHISPER_URL = process.env.WHISPER_URL || "http://localhost:9000";
-const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
 const FUNASR_URL = process.env.FUNASR_URL || "";  // 空字符串表示未配置
-const ENABLE_TRANSCRIBE = process.env.ENABLE_TRANSCRIBE === "true";  // 默认关闭
-const ENABLE_WHISPER = process.env.ENABLE_WHISPER === "true";        // 默认关闭
 const ENABLE_FUNASR = FUNASR_URL ? true : false;                     // URL 存在则开启
 const POLL_INTERVAL = 5000; // 5 seconds between SQS polls
 
-const transcribeClient = new TranscribeClient({ region: REGION });
 const s3 = new S3Client({ region: REGION });
 
-// --------------- AWS Transcribe (Track 1) ---------------
-
-async function checkVocabularyExists(vocabName) {
-  try {
-    const resp = await transcribeClient.send(new ListVocabulariesCommand({
-      NameContains: vocabName,
-    }));
-    return (resp.Vocabularies || []).some((v) => v.VocabularyName === vocabName);
-  } catch {
-    return false;
-  }
-}
-
-async function runAWSTranscribe(meetingId, s3Key) {
-  const jobName = `${meetingId}-transcribe`;
-  const outputKey = `transcripts/${meetingId}/transcribe.json`;
-  const s3OutputKey = `${PREFIX}/${outputKey}`;
-  const mediaUri = `s3://${BUCKET}/${s3Key}`;
-
-  const params = {
-    TranscriptionJobName: jobName,
-    LanguageCode: "zh-CN",
-    Media: { MediaFileUri: mediaUri },
-    OutputBucketName: BUCKET,
-    OutputKey: s3OutputKey,
-  };
-
-  // Use custom vocabulary if available
-  const hasVocab = await checkVocabularyExists(GLOSSARY_TABLE);
-  if (hasVocab) {
-    params.Settings = { VocabularyName: GLOSSARY_TABLE };
-    logger.info("transcription-worker", "using-custom-vocabulary", { vocabulary: GLOSSARY_TABLE });
-  }
-
-  logger.info("transcription-worker", "transcribe-job-starting", { jobName });
-  await transcribeClient.send(new StartTranscriptionJobCommand(params));
-
-  // Poll until complete (every 10s, max 30 minutes)
-  const maxAttempts = 180; // 30 min / 10s
-  for (let i = 0; i < maxAttempts; i++) {
-    await sleep(10000);
-    const resp = await transcribeClient.send(new GetTranscriptionJobCommand({
-      TranscriptionJobName: jobName,
-    }));
-    const status = resp.TranscriptionJob.TranscriptionJobStatus;
-    logger.info("transcription-worker", "transcribe-job-polling", { jobName, status, attempt: i + 1 });
-
-    if (status === "COMPLETED") {
-      return outputKey;
-    }
-    if (status === "FAILED") {
-      const reason = resp.TranscriptionJob.FailureReason;
-      throw new Error(`Transcribe job failed: ${reason}`);
-    }
-  }
-  throw new Error(`Transcribe job timed out after 30 minutes`);
-}
-
-// --------------- Whisper HTTP API (Track 2) ---------------
-
-async function isWhisperAvailable() {
-  try {
-    const resp = await fetch(`${WHISPER_URL}/health`, { signal: AbortSignal.timeout(5000) });
-    return resp.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function runWhisper(meetingId, s3Key, _filename) {
-  const outputKey = `transcripts/${meetingId}/whisper.json`;
-  const s3OutputKey = `${PREFIX}/${outputKey}`;
-
-  // Check Whisper service availability
-  const available = await isWhisperAvailable();
-  if (!available) {
-    logger.warn("transcription-worker", "whisper-unavailable", { url: WHISPER_URL });
-    return null;
-  }
-
-  // Pass s3_key directly — Whisper instance downloads from S3 itself
-  // This avoids routing 617MB through the main EC2 and uses instance store cache
-  logger.info("transcription-worker", "whisper-sending-s3-key", { url: `${WHISPER_URL}/asr` });
-  const formData = new FormData();
-  formData.append("s3_key", s3Key);
-  formData.append("s3_bucket", BUCKET);
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000); // 30 min
-  let resp;
-  try {
-    resp = await fetch(`${WHISPER_URL}/asr`, {
-      method: "POST",
-      body: formData,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  if (!resp.ok) {
-    throw new Error(`Whisper API returned ${resp.status}: ${await resp.text()}`);
-  }
-
-  const result = await resp.json();
-  logger.info("transcription-worker", "whisper-done", { language: result.language });
-
-  // Upload result to S3
-  await s3.send(new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: s3OutputKey,
-    Body: JSON.stringify(result, null, 2),
-    ContentType: "application/json",
-  }));
-
-  return outputKey;
-}
-
-// --------------- FunASR (Track 3) ---------------
+// --------------- FunASR ---------------
 async function runFunASR(meetingId, s3Key) {
   if (!FUNASR_URL) {
     logger.info("transcription-worker", "funasr-not-configured");
@@ -349,7 +220,6 @@ async function processMessage(message) {
 
   try {
     logger.info("transcription-worker", "processing-start", { meetingId, s3Key });
-    logger.info("transcription-worker", "pipeline-tracks", { transcribe: ENABLE_TRANSCRIBE, whisper: ENABLE_WHISPER, funasr: ENABLE_FUNASR });
 
     // GPU auto-scale: ensure FunASR instance is running before transcription
     if (ENABLE_FUNASR) {
@@ -383,25 +253,14 @@ async function processMessage(message) {
     }
     recordActivity();
 
-    // Run enabled tracks in parallel
-    // Note: FunASR errors propagate for retry logic; other tracks fail gracefully
-    const [transcribeKey, whisperKey, funasrKey] = await Promise.all([
-      ENABLE_TRANSCRIBE
-        ? runAWSTranscribe(meetingId, s3Key).catch((err) => { logger.error("transcription-worker", "transcribe-track-failed", {}, err); return null; })
-        : Promise.resolve(null),
-      ENABLE_WHISPER
-        ? runWhisper(meetingId, s3Key, filename).catch((err) => { logger.error("transcription-worker", "whisper-track-failed", {}, err); return null; })
-        : Promise.resolve(null),
-      ENABLE_FUNASR
-        ? runFunASR(meetingId, s3Key) // Let errors propagate for unified retry logic
-        : Promise.resolve(null),
-    ]);
+    // Run FunASR transcription
+    const funasrKey = ENABLE_FUNASR ? await runFunASR(meetingId, s3Key) : null;
 
-    if (!transcribeKey && !whisperKey && !funasrKey) {
-      throw new Error("All transcription tracks failed");
+    if (!funasrKey) {
+      throw new Error("FunASR transcription failed");
     }
 
-    logger.info("transcription-worker", "transcription-result", { transcribeKey: transcribeKey || "FAILED", whisperKey: whisperKey || "SKIPPED", funasrKey: funasrKey || "SKIPPED" });
+    logger.info("transcription-worker", "transcription-result", { funasrKey });
 
     // Extract unique speakers from FunASR result
     let speakers = [];
@@ -426,8 +285,6 @@ async function processMessage(message) {
 
     // Update DynamoDB meeting status, advance stage to "reporting"
     const extraAttrs = {
-      transcribeKey: transcribeKey || "",
-      whisperKey: whisperKey || "",
       funasrKey: funasrKey || "",
       stage: "reporting",
     };
@@ -455,8 +312,6 @@ async function processMessage(message) {
     // Send message to report queue
     await sendMessage(REPORT_QUEUE_URL, {
       meetingId,
-      transcribeKey: transcribeKey || null,
-      whisperKey: whisperKey || null,
       funasrKey: funasrKey || null,
       meetingType: resolvedMeetingType || "general",
       createdAt,

@@ -12,7 +12,6 @@ jest.mock("../db/dynamodb", () => ({
 jest.mock("@aws-sdk/lib-dynamodb");
 jest.mock("@aws-sdk/client-s3");
 jest.mock("@aws-sdk/client-dynamodb");
-jest.mock("@aws-sdk/client-transcribe");
 jest.mock("../services/sqs");
 jest.mock("../services/s3");
 jest.mock("../services/bedrock");
@@ -300,21 +299,17 @@ describe("report-worker", () => {
       getFile.mockRejectedValue(new Error("S3 read failed"));
 
       // Simulate readTranscript with all sources failing
-      const stream1 = await getFile("transcribe-key").catch(() => null);
-      const stream2 = await getFile("whisper-key").catch(() => null);
-      const stream3 = await getFile("funasr-key").catch(() => null);
+      const stream1 = await getFile("funasr-key").catch(() => null);
 
       // All sources should be null after catch
       expect(stream1).toBeNull();
-      expect(stream2).toBeNull();
-      expect(stream3).toBeNull();
 
       // This simulates the actual error thrown in report-worker
       expect(() => {
-        if (!stream1 && !stream2 && !stream3) {
-          throw new Error("All transcription sources failed");
+        if (!stream1) {
+          throw new Error("FunASR transcription not available");
         }
-      }).toThrow("All transcription sources failed");
+      }).toThrow("FunASR transcription not available");
     });
   });
 });

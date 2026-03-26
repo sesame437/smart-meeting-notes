@@ -23,14 +23,6 @@ jest.mock("@aws-sdk/client-s3", () => ({
   PutObjectCommand: jest.fn().mockImplementation((params) => ({ _type: "PutObject", ...params })),
 }));
 
-// AWS SDK — Transcribe
-jest.mock("@aws-sdk/client-transcribe", () => ({
-  TranscribeClient: jest.fn().mockImplementation(() => ({ send: jest.fn() })),
-  StartTranscriptionJobCommand: jest.fn(),
-  GetTranscriptionJobCommand: jest.fn(),
-  ListVocabulariesCommand: jest.fn(),
-}));
-
 // AWS SDK — DynamoDB
 const mockDocSend = jest.fn();
 jest.mock("@aws-sdk/lib-dynamodb", () => ({

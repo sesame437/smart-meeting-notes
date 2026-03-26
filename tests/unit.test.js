@@ -143,13 +143,6 @@ jest.mock("@aws-sdk/lib-dynamodb", () => ({
   ScanCommand: jest.fn((p) => ({ _type: "ScanCommand", ...p })),
 }));
 
-jest.mock("@aws-sdk/client-transcribe", () => ({
-  TranscribeClient: jest.fn().mockImplementation(() => ({ send: jest.fn() })),
-  StartTranscriptionJobCommand: jest.fn(),
-  GetTranscriptionJobCommand: jest.fn(),
-  ListVocabulariesCommand: jest.fn(),
-}));
-
 jest.mock("@aws-sdk/client-s3", () => ({
   S3Client: jest.fn().mockImplementation(() => ({ send: jest.fn() })),
   GetObjectCommand: jest.fn(),

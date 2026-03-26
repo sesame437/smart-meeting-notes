@@ -222,24 +222,15 @@ function truncateTranscript(text) {
   const MAX_TOTAL = 700000;  // Opus 4.6 native 1M context (~930K tokens input budget)
   const MAX_EACH = 350000;
 
-  // FunASR-only 模式：整体截断（已在 report-worker 层截过 60k）
-  if (text.includes("[FunASR 转录（含说话人标签）]") && !text.includes("[AWS Transcribe 转录]")) {
+  // FunASR-only: truncate content portion
+  if (text.includes("[FunASR 转录（含说话人标签）]")) {
     const FUNASR_LABEL = "[FunASR 转录（含说话人标签）]";
     const idx = text.indexOf(FUNASR_LABEL);
-    const before = text.slice(0, idx); // 可能的前导文字
+    const before = text.slice(0, idx);
     const after = text.slice(idx + FUNASR_LABEL.length);
     return before + FUNASR_LABEL + after.slice(0, MAX_EACH);
   }
 
-  // 如果是双轨合并文本，各自截断
-  if (text.includes("[AWS Transcribe 转录]") && text.includes("[Whisper 转录]")) {
-    const WHISPER_LABEL = "[Whisper 转录]";
-    const parts = text.split(WHISPER_LABEL);
-    const transcribePart = parts[0].slice(0, MAX_EACH);
-    const whisperPart = WHISPER_LABEL + parts[1].slice(0, MAX_EACH - WHISPER_LABEL.length);
-    return transcribePart + "\n\n" + whisperPart;
-  }
-  // 单轨：整体截断
   return text.slice(0, MAX_TOTAL);
 }
 
