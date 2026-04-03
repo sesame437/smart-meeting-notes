@@ -1,9 +1,10 @@
 require("dotenv").config();
 const { randomUUID } = require("crypto");
-const { S3Client, GetObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { UpdateCommand, PutCommand, GetCommand, QueryCommand } = require("@aws-sdk/lib-dynamodb");
 const { docClient } = require("../db/dynamodb");
 const { receiveMessages, deleteMessage, sendMessage } = require("../services/sqs");
+const { uploadFile } = require("../services/s3");
 const { ensureReady, recordActivity } = require("../services/gpu-autoscale");
 const logger = require("../services/logger");
 
@@ -38,7 +39,6 @@ async function runFunASR(meetingId, s3Key) {
   }
 
   const outputKey = `transcripts/${meetingId}/funasr.json`;
-  const s3OutputKey = `${PREFIX}/${outputKey}`;
 
   try {
     logger.info("transcription-worker", "funasr-sending-s3-key", { url: `${FUNASR_URL}/asr` });
@@ -71,14 +71,8 @@ async function runFunASR(meetingId, s3Key) {
     const result = await resp.json();
     if (result.error) throw new Error(`FunASR error: ${result.error}`);
 
-    // 上传结果到 S3
-    const s3Body = JSON.stringify(result);
-    await s3.send(new PutObjectCommand({
-      Bucket: BUCKET,
-      Key: s3OutputKey,
-      Body: s3Body,
-      ContentType: "application/json",
-    }));
+    // 上传结果到 S3（通过 services/s3.js 确保 UTF-8 Buffer 编码）
+    await uploadFile(outputKey, JSON.stringify(result), "application/json");
 
     logger.info("transcription-worker", "funasr-done", { segments: result.segments?.length || 0, speakers: result.speaker_count || 0, outputKey });
     return outputKey;
@@ -334,12 +328,13 @@ async function processMessage(message) {
       logger.warn("transcription-worker", "read-retryCount-failed", { meetingId, error: getErr.message });
     }
 
-    if (retryCount < 3) {
+    const nextRetry = retryCount + 1;
+    if (nextRetry < 3) {
       // Retry: update status to pending and increment retry count
-      logger.info("transcription-worker", "error-retry", { meetingId, retryCount: retryCount + 1, errorType: err.name || "Error" });
+      logger.info("transcription-worker", "error-retry", { meetingId, retryCount: nextRetry, errorType: err.name || "Error" });
       try {
         await updateMeetingStatus(meetingId, createdAt, "pending", {
-          retryCount: retryCount + 1,
+          retryCount: nextRetry,
           stage: "waiting-retry",
           errorMessage: err.message, // Keep error message for debugging
         });
@@ -349,7 +344,7 @@ async function processMessage(message) {
       throw err; // Re-throw to prevent SQS message deletion (visibility timeout retry)
     }
 
-    // Exceeded retry limit: mark as failed
+    // Exceeded retry limit (3 attempts total): mark as failed
     logger.error("transcription-worker", "giving-up-after-retries", { meetingId, retries: retryCount });
     try {
       await updateMeetingStatus(meetingId, createdAt, "failed", {
