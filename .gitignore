@@ -3,9 +3,11 @@ node_modules/
 *.log
 .DS_Store
 CLAUDE.md
+CLAUDE.md.bak
 CLAUDE.local.md
 AGENTS.md
 .claude/
+docs/superpowers/
 _archive/
 playwright-report/
 test-results/

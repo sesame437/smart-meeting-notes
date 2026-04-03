@@ -6,6 +6,7 @@ const { invokeModel } = require("../services/bedrock");
 const { extractJsonFromLLMResponse } = require("../services/report-builder");
 const { normalizeAnonymousSpeakerReport } = require("../services/report-speaker-normalizer");
 const { applyGlossaryToReport } = require("../services/report-post-processor");
+const { generateReportChunked } = require("../services/report-chunked");
 const glossaryStore = require("../services/glossary-store");
 const logger = require("../services/logger");
 
@@ -241,8 +242,13 @@ async function processMessage(message) {
     // 2. Fetch glossary and call Bedrock Claude to generate structured report (with retry)
     const glossaryItems = await fetchGlossaryItems();
     const glossaryTerms = glossaryItems.map((i) => i.term).filter(Boolean);
-    // invokeModelWithRetry now returns parsed report object (includes JSON parsing with retry)
-    let report = await invokeModelWithRetry(finalTranscript, meetingType, glossaryTerms);
+    // Weekly meetings use chunked generation to avoid token-repetition hallucination
+    let report;
+    if (meetingType === "weekly") {
+      report = await generateReportChunked(finalTranscript, meetingType, glossaryTerms);
+    } else {
+      report = await invokeModelWithRetry(finalTranscript, meetingType, glossaryTerms);
+    }
     report = normalizeAnonymousSpeakerReport(report);
     report = applyGlossaryToReport(report, glossaryItems);
 

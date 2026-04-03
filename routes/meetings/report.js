@@ -8,6 +8,7 @@ const store = require("../../services/meeting-store");
 const glossaryStore = require("../../services/glossary-store");
 const { normalizeAnonymousSpeakerReport } = require("../../services/report-speaker-normalizer");
 const { applyNamesToReport } = require("../../services/report-post-processor");
+const { generateReportChunked } = require("../../services/report-chunked");
 const {
   HAIKU_MODEL_ID,
   getMeetingById,
@@ -240,10 +241,14 @@ function register(router) {
         logger.warn("meetings-route", "regenerate-fetch-glossary-failed", { error: err.message });
       }
 
-      const modelId = process.env.BEDROCK_MODEL_ID || undefined;
-      const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, modelId, speakerMap);
-
-      let report = extractJsonFromLLMResponse(responseText);
+      let report;
+      if (meetingType === "weekly") {
+        report = await generateReportChunked(transcriptText, meetingType, glossaryTerms, speakerMap);
+      } else {
+        const modelId = process.env.BEDROCK_MODEL_ID || undefined;
+        const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, modelId, speakerMap);
+        report = extractJsonFromLLMResponse(responseText);
+      }
       if (!speakerMap || Object.keys(speakerMap).length === 0) {
         report = normalizeAnonymousSpeakerReport(report);
       } else {

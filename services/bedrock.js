@@ -234,6 +234,48 @@ function truncateTranscript(text) {
   return text.slice(0, MAX_TOTAL);
 }
 
+/**
+ * Low-level Bedrock streaming call. Accepts any system/user prompt pair and returns raw text.
+ * Used by chunked generation (report-chunked.js) for phase-by-phase report building.
+ */
+async function invokeModelRaw(systemPrompt, userPrompt, { maxTokens = 16000, modelId = DEFAULT_MODEL_ID } = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 600_000);
+  let resp;
+  try {
+    resp = await bedrockClient.send(
+      new InvokeModelWithResponseStreamCommand({
+        modelId,
+        contentType: 'application/json',
+        accept: 'application/json',
+        body: JSON.stringify({
+          anthropic_version: 'bedrock-2023-05-31',
+          max_tokens: maxTokens,
+          temperature: 0,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        }),
+      }),
+      { abortSignal: controller.signal }
+    );
+
+    const textParts = [];
+    for await (const event of resp.body) {
+      if (event.chunk?.bytes) {
+        try {
+          const evt = JSON.parse(new TextDecoder().decode(event.chunk.bytes));
+          if (evt.type === 'content_block_delta' && evt.delta?.text) {
+            textParts.push(evt.delta.text);
+          }
+        } catch (_) { /* skip non-JSON or partial chunks */ }
+      }
+    }
+    return textParts.join('');
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function invokeModel(transcriptText, meetingType = "general", glossaryTerms = [], modelId = DEFAULT_MODEL_ID, speakerMap = null, customPrompt = null) {
   const truncated = truncateTranscript(transcriptText);
   const prompt = getMeetingPrompt(truncated, meetingType, glossaryTerms, speakerMap, customPrompt);
@@ -250,6 +292,8 @@ async function invokeModel(transcriptText, meetingType = "general", glossaryTerm
         body: JSON.stringify({
           anthropic_version: 'bedrock-2023-05-31',
           max_tokens: 64000,
+          temperature: 0,
+          system: '你是专业会议纪要助手。严格基于转录文本中的内容生成报告，不要编造或推测任何未在转录中出现的信息。每个 JSON 字段值必须语义完整、独立。',
           messages: [{ role: 'user', content: prompt }],
         }),
       }),
@@ -273,4 +317,4 @@ async function invokeModel(transcriptText, meetingType = "general", glossaryTerm
   }
 }
 
-module.exports = { invokeModel, getMeetingPrompt };
+module.exports = { invokeModel, invokeModelRaw, getMeetingPrompt };
