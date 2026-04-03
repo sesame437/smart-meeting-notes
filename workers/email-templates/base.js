@@ -56,6 +56,9 @@ function buildParticipantsFooter(participants, duration) {
 // Build complete HTML wrapper
 function buildHtmlWrapper(name, date, participants, duration, bodyContent) {
   const participantCount = (participants && participants.length) || 0;
+  const metaItems = [esc(date)];
+  if (duration) metaItems.push(esc(duration));
+  if (participantCount) metaItems.push(participantCount + "人参会");
   return `<!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -69,24 +72,12 @@ function buildHtmlWrapper(name, date, participants, duration, bodyContent) {
 <!--[if mso]><table width="700" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:800px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);">
 
-<!-- Header -->
-<tr><td style="background:#232F3E;padding:20px 32px;">
-  <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td style="vertical-align:middle;">
-      <span style="color:#FF9900;font-size:20px;font-weight:700;letter-spacing:1px;">▲ Meeting Minutes</span>
-    </td>
-    <td align="right" style="vertical-align:middle;">
-      <span style="background:#FF9900;color:#232F3E;font-size:12px;font-weight:700;padding:5px 14px;border-radius:14px;white-space:nowrap;">已完成</span>
-    </td>
-  </tr></table>
+<!-- Header: Meeting title + meta -->
+<tr><td style="background:#232F3E;padding:24px 32px 12px;">
+  <p style="margin:0;color:#ffffff;font-size:19px;font-weight:700;line-height:1.4;">${esc(name)}</p>
 </td></tr>
-
-<!-- Meta -->
-<tr><td style="background:#2d3d50;padding:16px 32px;">
-  <table width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td style="color:#ffffff;font-size:17px;font-weight:700;line-height:1.4;">${esc(name)}</td>
-    <td align="right" style="color:#8fa8be;font-size:13px;white-space:nowrap;padding-left:16px;vertical-align:middle;">${esc(date)}${duration ? ` &nbsp;|&nbsp; ${esc(duration)}` : ""}${participantCount ? ` &nbsp;|&nbsp; ${participantCount}人` : ""}</td>
-  </tr></table>
+<tr><td style="background:#232F3E;padding:0 32px 20px;">
+  <p style="margin:0;font-size:13px;color:#8fa8be;">${metaItems.join(" &nbsp;·&nbsp; ")}</p>
 </td></tr>
 
 <!-- Spacer -->
