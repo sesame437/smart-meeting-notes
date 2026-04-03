@@ -6,10 +6,11 @@ const PREFIX = process.env.S3_PREFIX;
 
 async function uploadFile(key, body, contentType) {
   const fullKey = `${PREFIX}/${key}`;
+  const finalBody = typeof body === 'string' ? Buffer.from(body, 'utf-8') : body;
   await s3.send(new PutObjectCommand({
     Bucket: BUCKET,
     Key: fullKey,
-    Body: body,
+    Body: finalBody,
     ContentType: contentType,
   }));
   return key;

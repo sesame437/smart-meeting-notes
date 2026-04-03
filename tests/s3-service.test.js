@@ -37,12 +37,23 @@ describe("s3-service", () => {
       expect(callArg.ContentType).toBe("audio/mpeg")
     })
 
+    it("should convert string body to Buffer for correct UTF-8 encoding", async () => {
+      mockSend.mockResolvedValueOnce({})
+      const chineseJson = JSON.stringify({ summary: "会议总结：讨论了项目进展" }, null, 2)
+      await uploadFile("reports/test/report.json", chineseJson, "application/json")
+
+      const callArg = mockSend.mock.calls[0][0]
+      expect(Buffer.isBuffer(callArg.Body)).toBe(true)
+      expect(callArg.Body.toString("utf-8")).toBe(chineseJson)
+    })
+
     it("should handle empty body", async () => {
       mockSend.mockResolvedValueOnce({})
       const result = await uploadFile("inbox/empty.txt", "", "text/plain")
       expect(result).toBe("inbox/empty.txt")
       const callArg = mockSend.mock.calls[0][0]
-      expect(callArg.Body).toBe("")
+      expect(Buffer.isBuffer(callArg.Body)).toBe(true)
+      expect(callArg.Body.length).toBe(0)
     })
 
     it("should handle missing content type", async () => {
