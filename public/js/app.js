@@ -689,6 +689,13 @@ function showUploadConfirmDialog(meetingId, title, meetingType) {
 async function fetchMeeting(id) {
   const content = document.getElementById("meeting-content");
   if (!content) return;
+  // Skip re-render while user is editing (title/type form, inline inputs, or textareas)
+  if (content.dataset.loaded) {
+    var editForm = document.getElementById("detail-edit-form");
+    if (editForm && editForm.style.display !== "none") return;
+    var active = document.activeElement;
+    if (active && content.contains(active) && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT")) return;
+  }
   // Only show loading spinner on first load
   if (!content.dataset.loaded) {
     content.innerHTML = '<div class="loading">加载中...</div>';
@@ -893,15 +900,24 @@ function renderMeetingDetail(m) {
         ${ci.company ? `<p style="font-size:15px;font-weight:600;margin:0 0 8px;">${esc(ci.company)}</p>` : ""}
         ${ci.attendees && ci.attendees.length ? `<ul>${ci.attendees.map(a => `<li>${esc(a)}</li>`).join("")}</ul>` : '<p style="color:#879596;">未提及</p>'}
       </div>
-      <div class="card">
+      <div class="card" id="section-awsAttendees">
         <div class="card-title"><i class="fa fa-amazon"></i> AWS 出席人</div>
-        ${awsAtt.length ? `<ul>${awsAtt.map(a => `<li>${esc(a)}</li>`).join("")}</ul>` : '<p style="color:#879596;">未提及</p>'}
+        ${awsAtt.length ? `<ul>${awsAtt.map((a, i) => `<li id="awsAttendees-row-${i}" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>${esc(a)}</span>
+          <div class="row-actions">
+            <button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="awsAttendees" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+            <button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="awsAttendees" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+          </div>
+        </li>`).join("")}</ul>` : '<p style="color:#879596;">未提及</p>'}
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="awsAttendees" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加AWS出席人</button>
+        </div>
       </div>
     </div>`;
   }
 
   if (report.customerNeeds && report.customerNeeds.length) {
-    html += `<div class="card">
+    html += `<div class="card" id="section-customerNeeds">
       <div class="card-title"><i class="fa fa-bullseye"></i> 客户需求</div>
       <div class="table-wrap">
         <table>
@@ -909,49 +925,75 @@ function renderMeetingDetail(m) {
             <th style="color:var(--aws-orange)">需求</th>
             <th style="color:var(--aws-orange)">优先级</th>
             <th style="color:var(--aws-orange)">背景</th>
+            <th style="color:var(--aws-orange);width:80px;">操作</th>
           </tr></thead>
           <tbody>
-            ${report.customerNeeds.map(n => {
+            ${report.customerNeeds.map((n, i) => {
               const prio = (n.priority || "medium").toLowerCase();
-              return `<tr>
+              return `<tr id="customerNeeds-row-${i}">
                 <td>${esc(n.need)}</td>
                 <td><span class="priority-badge priority-${prio}">${esc(n.priority || "-")}</span></td>
                 <td>${esc(n.background || "-")}</td>
+                <td class="row-actions">
+                  <button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="customerNeeds" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+                  <button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="customerNeeds" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+                </td>
               </tr>`;
             }).join("")}
           </tbody>
         </table>
       </div>
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="customerNeeds" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加需求</button>
+      </div>
     </div>`;
   }
 
   if (report.painPoints && report.painPoints.length) {
-    html += `<div class="card">
+    html += `<div class="card" id="section-painPoints">
       <div class="card-title"><i class="fa fa-exclamation-triangle"></i> 客户痛点</div>
-      ${report.painPoints.map(p => `
-        <div style="border-left:4px solid #FF9900;padding:10px 14px;margin-bottom:8px;background:#fff8e1;border-radius:0 6px 6px 0;">
-          <strong>${esc(p.point)}</strong>
-          ${p.detail ? `<br><span style="color:#666;font-size:13px;">${esc(p.detail)}</span>` : ""}
+      ${report.painPoints.map((p, i) => `
+        <div id="painPoints-row-${i}" class="pain-point-item" style="border-left:4px solid #FF9900;padding:10px 14px;margin-bottom:8px;background:#fff8e1;border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <strong>${esc(p.point)}</strong>
+            ${p.detail ? `<br><span style="color:#666;font-size:13px;">${esc(p.detail)}</span>` : ""}
+          </div>
+          <div class="row-actions" style="flex-shrink:0;margin-left:8px;">
+            <button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="painPoints" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+            <button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="painPoints" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+          </div>
         </div>
       `).join("")}
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="painPoints" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加痛点</button>
+      </div>
     </div>`;
   }
 
   if (report.solutionsDiscussed && report.solutionsDiscussed.length) {
-    html += `<div class="card">
+    html += `<div class="card" id="section-solutionsDiscussed">
       <div class="card-title"><i class="fa fa-lightbulb-o"></i> 讨论方案</div>
-      ${report.solutionsDiscussed.map(s => `
-        <div class="decision-card" style="margin-bottom:10px;">
-          <strong>${esc(s.solution)}</strong>
-          ${s.awsServices && s.awsServices.length ? `<div style="margin-top:6px;">${s.awsServices.map(svc => `<span style="display:inline-block;background:#232F3E;color:#FF9900;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-right:4px;margin-bottom:4px;">${esc(svc)}</span>`).join("")}</div>` : ""}
-          ${s.customerFeedback ? `<p style="margin:6px 0 0;font-size:13px;color:#555;"><em>客户反馈：${esc(s.customerFeedback)}</em></p>` : ""}
+      ${report.solutionsDiscussed.map((s, i) => `
+        <div id="solutionsDiscussed-row-${i}" class="decision-card" style="margin-bottom:10px;display:flex;align-items:flex-start;justify-content:space-between;">
+          <div style="flex:1;">
+            <strong>${esc(s.solution)}</strong>
+            ${s.awsServices && s.awsServices.length ? `<div style="margin-top:6px;">${s.awsServices.map(svc => `<span style="display:inline-block;background:#232F3E;color:#FF9900;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-right:4px;margin-bottom:4px;">${esc(svc)}</span>`).join("")}</div>` : ""}
+            ${s.customerFeedback ? `<p style="margin:6px 0 0;font-size:13px;color:#555;"><em>客户反馈：${esc(s.customerFeedback)}</em></p>` : ""}
+          </div>
+          <div class="row-actions" style="flex-shrink:0;margin-left:8px;">
+            <button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="solutionsDiscussed" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+            <button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="solutionsDiscussed" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+          </div>
         </div>
       `).join("")}
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="solutionsDiscussed" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加方案</button>
+      </div>
     </div>`;
   }
 
   if (report.commitments && report.commitments.length) {
-    html += `<div class="card">
+    html += `<div class="card" id="section-commitments">
       <div class="card-title"><i class="fa fa-handshake-o"></i> 承诺事项</div>
       <div class="table-wrap">
         <table>
@@ -960,26 +1002,34 @@ function renderMeetingDetail(m) {
             <th style="color:var(--aws-orange)">承诺内容</th>
             <th style="color:var(--aws-orange)">负责人</th>
             <th style="color:var(--aws-orange)">截止</th>
+            <th style="color:var(--aws-orange);width:80px;">操作</th>
           </tr></thead>
           <tbody>
-            ${report.commitments.map(c => {
+            ${report.commitments.map((c, i) => {
               const party = (c.party || "").toLowerCase();
               const borderColor = party.includes("aws") ? "#FF9900" : "#1565c0";
-              return `<tr style="border-left:4px solid ${borderColor};">
+              return `<tr id="commitments-row-${i}" style="border-left:4px solid ${borderColor};">
                 <td><strong>${esc(c.party || "-")}</strong></td>
                 <td>${esc(c.commitment)}</td>
                 <td>${esc(c.owner || "-")}</td>
                 <td>${formatDeadline(c.deadline || "-")}</td>
+                <td class="row-actions">
+                  <button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="commitments" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+                  <button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="commitments" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+                </td>
               </tr>`;
             }).join("")}
           </tbody>
         </table>
       </div>
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="commitments" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加承诺</button>
+      </div>
     </div>`;
   }
 
   if (report.nextSteps && report.nextSteps.length) {
-    html += `<div class="card">
+    html += `<div class="card" id="section-nextSteps">
       <div class="card-title"><i class="fa fa-arrow-circle-right"></i> 下一步行动</div>
       <div class="table-wrap">
         <table>
@@ -988,19 +1038,27 @@ function renderMeetingDetail(m) {
             <th style="color:var(--aws-orange)">负责人</th>
             <th style="color:var(--aws-orange)">截止日期</th>
             <th style="color:var(--aws-orange)">优先级</th>
+            <th style="color:var(--aws-orange);width:80px;">操作</th>
           </tr></thead>
           <tbody>
-            ${report.nextSteps.map(ns => {
+            ${report.nextSteps.map((ns, i) => {
               const prio = (ns.priority || "").toLowerCase();
-              return `<tr>
+              return `<tr id="nextSteps-row-${i}">
                 <td>${esc(ns.task)}</td>
                 <td>${esc(ns.owner || "-")}</td>
                 <td>${formatDeadline(ns.deadline || "-")}</td>
                 <td><span class="priority-badge priority-${prio}">${esc(ns.priority || "-")}</span></td>
+                <td class="row-actions">
+                  <button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="nextSteps" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+                  <button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="nextSteps" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+                </td>
               </tr>`;
             }).join("")}
           </tbody>
         </table>
+      </div>
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="nextSteps" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加下一步</button>
       </div>
     </div>`;
   }
@@ -1116,7 +1174,7 @@ function renderMeetingDetail(m) {
   // ---- Topics / Agenda ----
   if (topics.length) {
     html += `
-      <div class="card">
+      <div class="card" id="section-topics">
         <div class="card-title"><i class="fa fa-comments"></i> 讨论议题</div>
         <div class="table-wrap">
           <table>
@@ -1124,20 +1182,32 @@ function renderMeetingDetail(m) {
               <th style="color:var(--aws-orange)">议题</th>
               <th style="color:var(--aws-orange)">讨论内容</th>
               <th style="color:var(--aws-orange)">结论</th>
+              <th style="color:var(--aws-orange);width:80px;">操作</th>
             </tr></thead>
             <tbody>
-              ${topics.map(t => {
+              ${topics.map((t, i) => {
                 if (typeof t === "string") {
-                  return `<tr><td colspan="3">${escapeHtml(t)}</td></tr>`;
+                  return `<tr id="topics-row-${i}"><td colspan="3">${escapeHtml(t)}</td>
+                    <td class="row-actions">
+                      <button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="topics" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+                      <button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="topics" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+                    </td></tr>`;
                 }
-                return `<tr>
+                return `<tr id="topics-row-${i}">
                   <td>${escapeHtml(t.topic || t.title || "")}</td>
                   <td>${escapeHtml(t.details || t.discussion || "")}</td>
                   <td>${escapeHtml(t.outcome || t.conclusion || "")}</td>
+                  <td class="row-actions">
+                    <button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="topics" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="编辑"><i class="fa fa-pencil"></i></button>
+                    <button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="topics" data-index="${i}" data-meeting-id="${escapeAttr(m.meetingId)}" title="删除"><i class="fa fa-trash"></i></button>
+                  </td>
                 </tr>`;
               }).join("")}
             </tbody>
           </table>
+        </div>
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="topics" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加议题</button>
         </div>
       </div>
     `;
@@ -1377,6 +1447,7 @@ async function saveDetailEdit(meetingId) {
   try {
     await API.put(`/api/meetings/${meetingId}`, { title, meetingType });
     Toast.success("已保存");
+    cancelDetailEdit();
     fetchMeeting(meetingId);
   } catch (_) { /* error shown by API */ }
 }
@@ -1506,7 +1577,14 @@ async function saveSpeakerMap(meetingId, options = {}) {
 
 async function regenerateReport(meetingId) {
   var btn = document.querySelector('[data-action="regenerate-report"]');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-refresh fa-spin"></i> 生成中…'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-refresh fa-spin"></i> 生成中… (0s)'; }
+  var startTime = Date.now();
+  var timer = setInterval(function() {
+    if (!btn) return;
+    var elapsed = Math.floor((Date.now() - startTime) / 1000);
+    var display = elapsed >= 60 ? Math.floor(elapsed / 60) + ':' + String(elapsed % 60).padStart(2, '0') : elapsed + 's';
+    btn.innerHTML = '<i class="fa fa-refresh fa-spin"></i> 生成中… (' + display + ')';
+  }, 1000);
 
   try {
     await API.post(`/api/meetings/${meetingId}/regenerate`);
@@ -1515,6 +1593,7 @@ async function regenerateReport(meetingId) {
   } catch (_) {
     /* error shown by API */
   } finally {
+    clearInterval(timer);
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-refresh"></i> 重新生成纪要'; }
   }
 }
@@ -2136,6 +2215,174 @@ async function deleteRisk(index, meetingId) {
   });
 }
 
+/* ===== Generic Section Edit/Delete/Add (data-driven) ===== */
+const SECTION_CONFIGS = {
+  topics: {
+    fields: [
+      { key: 'topic', label: '议题' },
+      { key: 'discussion', label: '讨论内容' },
+      { key: 'conclusion', label: '结论' },
+    ],
+    label: '议题',
+    defaultItem: { topic: '', discussion: '', conclusion: '' },
+  },
+  customerNeeds: {
+    fields: [
+      { key: 'need', label: '需求' },
+      { key: 'priority', label: '优先级' },
+      { key: 'background', label: '背景' },
+    ],
+    label: '客户需求',
+    defaultItem: { need: '', priority: 'medium', background: '' },
+  },
+  painPoints: {
+    fields: [
+      { key: 'point', label: '痛点' },
+      { key: 'detail', label: '详情' },
+    ],
+    label: '客户痛点',
+    defaultItem: { point: '', detail: '' },
+  },
+  solutionsDiscussed: {
+    fields: [
+      { key: 'solution', label: '方案' },
+      { key: 'awsServices', label: 'AWS服务(逗号分隔)' },
+      { key: 'customerFeedback', label: '客户反馈' },
+    ],
+    label: '讨论方案',
+    defaultItem: { solution: '', awsServices: [], customerFeedback: '' },
+  },
+  commitments: {
+    fields: [
+      { key: 'party', label: '方' },
+      { key: 'commitment', label: '承诺内容' },
+      { key: 'owner', label: '负责人' },
+      { key: 'deadline', label: '截止' },
+    ],
+    label: '承诺事项',
+    defaultItem: { party: '', commitment: '', owner: '', deadline: '' },
+  },
+  nextSteps: {
+    fields: [
+      { key: 'task', label: '任务' },
+      { key: 'owner', label: '负责人' },
+      { key: 'deadline', label: '截止日期' },
+      { key: 'priority', label: '优先级' },
+    ],
+    label: '下一步行动',
+    defaultItem: { task: '', owner: '', deadline: '', priority: 'medium' },
+  },
+  awsAttendees: {
+    fields: [{ key: '_self', label: 'AWS出席人' }],
+    label: 'AWS出席人',
+    isStringArray: true,
+    defaultItem: '',
+  },
+};
+
+function editGenericItem(section, index, meetingId) {
+  if (!_currentReport) return;
+  var config = SECTION_CONFIGS[section];
+  if (!config) return;
+  var items = _currentReport[section] || [];
+  var item = items[index];
+  if (item === undefined) return;
+  var row = document.getElementById(section + "-row-" + index);
+  if (!row) return;
+  var inputsHtml = '';
+  if (config.isStringArray) {
+    var val = typeof item === 'string' ? item : '';
+    inputsHtml = `<input type="text" class="form-control" id="edit-generic-${section}-_self-${index}" value="${escapeAttr(val)}" placeholder="${escapeAttr(config.label)}" style="flex:1;border:2px solid #FF9900;">`;
+  } else {
+    inputsHtml = config.fields.map(function(f) {
+      var val = item[f.key];
+      if (Array.isArray(val)) val = val.join(', ');
+      return `<input type="text" class="form-control" id="edit-generic-${section}-${f.key}-${index}" value="${escapeAttr(val || '')}" placeholder="${escapeAttr(f.label)}" style="border:2px solid #FF9900;">`;
+    }).join('');
+  }
+  row.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px;width:100%;">
+      ${inputsHtml}
+      <div style="display:flex;gap:8px;">
+        <button class="btn action-primary-btn btn-sm" data-action="save-generic" data-section="${section}" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+        <button class="btn btn-outline btn-sm" data-action="cancel-generic-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      </div>
+    </div>`;
+  row.style.border = "2px solid #FF9900";
+  row.style.borderRadius = "4px";
+  row.style.padding = "6px";
+}
+
+async function saveGenericItem(section, index, meetingId) {
+  if (!_currentReport) return;
+  var config = SECTION_CONFIGS[section];
+  if (!config) return;
+  var items = JSON.parse(JSON.stringify(_currentReport[section] || []));
+  if (config.isStringArray) {
+    var val = document.getElementById("edit-generic-" + section + "-_self-" + index).value.trim();
+    if (!val) { Toast.error(config.label + "不能为空"); return; }
+    items[index] = val;
+  } else {
+    var updated = {};
+    for (var fi = 0; fi < config.fields.length; fi++) {
+      var f = config.fields[fi];
+      var el = document.getElementById("edit-generic-" + section + "-" + f.key + "-" + index);
+      var v = el ? el.value.trim() : '';
+      if (f.key === 'awsServices') {
+        updated[f.key] = v ? v.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : [];
+      } else {
+        updated[f.key] = v;
+      }
+    }
+    var firstField = config.fields[0].key;
+    if (!updated[firstField]) { Toast.error(config.fields[0].label + "不能为空"); return; }
+    items[index] = updated;
+  }
+  try {
+    await patchReportSection(meetingId, section, items);
+    Toast.success("已保存");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("保存失败");
+  }
+}
+
+async function deleteGenericItem(section, index, meetingId) {
+  if (!_currentReport) return;
+  var config = SECTION_CONFIGS[section];
+  if (!config) return;
+  showConfirm({
+    title: "确认删除",
+    body: "确认要删除该" + config.label + "？",
+    onOk: async function() {
+      var items = JSON.parse(JSON.stringify(_currentReport[section] || []));
+      items.splice(index, 1);
+      try {
+        await patchReportSection(meetingId, section, items);
+        Toast.success("已删除");
+        fetchMeeting(meetingId);
+      } catch (_) {
+        Toast.error("删除失败");
+      }
+    }
+  });
+}
+
+async function addGenericItem(section, meetingId) {
+  if (!_currentReport) return;
+  var config = SECTION_CONFIGS[section];
+  if (!config) return;
+  var items = JSON.parse(JSON.stringify(_currentReport[section] || []));
+  items.push(JSON.parse(JSON.stringify(config.defaultItem)));
+  try {
+    await patchReportSection(meetingId, section, items);
+    Toast.success("已添加");
+    fetchMeeting(meetingId);
+  } catch (_) {
+    Toast.error("添加失败");
+  }
+}
+
 /* ===== Announcement Edit/Delete ===== */
 function editAnnouncement(index, meetingId) {
   if (!_currentReport) return;
@@ -2709,6 +2956,11 @@ document.addEventListener("click", function(e) {
     case "save-pr-risk":         savePrRisk(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
     case "delete-pr-risk":       deletePrRisk(parseInt(el.dataset.prIndex), parseInt(el.dataset.index), el.dataset.meetingId); break;
     case "cancel-prrisk-edit":   fetchMeeting(el.dataset.meetingId); break;
+    case "edit-generic":         editGenericItem(el.dataset.section, parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "save-generic":         saveGenericItem(el.dataset.section, parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "delete-generic":       deleteGenericItem(el.dataset.section, parseInt(el.dataset.index), el.dataset.meetingId); break;
+    case "add-generic":          addGenericItem(el.dataset.section, el.dataset.meetingId); break;
+    case "cancel-generic-edit":  fetchMeeting(el.dataset.meetingId); break;
   }
 });
 
