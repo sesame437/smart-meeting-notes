@@ -214,6 +214,16 @@ function isPersonNameItem(item) {
   return /^[\u4e00-\u9fff]{2,4}$/.test(item.term);
 }
 
+/**
+ * Infer glossary category from term text when not explicitly provided.
+ * - 2-4 CJK characters → "人员"
+ * - Otherwise → "术语"
+ */
+function inferGlossaryCategory(term) {
+  if (/^[\u4e00-\u9fff]{2,4}$/.test(term)) return "人员";
+  return "术语";
+}
+
 function applyGlossaryAliases(reportStr, glossaryItems) {
   const appliedAliases = [];
   const aliasMap = {};
@@ -258,5 +268,5 @@ function applyGlossaryAliases(reportStr, glossaryItems) {
 
 module.exports = {
   collectSpeakerAliasMap, buildSpeakerRoster, replaceNameAlias,
-  normalizeDuplicateNames, applyGlossaryAliases, isIgnorableAliasFragment, resolveRosterSpeakerKey,
+  normalizeDuplicateNames, applyGlossaryAliases, isIgnorableAliasFragment, resolveRosterSpeakerKey, inferGlossaryCategory,
 };

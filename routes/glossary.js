@@ -2,6 +2,7 @@ const { Router } = require("express");
 const crypto = require("crypto");
 const { z } = require("zod");
 const glossaryStore = require("../services/glossary-store");
+const { inferGlossaryCategory } = require("../services/speaker-roster");
 
 const router = Router();
 
@@ -66,7 +67,7 @@ router.post("/", async (req, res, next) => {
       term,
       definition,
     };
-    if (category !== undefined) item.category = category;
+    item.category = category || inferGlossaryCategory(term);
     if (aliases !== undefined) item.aliases = aliases;
     await glossaryStore.createGlossaryItem(item);
     res.status(201).json(item);
@@ -109,6 +110,11 @@ router.put("/:id", async (req, res, next) => {
       expressions.push("#cat = :cat");
       names["#cat"] = "category";
       values[":cat"] = category;
+    } else if (term !== undefined) {
+      // Auto-infer category when term changes but no explicit category provided
+      expressions.push("#cat = :cat");
+      names["#cat"] = "category";
+      values[":cat"] = inferGlossaryCategory(term);
     }
     if (aliases !== undefined) {
       expressions.push("#a = :a");
