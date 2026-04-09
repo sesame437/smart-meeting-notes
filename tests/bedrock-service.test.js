@@ -193,7 +193,20 @@ describe("bedrock-service", () => {
       await invokeModel(longTranscript, "general")
 
       const callBody = JSON.parse(mockSend.mock.calls[0][0].input.body)
-      expect(callBody.messages[0].content.length).toBeLessThan(longTranscript.length + 1000)
+      expect(callBody.messages[0].content.length).toBeLessThan(longTranscript.length + 2000)
+    })
+
+    it("should include detailed-discussion instructions in general prompt", async () => {
+      mockSend.mockResolvedValueOnce(
+        makeStreamBody({ content: [{ text: '{"summary":"test"}' }] })
+      )
+
+      await invokeModel("test transcript", "general")
+
+      const callBody = JSON.parse(mockSend.mock.calls[0][0].input.body)
+      const prompt = callBody.messages[0].content
+      expect(prompt).toContain("至少100个中文字")
+      expect(prompt).toContain("宁可多拆 topic")
     })
 
     it("should handle JSON parsing errors", async () => {

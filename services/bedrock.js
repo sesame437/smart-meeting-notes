@@ -193,6 +193,12 @@ ${transcriptText}
   // general (default)
   return `${speakerNote}${glossaryNote}你是一个专业的会议纪要助手。请分析以下会议转录文本，生成结构化的会议纪要。
 
+重要要求：
+1. topics 的 discussion 字段必须详尽记录讨论细节，每条至少100个中文字。保留具体的工具名称、方案名称、演示步骤、数据指标、技术术语等实操性信息，不要只写一句话概括。
+2. 宁可多拆 topic 也不要合并导致信息丢失。每个可独立成段的讨论主题都应单独作为一个 topic。特别注意：如果会议中有演示（demo）多个功能或方案，每个独立的演示/功能点应作为单独的 topic，不要合并为一个"Demo演示"大 topic。
+3. 如果会议中涉及演示计划、准备脚本或下一步展示安排，应作为独立的 topic 记录，discussion 中列出具体要演示的内容、顺序和关键点。
+4. 不要遗漏转录中被明确讨论的功能、工具、方案或计划。提到的具体事项都应体现在纪要中。
+
 转录文本：
 ${transcriptText}
 
@@ -201,7 +207,7 @@ ${transcriptText}
   "meetingType": "general",
   "summary": "会议总结（2-3句话）",
   "agenda": ["议程项（如提及）"],
-  "topics": [{ "topic": "议题", "discussion": "讨论要点", "conclusion": "结论或待定" }],
+  "topics": [{ "topic": "议题", "discussion": "详尽的讨论要点（至少100字，保留工具名、方案名、步骤等具体信息）", "conclusion": "结论或待定" }],
   "highlights": [{ "point": "要点描述", "detail": "详情" }],
   "lowlights": [{ "point": "风险/问题描述", "detail": "详情" }],
   "decisions": [{ "decision": "决策内容", "rationale": "决策原因", "owner": "决策人（如提及）" }],

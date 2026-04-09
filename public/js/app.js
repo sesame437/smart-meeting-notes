@@ -2220,8 +2220,8 @@ const SECTION_CONFIGS = {
   topics: {
     fields: [
       { key: 'topic', label: '议题' },
-      { key: 'discussion', label: '讨论内容' },
-      { key: 'conclusion', label: '结论' },
+      { key: 'discussion', label: '讨论内容', type: 'textarea' },
+      { key: 'conclusion', label: '结论', type: 'textarea' },
     ],
     label: '议题',
     defaultItem: { topic: '', discussion: '', conclusion: '' },
@@ -2289,28 +2289,28 @@ function editGenericItem(section, index, meetingId) {
   if (item === undefined) return;
   var row = document.getElementById(section + "-row-" + index);
   if (!row) return;
+  var colCount = row.querySelectorAll('td').length || config.fields.length + 1;
   var inputsHtml = '';
   if (config.isStringArray) {
     var val = typeof item === 'string' ? item : '';
-    inputsHtml = `<input type="text" class="form-control" id="edit-generic-${section}-_self-${index}" value="${escapeAttr(val)}" placeholder="${escapeAttr(config.label)}" style="flex:1;border:2px solid #FF9900;">`;
+    inputsHtml = `<input type="text" class="form-control" id="edit-generic-${section}-_self-${index}" value="${escapeAttr(val)}" placeholder="${escapeAttr(config.label)}" style="width:100%;border:2px solid #FF9900;">`;
   } else {
     inputsHtml = config.fields.map(function(f) {
       var val = item[f.key];
       if (Array.isArray(val)) val = val.join(', ');
-      return `<input type="text" class="form-control" id="edit-generic-${section}-${f.key}-${index}" value="${escapeAttr(val || '')}" placeholder="${escapeAttr(f.label)}" style="border:2px solid #FF9900;">`;
+      if (f.type === 'textarea') {
+        return `<div style="margin-bottom:6px;"><label style="font-size:12px;color:var(--color-muted);margin-bottom:2px;display:block;">${escapeHtml(f.label)}</label><textarea class="form-control" id="edit-generic-${section}-${f.key}-${index}" placeholder="${escapeAttr(f.label)}" rows="3" style="width:100%;border:2px solid #FF9900;resize:vertical;">${escapeHtml(val || '')}</textarea></div>`;
+      }
+      return `<div style="margin-bottom:6px;"><label style="font-size:12px;color:var(--color-muted);margin-bottom:2px;display:block;">${escapeHtml(f.label)}</label><input type="text" class="form-control" id="edit-generic-${section}-${f.key}-${index}" value="${escapeAttr(val || '')}" placeholder="${escapeAttr(f.label)}" style="width:100%;border:2px solid #FF9900;"></div>`;
     }).join('');
   }
-  row.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:6px;width:100%;">
-      ${inputsHtml}
-      <div style="display:flex;gap:8px;">
-        <button class="btn action-primary-btn btn-sm" data-action="save-generic" data-section="${section}" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
-        <button class="btn btn-outline btn-sm" data-action="cancel-generic-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
-      </div>
-    </div>`;
-  row.style.border = "2px solid #FF9900";
-  row.style.borderRadius = "4px";
-  row.style.padding = "6px";
+  row.innerHTML = `<td colspan="${colCount}" style="border:2px solid #FF9900;border-radius:4px;padding:10px;">
+    ${inputsHtml}
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <button class="btn action-primary-btn btn-sm" data-action="save-generic" data-section="${section}" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      <button class="btn btn-outline btn-sm" data-action="cancel-generic-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    </div>
+  </td>`;
 }
 
 async function saveGenericItem(section, index, meetingId) {

@@ -9,9 +9,11 @@ Endpoints:
 """
 
 import hashlib
+import json
 import logging
 import os
 import pathlib
+import subprocess
 import tempfile
 import threading
 import time
@@ -165,6 +167,66 @@ def download_from_s3(s3_bucket: str, s3_key: str) -> tuple[str, bool]:
     return local_path, False
 
 
+# --------------- Audio Pre-processing ---------------
+
+
+def _count_audio_tracks(file_path: str) -> int:
+    """Use ffprobe to count audio tracks in a media file."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-select_streams", "a",
+                "-show_entries", "stream=index",
+                "-of", "json",
+                file_path,
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        info = json.loads(result.stdout)
+        return len(info.get("streams", []))
+    except Exception as e:
+        logger.warning(f"ffprobe failed for {file_path}: {e}")
+        return 1  # assume single track on failure
+
+
+def merge_audio_tracks(file_path: str) -> str:
+    """
+    If the file has multiple audio tracks, merge them into a single
+    16kHz mono WAV. Returns the merged file path, or the original
+    path if only one track exists.
+    """
+    track_count = _count_audio_tracks(file_path)
+    if track_count <= 1:
+        return file_path
+
+    logger.info(f"Detected {track_count} audio tracks in {file_path}, merging...")
+    merged_path = file_path + ".merged.wav"
+    stream_maps = "".join(f"[0:a:{i}]" for i in range(track_count))
+    filter_str = f"{stream_maps}amerge=inputs={track_count},loudnorm"
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", file_path,
+                "-filter_complex", filter_str,
+                "-ac", "1",
+                "-ar", "16000",
+                merged_path,
+            ],
+            capture_output=True, text=True, timeout=600,
+            check=True,
+        )
+        logger.info(
+            f"Merged {track_count} tracks -> {merged_path} "
+            f"({os.path.getsize(merged_path)} bytes)"
+        )
+        return merged_path
+    except subprocess.CalledProcessError as e:
+        logger.error(f"ffmpeg merge failed: {e.stderr}")
+        return file_path  # fallback to original
+
+
 # --------------- Routes ---------------
 
 
@@ -189,6 +251,7 @@ def asr():
     uploaded_file = request.files.get("file")
 
     tmp_path = None
+    merged_tmp = None
     cached = False
 
     try:
@@ -213,6 +276,12 @@ def asr():
                 ),
                 400,
             )
+
+        # --- Merge multiple audio tracks if present ---
+        merged_path = merge_audio_tracks(audio_path)
+        if merged_path != audio_path:
+            merged_tmp = merged_path
+            audio_path = merged_path
 
         # --- Transcribe ---
         logger.info(f"Transcribing: {audio_path} (language={language})")
@@ -296,6 +365,12 @@ def asr():
         return jsonify({"error": str(e)}), 500
 
     finally:
+        # Clean up merged audio file
+        if merged_tmp and os.path.exists(merged_tmp):
+            try:
+                os.remove(merged_tmp)
+            except OSError:
+                pass
         # Clean up temp upload (not cached S3 files)
         if tmp_path and os.path.exists(tmp_path):
             try:
