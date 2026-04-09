@@ -247,4 +247,28 @@ describe("applyGlossaryAliases", () => {
     expect(reportStr).toBe("use Quick Suite for testing");
     expect(appliedAliases).toEqual([{ from: "quick", to: "Quick Suite" }]);
   });
+
+  test("does not replace person-name alias when full name absent from report", () => {
+    const glossaryItems = [{ term: "张强", aliases: "强哥", category: "人员" }];
+    const { reportStr } = applyGlossaryAliases('"强哥推荐了一个方案"', glossaryItems);
+    expect(reportStr).toBe('"强哥推荐了一个方案"');
+  });
+
+  test("replaces person-name alias when full name present in report", () => {
+    const glossaryItems = [{ term: "张强", aliases: "强哥", category: "人员" }];
+    const { reportStr } = applyGlossaryAliases('"张强负责后端，强哥推荐了一个方案"', glossaryItems);
+    expect(reportStr).toBe('"张强负责后端，张强推荐了一个方案"');
+  });
+
+  test("replaces non-person alias regardless of full-name presence", () => {
+    const glossaryItems = [{ term: "Amazon S3", aliases: "S3", category: "术语" }];
+    const { reportStr } = applyGlossaryAliases('"uses S3 buckets"', glossaryItems);
+    expect(reportStr).toBe('"uses Amazon S3 buckets"');
+  });
+
+  test("uses heuristic for person detection when category missing", () => {
+    const glossaryItems = [{ term: "张强", aliases: "强哥" }];
+    const { reportStr } = applyGlossaryAliases('"强哥推荐了一个方案"', glossaryItems);
+    expect(reportStr).toBe('"强哥推荐了一个方案"');
+  });
 });

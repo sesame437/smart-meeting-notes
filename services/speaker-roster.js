@@ -208,11 +208,19 @@ function isLatinAlias(str) {
   return /^[a-zA-Z0-9][\w\s.-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/.test(str);
 }
 
+function isPersonNameItem(item) {
+  if (item.category === "人员") return true;
+  if (item.category && item.category !== "人员") return false;
+  return /^[\u4e00-\u9fff]{2,4}$/.test(item.term);
+}
+
 function applyGlossaryAliases(reportStr, glossaryItems) {
   const appliedAliases = [];
   const aliasMap = {};
+  const personTerms = new Set();
   glossaryItems.forEach((item) => {
     if (!item.aliases) return;
+    if (isPersonNameItem(item)) personTerms.add(item.term);
     const aliases = typeof item.aliases === "string"
       ? item.aliases.split(/[,，]/).map((s) => s.trim()).filter(Boolean) : item.aliases;
     aliases.forEach((a) => { if (a && a !== item.term) aliasMap[a] = item.term; });
@@ -225,6 +233,10 @@ function applyGlossaryAliases(reportStr, glossaryItems) {
     if (alias === term || done.has(alias)) return;
     const jsonAlias = JSON.stringify(alias).slice(1, -1);
     if (!result.includes(jsonAlias)) return;
+    if (personTerms.has(term)) {
+      const jsonTerm = JSON.stringify(term).slice(1, -1);
+      if (!result.includes(jsonTerm)) return;
+    }
     const markDone = () => Object.entries(aliasMap).forEach(([a, t]) => { if (t === term) done.add(a); });
     const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const useBoundary = isLatinAlias(alias);
