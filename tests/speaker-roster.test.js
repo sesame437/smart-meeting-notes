@@ -221,4 +221,30 @@ describe("applyGlossaryAliases", () => {
     const { reportStr } = applyGlossaryAliases("uses DDB and Dynamo", glossaryItems);
     expect(reportStr).toContain("DynamoDB");
   });
+
+  test("does not replace English alias inside a longer word", () => {
+    const glossaryItems = [{ term: "Claude Code", aliases: "cc" }];
+    const { reportStr } = applyGlossaryAliases("success is guaranteed", glossaryItems);
+    expect(reportStr).toBe("success is guaranteed");
+  });
+
+  test("replaces English alias at word boundary", () => {
+    const glossaryItems = [{ term: "Claude Code", aliases: "cc" }];
+    const { reportStr, appliedAliases } = applyGlossaryAliases("use cc for coding", glossaryItems);
+    expect(reportStr).toBe("use Claude Code for coding");
+    expect(appliedAliases).toEqual([{ from: "cc", to: "Claude Code" }]);
+  });
+
+  test("does not replace 'quick' inside 'quickly'", () => {
+    const glossaryItems = [{ term: "Quick Suite", aliases: "quick" }];
+    const { reportStr } = applyGlossaryAliases("finish quickly and efficiently", glossaryItems);
+    expect(reportStr).toBe("finish quickly and efficiently");
+  });
+
+  test("replaces standalone 'quick' at word boundary", () => {
+    const glossaryItems = [{ term: "Quick Suite", aliases: "quick" }];
+    const { reportStr, appliedAliases } = applyGlossaryAliases("use quick for testing", glossaryItems);
+    expect(reportStr).toBe("use Quick Suite for testing");
+    expect(appliedAliases).toEqual([{ from: "quick", to: "Quick Suite" }]);
+  });
 });

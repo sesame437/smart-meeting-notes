@@ -204,6 +204,10 @@ function buildSpeakerRoster(report, nameMap, savedSpeakerAliases = {}, existingR
     });
 }
 
+function isLatinAlias(str) {
+  return /^[a-zA-Z0-9][\w\s.-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$/.test(str);
+}
+
 function applyGlossaryAliases(reportStr, glossaryItems) {
   const appliedAliases = [];
   const aliasMap = {};
@@ -222,15 +226,19 @@ function applyGlossaryAliases(reportStr, glossaryItems) {
     const jsonAlias = JSON.stringify(alias).slice(1, -1);
     if (!result.includes(jsonAlias)) return;
     const markDone = () => Object.entries(aliasMap).forEach(([a, t]) => { if (t === term) done.add(a); });
+    const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const useBoundary = isLatinAlias(alias);
+    const bPre = useBoundary ? "\\b" : "";
+    const bSuf = useBoundary ? "\\b" : "";
     if (term.includes(alias)) {
       const pre = term.slice(0, term.indexOf(alias));
-      const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const before = result;
-      result = result.replace(new RegExp(`(?<!${esc(pre)})${esc(alias)}`, "g"), term);
+      result = result.replace(new RegExp(`(?<!${esc(pre)})${bPre}${esc(alias)}${bSuf}`, "g"), term);
       if (result !== before) { appliedAliases.push({ from: alias, to: term }); markDone(); }
     } else {
-      result = result.replaceAll(alias, term);
-      appliedAliases.push({ from: alias, to: term }); markDone();
+      const before = result;
+      result = result.replace(new RegExp(`${bPre}${esc(alias)}${bSuf}`, "g"), term);
+      if (result !== before) { appliedAliases.push({ from: alias, to: term }); markDone(); }
     }
   });
   return { reportStr: result, appliedAliases };
