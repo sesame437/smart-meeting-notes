@@ -115,7 +115,7 @@ async function readFunASRResult(funasrKey) {
       let currentSpeaker = null;
       let currentText = "";
       for (const seg of data.segments) {
-        const spk = `SPEAKER_${seg.speaker ?? 0}`;
+        const spk = typeof seg.speaker === "number" ? `SPEAKER_${seg.speaker}` : (seg.speaker || "SPEAKER_0");
         if (spk !== currentSpeaker) {
           if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
           currentSpeaker = spk;

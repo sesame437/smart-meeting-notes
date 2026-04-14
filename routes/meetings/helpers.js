@@ -92,7 +92,7 @@ async function readTranscriptParts(item) {
         let currentSpeaker = null;
         let currentText = "";
         for (const seg of data.segments) {
-          const spk = seg.speaker || "SPEAKER_0";
+          const spk = typeof seg.speaker === "number" ? `SPEAKER_${seg.speaker}` : (seg.speaker || "SPEAKER_0");
           if (spk !== currentSpeaker) {
             if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
             currentSpeaker = spk;
