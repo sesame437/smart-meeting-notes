@@ -16,20 +16,29 @@ describe("bedrock speakerMap prompt injection", () => {
     expect(prompt).toContain("参会人真实姓名映射");
     expect(prompt).toContain("SPEAKER_0: Alice");
     expect(prompt).toContain("SPEAKER_1: Bob");
-    expect(prompt).not.toContain("转录文本中包含说话人标签");
+    expect(prompt).not.toContain("不要在纪要中引用或推测");
   });
 
-  test("无 map: 使用说话人推断提示", () => {
+  test("无 map 但有 SPEAKER 标签: owner 规则明确，禁止留空", () => {
     const prompt = getMeetingPrompt(transcriptWithSpeakers, "general", [], null);
 
-    expect(prompt).toContain("转录文本中包含说话人标签");
+    expect(prompt).toContain("禁止留空");
+    expect(prompt).toContain("SPEAKER_X");
+    expect(prompt).toContain("speakerKeypoints");
     expect(prompt).not.toContain("参会人真实姓名映射");
   });
 
-  test("空 map: 视为无 map，使用说话人推断提示", () => {
+  test("空 map 但有 SPEAKER 标签: 同上", () => {
     const prompt = getMeetingPrompt(transcriptWithSpeakers, "general", [], {});
 
-    expect(prompt).toContain("转录文本中包含说话人标签");
+    expect(prompt).toContain("禁止留空");
+    expect(prompt).not.toContain("参会人真实姓名映射");
+  });
+
+  test("无 map 无 SPEAKER 标签: 不引用说话人", () => {
+    const prompt = getMeetingPrompt("大家好，今天讨论项目进展", "general", [], null);
+
+    expect(prompt).toContain("没有说话人标签");
     expect(prompt).not.toContain("参会人真实姓名映射");
   });
 });

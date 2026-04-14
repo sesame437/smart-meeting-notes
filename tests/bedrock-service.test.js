@@ -87,11 +87,12 @@ describe("bedrock-service", () => {
       expect(result).toContain("SPEAKER_02: 李四")
     })
 
-    it("should include speaker inference note when transcript has SPEAKER tags but no speakerMap", () => {
+    it("should instruct owner priority and forbid empty when SPEAKER tags present without speakerMap", () => {
       const result = getMeetingPrompt("[SPEAKER_0] Hello [SPEAKER_1] Hi", "general")
 
-      expect(result).toContain("说话人标签")
-      expect(result).toContain("推断其身份")
+      expect(result).toContain("speakerKeypoints")
+      expect(result).toContain("禁止留空")
+      expect(result).toContain("SPEAKER_X")
       expect(result).not.toContain("真实姓名映射")
     })
 

@@ -109,13 +109,13 @@ async function readFunASRResult(funasrKey) {
     const stream = await getFile(funasrKey);
     const body = await streamToString(stream);
     const data = JSON.parse(body);
-    // 格式化带说话人标签的文本
     if (data.segments && data.segments.length > 0) {
+      // Format with speaker labels
       const lines = [];
       let currentSpeaker = null;
       let currentText = "";
       for (const seg of data.segments) {
-        const spk = seg.speaker || "SPEAKER_0";
+        const spk = `SPEAKER_${seg.speaker ?? 0}`;
         if (spk !== currentSpeaker) {
           if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
           currentSpeaker = spk;

@@ -14,9 +14,11 @@ function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speak
   if (speakerMap && Object.keys(speakerMap).length > 0) {
     const mapping = Object.entries(speakerMap).map(([k, v]) => `${k}: ${v}`).join(", ");
     const nameList = [...new Set(Object.values(speakerMap))].join("、");
-    speakerNote = `以下是参会人真实姓名映射，请在纪要中使用真实姓名：{${mapping}}\n\n重要：只允许使用以上真实姓名（${nameList}），严禁使用"成员A"、"成员B"、"成员C"、"成员D"、"主持人"等匿名代号。所有提及参会人的地方必须使用映射中的真实姓名。\n\n同时，请在 JSON 输出的 speakerKeypoints 字段中，为每位说话人提取最多3条核心发言要点。每条要点必须至少80个中文字，完整描述该说话人的具体观点、提出的数据/方案和上下文背景，不要只写一句话摘要。\n\n`;
+    speakerNote = `参会人真实姓名映射：{${mapping}}\n请使用真实姓名，严禁匿名代号。只允许使用：${nameList}。\n\n`;
   } else if (transcriptText.includes("[SPEAKER_")) {
-    speakerNote = `转录文本中包含说话人标签（如 [SPEAKER_0]、[SPEAKER_1]），请根据每位说话人的发言内容、语气和角色推断其身份（如"主持人"、"成员A"、"客户代表"等），在纪要中使用推断的角色名称而非 SPEAKER_X 编号。若无法推断具体身份，可使用"成员A/B/C"等匿名标注。\n\n同时，请在 JSON 输出的 speakerKeypoints 字段中，为每位说话人（SPEAKER_0、SPEAKER_1 等）提取最多3条核心发言要点。每条要点必须至少80个中文字，完整描述该说话人的具体观点、提出的数据/方案和上下文背景，不要只写一句话摘要。\n\n`;
+    speakerNote = `转录含说话人标签 [SPEAKER_X]。owner/负责人字段规则：优先填写转录中明确提到的真实人名，无法确定时填 SPEAKER_X，禁止留空。participants 以 SPEAKER_X 为标识。speakerKeypoints 以 SPEAKER_X 为 key。\n\n`;
+  } else {
+    speakerNote = `转录中没有说话人标签，不要推测说话人身份，专注于讨论内容。owner 字段从转录内容中提取人名，无法确定则填"待定"，禁止留空。participants 输出空数组，speakerKeypoints 输出空对象。\n\n`;
   }
 
   const glossaryNote = glossaryTerms.length > 0
@@ -188,6 +190,63 @@ ${transcriptText}
 转录文本：${transcriptText}
 
 注意：speakerKeypoints 字段仅当转录文本中包含 [SPEAKER_X] 标签时提取，每位说话人最多3条核心发言要点，每条至少50个中文字。若无说话人标签，则输出空对象 {}。只输出 JSON。`;
+  }
+
+  if (meetingType === "interview") {
+    return `${speakerNote}${glossaryNote}你是专业的面试评估助手。请分析以下面试录音转录文本，基于 Amazon Leadership Principles 生成结构化的面试评估报告。
+
+请严格输出以下 JSON 格式，不要包含任何额外文字：
+
+{
+  "meetingType": "interview",
+  "summary": "面试总体评估（2-3句话概括候选人表现和建议）",
+  "candidateInfo": {
+    "name": "候选人姓名（从对话中推断）",
+    "position": "应聘职位（如提及）",
+    "level": "级别（如 L5/L6，如提及）",
+    "interviewer": "面试官姓名（从对话中推断）",
+    "interviewType": "电话面试/现场面试/视频面试（如可推断）"
+  },
+  "lpAssessment": [
+    {
+      "principle": "Leadership Principle 名称（英文）",
+      "rating": "strong / satisfactory / weak / not-assessed",
+      "evidence": "从面试对话中提取的具体行为证据，引用候选人的实际回答"
+    }
+  ],
+  "questions": [
+    {
+      "question": "面试官提出的问题",
+      "context": "该问题考察的能力/LP",
+      "answer": "候选人回答的关键要点（保留具体细节、数据、项目名称）",
+      "assessment": "对该回答质量的评价"
+    }
+  ],
+  "strengths": [{ "point": "优势项", "detail": "具体表现和证据" }],
+  "improvements": [{ "point": "待改进项", "detail": "具体说明和建议" }],
+  "recommendation": {
+    "decision": "hire / no-hire / inclined-hire / inclined-no-hire",
+    "reasoning": "综合决策理由（基于 LP 评估结果）",
+    "suggestedLevel": "建议级别（如适用）",
+    "suggestedRole": "建议角色（如适用）"
+  },
+  "participants": ["面试官", "候选人"],
+  "highlights": [{ "point": "亮点", "detail": "详情" }],
+  "lowlights": [{ "point": "问题/风险", "detail": "详情" }],
+  "actions": [{ "task": "后续行动", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low" }],
+  "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
+  "speakerKeypoints": {}
+}
+
+重要要求：
+1. lpAssessment 必须覆盖面试中涉及到的所有 Amazon Leadership Principles。常见的 16 条 LP 包括：Customer Obsession, Ownership, Invent and Simplify, Are Right A Lot, Learn and Be Curious, Hire and Develop the Best, Insist on the Highest Standards, Think Big, Bias for Action, Frugality, Earn Trust, Dive Deep, Have Backbone; Disagree and Commit, Deliver Results, Strive to be Earth's Best Employer, Success and Scale Bring Broad Responsibility。仅对面试中明确考察到的 LP 给出评分，其余标记为 not-assessed。
+2. questions 必须完整记录面试中提出的每个问题及候选人回答，保留具体的项目名称、数据指标、时间线等细节。
+3. strengths 和 improvements 要基于 LP 评估结果给出，不要泛泛而谈。
+4. recommendation 的 decision 必须基于 LP 评估的整体表现给出明确建议。
+
+转录文本：${transcriptText}
+
+注意：speakerKeypoints 字段仅当转录文本中包含 [SPEAKER_X] 标签时提取，若无则输出空对象 {}。只输出 JSON。`;
   }
 
   // general (default)

@@ -37,9 +37,16 @@ describe("report-chunked", () => {
       expect(prompt).not.toContain('"projectReviews"')
     })
 
-    it("should include speaker note when transcript has SPEAKER_ labels", () => {
+    it("should instruct owner priority and forbid empty when SPEAKER tags present", () => {
       const prompt = buildPhase1Prompt("[SPEAKER_0] hello", [], null)
-      expect(prompt).toContain("说话人标签")
+      expect(prompt).toContain("禁止留空")
+      expect(prompt).toContain("SPEAKER_X")
+      expect(prompt).toContain("speakerKeypoints")
+    })
+
+    it("should instruct not to reference speakers when no tags and no speakerMap", () => {
+      const prompt = buildPhase1Prompt("大家好今天讨论", [], null)
+      expect(prompt).toContain("没有说话人标签")
     })
 
     it("should include glossary when provided", () => {

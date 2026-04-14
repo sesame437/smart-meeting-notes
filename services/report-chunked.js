@@ -13,9 +13,9 @@ function buildSpeakerNote(transcriptText, speakerMap) {
     return `参会人真实姓名映射：{${mapping}}\n请使用真实姓名，严禁匿名代号。只允许使用：${nameList}。\n\n`;
   }
   if (transcriptText.includes("[SPEAKER_")) {
-    return `转录含说话人标签 [SPEAKER_X]，请推断身份（如主持人、成员A），使用角色名称。人名只能来自转录中明确出现的名字，严禁编造。\n\n`;
+    return `转录含说话人标签 [SPEAKER_X]。owner/负责人字段规则：优先填写转录中明确提到的真实人名，无法确定时填 SPEAKER_X，禁止留空。participants 以 SPEAKER_X 为标识。speakerKeypoints 以 SPEAKER_X 为 key。\n\n`;
   }
-  return "";
+  return `转录中没有说话人标签，不要推测说话人身份，专注于讨论内容。owner 字段从转录内容中提取人名，无法确定则填"待定"，禁止留空。participants 输出空数组，speakerKeypoints 输出空对象。\n\n`;
 }
 
 function buildGlossaryNote(glossaryTerms) {

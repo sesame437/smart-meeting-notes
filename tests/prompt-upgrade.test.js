@@ -121,16 +121,23 @@ describe("getMeetingPrompt — glossaryTerms injection", () => {
 });
 
 describe("getMeetingPrompt — speakerNote", () => {
-  test("prompt includes speakerNote when transcript contains [SPEAKER_]", () => {
+  test("prompt instructs owner priority and forbids empty when SPEAKER tags present", () => {
     const transcript = "[SPEAKER_0] 大家好\n[SPEAKER_1] 你好";
     const prompt = getMeetingPrompt(transcript, "general");
-    expect(prompt).toContain("说话人标签");
+    expect(prompt).toContain("speakerKeypoints");
+    expect(prompt).toContain("禁止留空");
+    expect(prompt).toContain("SPEAKER_X");
   });
 
-  test("prompt does NOT include speakerNote when transcript has no [SPEAKER_] tags", () => {
+  test("prompt instructs not to reference speakers when no tags and no speakerMap", () => {
+    const prompt = getMeetingPrompt("大家好，今天讨论项目", "general");
+    expect(prompt).toContain("没有说话人标签");
+  });
+
+  test("prompt still instructs not to reference speakers for plain text", () => {
     const transcript = "大家好，今天开会讨论项目进展。";
     const prompt = getMeetingPrompt(transcript, "general");
-    expect(prompt).not.toContain("说话人标签");
+    expect(prompt).toContain("没有说话人标签");
   });
 });
 
