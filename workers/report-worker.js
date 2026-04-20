@@ -7,6 +7,7 @@ const { extractJsonFromLLMResponse } = require("../services/report-builder");
 const { normalizeAnonymousSpeakerReport } = require("../services/report-speaker-normalizer");
 const { applyGlossaryToReport } = require("../services/report-post-processor");
 const { generateReportChunked } = require("../services/report-chunked");
+const { pruneNoiseSpeakers } = require("../services/speaker-pruner");
 const glossaryStore = require("../services/glossary-store");
 const logger = require("../services/logger");
 
@@ -110,11 +111,22 @@ async function readFunASRResult(funasrKey) {
     const body = await streamToString(stream);
     const data = JSON.parse(body);
     if (data.segments && data.segments.length > 0) {
+      // Prune noise speakers (diarization artifacts with too few chars to form content)
+      const { segments: prunedSegments, prunedSpeakers } = pruneNoiseSpeakers(data.segments);
+      if (prunedSpeakers.length > 0) {
+        logger.info("report-worker", "speakers-pruned", {
+          funasrKey,
+          pruned: prunedSpeakers,
+          keptSegments: prunedSegments.length,
+          droppedSegments: data.segments.length - prunedSegments.length,
+        });
+      }
+
       // Format with speaker labels
       const lines = [];
       let currentSpeaker = null;
       let currentText = "";
-      for (const seg of data.segments) {
+      for (const seg of prunedSegments) {
         const spk = typeof seg.speaker === "number" ? `SPEAKER_${seg.speaker}` : (seg.speaker || "SPEAKER_0");
         if (spk !== currentSpeaker) {
           if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
