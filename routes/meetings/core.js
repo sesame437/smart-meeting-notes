@@ -17,13 +17,13 @@ const {
 
 const uploadSchema = z.object({
   title: z.string().max(200).optional(),
-  meetingType: z.enum(["general", "tech", "weekly", "customer"]).optional(),
+  meetingType: z.enum(["general", "tech", "weekly", "customer", "interview"]).optional(),
   recipientEmails: z.string().optional(),
 });
 
 const meetingUpdateSchema = z.object({
   title: z.string().max(200).optional(),
-  meetingType: z.enum(["general", "tech", "weekly", "customer"]).optional(),
+  meetingType: z.enum(["general", "tech", "weekly", "customer", "interview"]).optional(),
   speakerMap: z.record(z.string()).optional(),
   status: z.string().optional(),
   content: z.any().optional(),

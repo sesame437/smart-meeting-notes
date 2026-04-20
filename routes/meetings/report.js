@@ -223,6 +223,7 @@ function register(router) {
       if (!item) return res.status(404).json({ error: { code: "MEETING_NOT_FOUND", message: "Not found" } });
 
       const speakerMap = item.speakerMap || null;
+      const hasSpeakerMap = speakerMap && Object.keys(speakerMap).length > 0;
 
       const transcriptParts = await readTranscriptParts(item);
       if (transcriptParts.length === 0) {
@@ -249,7 +250,7 @@ function register(router) {
         const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, modelId, speakerMap);
         report = extractJsonFromLLMResponse(responseText);
       }
-      if (!speakerMap || Object.keys(speakerMap).length === 0) {
+      if (!hasSpeakerMap) {
         report = normalizeAnonymousSpeakerReport(report);
       } else {
         const nameMap = {};
@@ -293,6 +294,7 @@ function register(router) {
         "topics", "teamKPI", "nextMeeting", "risks", "keyTopics", "sourceMeetings",
         "customerInfo", "customerNeeds", "painPoints", "solutionsDiscussed",
         "commitments", "nextSteps", "awsAttendees",
+        "lpAssessment", "questions", "strengths", "improvements",
       ];
       if (!section || !validSections.includes(section)) {
         return res.status(400).json({ error: { code: "INVALID_SECTION", message: `Invalid section. Allowed: ${validSections.join(", ")}` } });

@@ -12,3 +12,4 @@ _archive/
 playwright-report/
 test-results/
 dist/
+get-bili-audio.js

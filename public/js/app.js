@@ -324,6 +324,7 @@ function startCardEdit(id, currentTitle, currentType) {
         <option value="general" ${currentType==='general'?'selected':''}>通用</option>
         <option value="tech" ${currentType==='tech'?'selected':''}>技术</option>
         <option value="customer" ${currentType==='customer'?'selected':''}>客户</option>
+        <option value="interview" ${currentType==='interview'?'selected':''}>面试</option>
       </select>
       <button class="btn action-primary-btn btn-sm" data-action="save-card-edit" data-id="${escapeAttr(id)}">确认</button>
       <button class="btn btn-outline btn-sm" data-action="cancel-card-edit">取消</button>
@@ -820,7 +821,7 @@ function renderMeetingDetail(m) {
   }
 
   // ---- Header (Cloudscape style) ----
-  const meetingTypeLabel = { weekly: "周会", general: "通用", tech: "技术", customer: "客户", merged: "合并" };
+  const meetingTypeLabel = { weekly: "周会", general: "通用", tech: "技术", customer: "客户", merged: "合并", interview: "面试" };
   const currentType = m.meetingType || "general";
   let html = `
     <div class="meeting-detail-header">
@@ -849,6 +850,7 @@ function renderMeetingDetail(m) {
             <option value="general">通用</option>
             <option value="tech">技术</option>
             <option value="customer">客户</option>
+            <option value="interview">面试</option>
           </select>
           <button class="btn action-primary-btn btn-sm" data-action="save-detail-edit" data-id="${escapeAttr(m.meetingId)}">保存</button>
           <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,0.3);" data-action="cancel-detail-edit">取消</button>
@@ -1059,6 +1061,153 @@ function renderMeetingDetail(m) {
       </div>
       <div style="text-align:right;margin-top:8px;">
         <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="nextSteps" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加下一步</button>
+      </div>
+    </div>`;
+  }
+
+  // ---- Interview 专属字段 ----
+
+  if (report.candidateInfo) {
+    const ci = report.candidateInfo;
+    html += `<div class="card">
+      <div class="card-title"><i class="fa fa-user"></i> 候选人信息</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;">
+        ${ci.name ? `<div><span style="color:var(--color-muted);font-size:12px;">姓名</span><div style="font-weight:600;">${esc(ci.name)}</div></div>` : ""}
+        ${ci.position ? `<div><span style="color:var(--color-muted);font-size:12px;">应聘职位</span><div>${esc(ci.position)}</div></div>` : ""}
+        ${ci.level ? `<div><span style="color:var(--color-muted);font-size:12px;">级别</span><div>${esc(ci.level)}</div></div>` : ""}
+        ${ci.interviewer ? `<div><span style="color:var(--color-muted);font-size:12px;">面试官</span><div>${esc(ci.interviewer)}</div></div>` : ""}
+        ${ci.interviewType ? `<div><span style="color:var(--color-muted);font-size:12px;">面试形式</span><div>${esc(ci.interviewType)}</div></div>` : ""}
+      </div>
+    </div>`;
+  }
+
+  if (report.recommendation) {
+    const rec = report.recommendation;
+    const decisionColor = { "hire": "#2e7d32", "inclined-hire": "#558b2f", "inclined-no-hire": "#e65100", "no-hire": "#c62828" };
+    const decisionLabel = { "hire": "建议录用", "inclined-hire": "倾向录用", "inclined-no-hire": "倾向不录用", "no-hire": "不建议录用" };
+    const dc = decisionColor[rec.decision] || "#666";
+    const dl = decisionLabel[rec.decision] || rec.decision;
+    html += `<div class="card" style="border-left:4px solid ${dc};">
+      <div class="card-title"><i class="fa fa-gavel"></i> 录用建议</div>
+      <div style="font-size:18px;font-weight:700;color:${dc};margin-bottom:8px;">${esc(dl)}</div>
+      ${rec.reasoning ? `<p style="margin:4px 0;">${esc(rec.reasoning)}</p>` : ""}
+      <div style="display:flex;gap:16px;margin-top:8px;">
+        ${rec.suggestedLevel ? `<span style="color:var(--color-muted);font-size:13px;">建议级别: <strong style="color:#fff;">${esc(rec.suggestedLevel)}</strong></span>` : ""}
+        ${rec.suggestedRole ? `<span style="color:var(--color-muted);font-size:13px;">建议角色: <strong style="color:#fff;">${esc(rec.suggestedRole)}</strong></span>` : ""}
+      </div>
+    </div>`;
+  }
+
+  if (report.lpAssessment && report.lpAssessment.length) {
+    var ratingColor = { "strong": "#2e7d32", "satisfactory": "#1565c0", "weak": "#c62828", "not-assessed": "#666" };
+    var ratingLabel = { "strong": "优秀", "satisfactory": "合格", "weak": "较弱", "not-assessed": "未考察" };
+    var lpRows = "";
+    for (var li = 0; li < report.lpAssessment.length; li++) {
+      var lp = report.lpAssessment[li];
+      var rc = ratingColor[lp.rating] || "#666";
+      var rl = ratingLabel[lp.rating] || lp.rating;
+      lpRows += '<tr id="lpAssessment-row-' + li + '">'
+        + '<td><strong>' + esc(lp.principle) + '</strong></td>'
+        + '<td><span style="color:' + rc + ';font-weight:600;">' + esc(rl) + '</span></td>'
+        + '<td>' + esc(lp.evidence || "-") + '</td>'
+        + '<td class="row-actions">'
+        + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="lpAssessment" data-index="' + li + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
+        + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="lpAssessment" data-index="' + li + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
+        + '</td></tr>';
+    }
+    html += `<div class="card" id="section-lpAssessment">
+      <div class="card-title"><i class="fa fa-star"></i> Leadership Principles 评估</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th style="color:var(--aws-orange)">Leadership Principle</th>
+            <th style="color:var(--aws-orange);width:80px;">评分</th>
+            <th style="color:var(--aws-orange)">行为证据</th>
+            <th style="color:var(--aws-orange);width:80px;">操作</th>
+          </tr></thead>
+          <tbody>${lpRows}</tbody>
+        </table>
+      </div>
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="lpAssessment" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加LP评估</button>
+      </div>
+    </div>`;
+  }
+
+  if (report.questions && report.questions.length) {
+    var qRows = "";
+    for (var qi = 0; qi < report.questions.length; qi++) {
+      var q = report.questions[qi];
+      qRows += '<tr id="questions-row-' + qi + '">'
+        + '<td>' + esc(q.question) + '</td>'
+        + '<td>' + esc(q.context || "-") + '</td>'
+        + '<td>' + esc(q.answer || "-") + '</td>'
+        + '<td>' + esc(q.assessment || "-") + '</td>'
+        + '<td class="row-actions">'
+        + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="questions" data-index="' + qi + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
+        + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="questions" data-index="' + qi + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
+        + '</td></tr>';
+    }
+    html += `<div class="card" id="section-questions">
+      <div class="card-title"><i class="fa fa-comments"></i> 面试问答</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th style="color:var(--aws-orange)">问题</th>
+            <th style="color:var(--aws-orange)">考察点</th>
+            <th style="color:var(--aws-orange)">回答要点</th>
+            <th style="color:var(--aws-orange)">评价</th>
+            <th style="color:var(--aws-orange);width:80px;">操作</th>
+          </tr></thead>
+          <tbody>${qRows}</tbody>
+        </table>
+      </div>
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="questions" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加问答</button>
+      </div>
+    </div>`;
+  }
+
+  if (report.strengths && report.strengths.length) {
+    var sCards = "";
+    for (var si = 0; si < report.strengths.length; si++) {
+      var s = report.strengths[si];
+      sCards += '<div id="strengths-row-' + si + '" style="border-left:4px solid #2e7d32;padding:10px 14px;margin-bottom:8px;background:rgba(46,125,50,0.1);border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:space-between;">'
+        + '<div><strong>' + esc(s.point) + '</strong>'
+        + (s.detail ? '<br><span style="color:var(--color-muted);font-size:13px;">' + esc(s.detail) + '</span>' : '')
+        + '</div>'
+        + '<div class="row-actions" style="flex-shrink:0;margin-left:8px;">'
+        + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="strengths" data-index="' + si + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
+        + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="strengths" data-index="' + si + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
+        + '</div></div>';
+    }
+    html += `<div class="card" id="section-strengths">
+      <div class="card-title"><i class="fa fa-thumbs-up"></i> 候选人优势</div>
+      ${sCards}
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="strengths" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加优势</button>
+      </div>
+    </div>`;
+  }
+
+  if (report.improvements && report.improvements.length) {
+    var imCards = "";
+    for (var ii = 0; ii < report.improvements.length; ii++) {
+      var im = report.improvements[ii];
+      imCards += '<div id="improvements-row-' + ii + '" style="border-left:4px solid #e65100;padding:10px 14px;margin-bottom:8px;background:rgba(230,81,0,0.1);border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:space-between;">'
+        + '<div><strong>' + esc(im.point) + '</strong>'
+        + (im.detail ? '<br><span style="color:var(--color-muted);font-size:13px;">' + esc(im.detail) + '</span>' : '')
+        + '</div>'
+        + '<div class="row-actions" style="flex-shrink:0;margin-left:8px;">'
+        + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="improvements" data-index="' + ii + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
+        + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="improvements" data-index="' + ii + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
+        + '</div></div>';
+    }
+    html += `<div class="card" id="section-improvements">
+      <div class="card-title"><i class="fa fa-arrow-up"></i> 待改进项</div>
+      ${imCards}
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="improvements" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加改进项</button>
       </div>
     </div>`;
   }
@@ -2277,6 +2426,41 @@ const SECTION_CONFIGS = {
     label: 'AWS出席人',
     isStringArray: true,
     defaultItem: '',
+  },
+  lpAssessment: {
+    fields: [
+      { key: 'principle', label: 'Leadership Principle' },
+      { key: 'rating', label: '评分(strong/satisfactory/weak/not-assessed)' },
+      { key: 'evidence', label: '行为证据', type: 'textarea' },
+    ],
+    label: 'LP评估',
+    defaultItem: { principle: '', rating: 'not-assessed', evidence: '' },
+  },
+  questions: {
+    fields: [
+      { key: 'question', label: '面试问题' },
+      { key: 'context', label: '考察点' },
+      { key: 'answer', label: '回答要点', type: 'textarea' },
+      { key: 'assessment', label: '评价' },
+    ],
+    label: '面试问答',
+    defaultItem: { question: '', context: '', answer: '', assessment: '' },
+  },
+  strengths: {
+    fields: [
+      { key: 'point', label: '优势项' },
+      { key: 'detail', label: '具体表现', type: 'textarea' },
+    ],
+    label: '候选人优势',
+    defaultItem: { point: '', detail: '' },
+  },
+  improvements: {
+    fields: [
+      { key: 'point', label: '待改进项' },
+      { key: 'detail', label: '具体说明', type: 'textarea' },
+    ],
+    label: '待改进项',
+    defaultItem: { point: '', detail: '' },
   },
 };
 

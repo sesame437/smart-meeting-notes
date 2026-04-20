@@ -2,6 +2,7 @@ const { fmtDate, buildSummary, buildParticipantsFooter, buildHtmlWrapper } = req
 const { buildGeneralBody } = require("./general");
 const { buildWeeklyBody } = require("./weekly");
 const { buildCustomerBody } = require("./customer");
+const { buildInterviewBody } = require("./interview");
 
 /* ─── Main entry point ──────────────────────────────────── */
 
@@ -20,6 +21,8 @@ function buildHtmlBody(report, meetingName) {
     bodyContent += buildWeeklyBody(report);
   } else if (meetingType === "customer") {
     bodyContent += buildCustomerBody(report);
+  } else if (meetingType === "interview") {
+    bodyContent += buildInterviewBody(report);
   } else {
     // general, tech, or other types
     bodyContent += buildGeneralBody(report);

@@ -145,6 +145,20 @@ describe("PATCH /api/meetings/:id/report", () => {
     expect(res.body.error.message).toMatch(/Invalid section/);
   });
 
+  test.each(["lpAssessment", "questions", "strengths", "improvements"])(
+    "accepts interview section %s",
+    async (section) => {
+      setupMeeting();
+      const res = await request(app)
+        .patch("/api/meetings/test-123/report")
+        .send({ section, data: [{ point: "x", detail: "y" }] });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const saved = JSON.parse(uploadedContent);
+      expect(saved[section]).toEqual([{ point: "x", detail: "y" }]);
+    }
+  );
+
   test("rejects missing data", async () => {
     const res = await request(app)
       .patch("/api/meetings/test-123/report")
