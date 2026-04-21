@@ -96,4 +96,28 @@ describe("buildStructuredGlossaryNote", () => {
     const out = buildStructuredGlossaryNote(items);
     expect(out.endsWith("\n\n")).toBe(true);
   });
+
+  test("skips null/undefined/malformed items without throwing", () => {
+    const items = [
+      null,
+      undefined,
+      {},
+      { category: "术语" },                      // no term
+      { term: "",    category: "术语" },          // empty term
+      { term: "  ",  category: "术语" },          // whitespace-only term
+      { term: "Real", category: "术语" },
+    ];
+    // Should not throw
+    const out = buildStructuredGlossaryNote(items);
+    expect(out).toContain("- Real");
+    // None of the malformed entries appear in output
+    expect(out).not.toMatch(/- \s*\n/);
+    expect(out).not.toMatch(/- \(/);
+  });
+
+  test("empty result when all items are malformed", () => {
+    const items = [null, {}, { category: "术语" }];
+    const out = buildStructuredGlossaryNote(items);
+    expect(out).toBe("");
+  });
 });

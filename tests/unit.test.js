@@ -86,6 +86,8 @@ describe("getMeetingPrompt()", () => {
 function parseMeetingTypeFromFilename(filename) {
   if (filename.startsWith("weekly__")) return "weekly";
   if (filename.startsWith("tech__")) return "tech";
+  if (filename.startsWith("customer__")) return "customer";
+  if (filename.startsWith("interview__")) return "interview";
   return "general";
 }
 
@@ -96,6 +98,14 @@ describe("parseMeetingTypeFromFilename()", () => {
 
   test('"tech__arch-review.mp4" → "tech"', () => {
     expect(parseMeetingTypeFromFilename("tech__arch-review.mp4")).toBe("tech");
+  });
+
+  test('"customer__client-meeting.mp4" → "customer"', () => {
+    expect(parseMeetingTypeFromFilename("customer__client-meeting.mp4")).toBe("customer");
+  });
+
+  test('"interview__candidate-abc.mp4" → "interview"', () => {
+    expect(parseMeetingTypeFromFilename("interview__candidate-abc.mp4")).toBe("interview");
   });
 
   test('"regular-meeting.mp4" → "general"', () => {

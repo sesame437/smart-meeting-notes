@@ -116,6 +116,8 @@ async function updateMeetingStatus(meetingId, createdAt, status, extraAttrs = {}
 function parseMeetingTypeFromFilename(filename) {
   if (filename.startsWith("weekly__")) return "weekly";
   if (filename.startsWith("tech__")) return "tech";
+  if (filename.startsWith("customer__")) return "customer";
+  if (filename.startsWith("interview__")) return "interview";
   return "general";
 }
 

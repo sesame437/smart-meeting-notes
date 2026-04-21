@@ -2004,7 +2004,7 @@ function editActionItem(index, meetingId) {
   var row = document.getElementById("action-row-" + index);
   if (!row) return;
   row.innerHTML = `
-    <td colspan="5" style="padding:12px;background:rgba(255,153,0,0.05);">
+    <td colspan="4" style="padding:12px;background:rgba(255,153,0,0.05);">
       <div style="margin-bottom:8px;">
         <label style="display:block;font-size:12px;color:var(--color-muted);margin-bottom:4px;">任务</label>
         <textarea class="form-control" id="edit-action-task-${index}" rows="3" style="width:100%;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:8px;font-size:14px;">${escapeHtml(item.task || item.action || "")}</textarea>

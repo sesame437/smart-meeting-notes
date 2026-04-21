@@ -50,7 +50,10 @@ function buildStructuredGlossaryNote(input) {
 
   const groups = { "人员": [], "组织": [], "术语": [], "其他": [] };
   for (const item of input) {
-    const cat = item && item.category && groups[item.category] ? item.category : "其他";
+    // Defensive: skip malformed items (null, missing/empty term)
+    if (!item || typeof item !== "object") continue;
+    if (!item.term || typeof item.term !== "string" || !item.term.trim()) continue;
+    const cat = item.category && groups[item.category] ? item.category : "其他";
     groups[cat].push(renderItem(item));
   }
 
