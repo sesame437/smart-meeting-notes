@@ -8,6 +8,7 @@ const { normalizeAnonymousSpeakerReport } = require("../services/report-speaker-
 const { applyGlossaryToReport } = require("../services/report-post-processor");
 const { generateReportChunked } = require("../services/report-chunked");
 const { pruneNoiseSpeakers } = require("../services/speaker-pruner");
+const { filterGlossaryByMeetingType } = require("../services/glossary-filter");
 const glossaryStore = require("../services/glossary-store");
 const logger = require("../services/logger");
 
@@ -251,15 +252,21 @@ async function processMessage(message) {
     const truncated = funasrText.slice(0, 350000);  // Opus 4.6 1M context
     const finalTranscript = `[FunASR 转录（含说话人标签）]\n${truncated}`;
 
-    // 2. Fetch glossary and call Bedrock Claude to generate structured report (with retry)
+    // 2. Fetch glossary, filter by meetingType category whitelist, call Bedrock
     const glossaryItems = await fetchGlossaryItems();
-    const glossaryTerms = glossaryItems.map((i) => i.term).filter(Boolean);
+    const filteredItems = filterGlossaryByMeetingType(glossaryItems, meetingType);
+    logger.info("report-worker", "glossary-filtered", {
+      meetingId,
+      meetingType,
+      total: glossaryItems.length,
+      filtered: filteredItems.length,
+    });
     // Weekly meetings use chunked generation to avoid token-repetition hallucination
     let report;
     if (meetingType === "weekly") {
-      report = await generateReportChunked(finalTranscript, meetingType, glossaryTerms);
+      report = await generateReportChunked(finalTranscript, meetingType, filteredItems);
     } else {
-      report = await invokeModelWithRetry(finalTranscript, meetingType, glossaryTerms);
+      report = await invokeModelWithRetry(finalTranscript, meetingType, filteredItems);
     }
     report = normalizeAnonymousSpeakerReport(report);
     report = applyGlossaryToReport(report, glossaryItems);
