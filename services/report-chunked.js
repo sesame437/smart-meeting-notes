@@ -2,6 +2,7 @@
 
 const { invokeModelRaw } = require("./bedrock");
 const { extractJsonFromLLMResponse } = require("./report-builder");
+const { buildStructuredGlossaryNote } = require("./glossary-prompt-builder");
 const logger = require("./logger");
 
 const SYSTEM_PROMPT = "你是专业会议纪要助手。严格基于转录文本中的内容生成报告，不要编造或推测任何未在转录中出现的信息。每个 JSON 字段值必须语义完整、独立。只输出 JSON，不要其他文字。";
@@ -19,8 +20,7 @@ function buildSpeakerNote(transcriptText, speakerMap) {
 }
 
 function buildGlossaryNote(glossaryTerms) {
-  if (!glossaryTerms || glossaryTerms.length === 0) return "";
-  return `专有名词词库（确保正确拼写）：${glossaryTerms.join("、")}\n\n`;
+  return buildStructuredGlossaryNote(glossaryTerms);
 }
 
 function buildPhase1Prompt(transcriptText, glossaryTerms, speakerMap) {
