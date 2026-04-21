@@ -2004,13 +2004,29 @@ function editActionItem(index, meetingId) {
   var row = document.getElementById("action-row-" + index);
   if (!row) return;
   row.innerHTML = `
-    <td><textarea class="form-control" id="edit-action-task-${index}" rows="3" style="border:2px solid #FF9900;width:100%;resize:vertical;box-sizing:border-box;padding:6px;">${escapeHtml(item.task || item.action || "")}</textarea></td>
-    <td><input type="text" class="form-control" id="edit-action-owner-${index}" value="${escapeAttr(item.owner || item.assignee || "")}" style="border:2px solid #FF9900;"></td>
-    <td><input type="text" class="form-control" id="edit-action-deadline-${index}" value="${escapeAttr(item.deadline || item.dueDate || "")}" style="border:2px solid #FF9900;"></td>
-    <td><input type="text" class="form-control" id="edit-action-priority-${index}" value="${escapeAttr(item.priority || "")}" style="border:2px solid #FF9900;"></td>
-    <td>
-      <button class="btn action-primary-btn btn-sm" data-action="save-action-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
-      <button class="btn btn-outline btn-sm" data-action="cancel-action-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+    <td colspan="5" style="padding:12px;background:rgba(255,153,0,0.05);">
+      <div style="margin-bottom:8px;">
+        <label style="display:block;font-size:12px;color:var(--color-muted);margin-bottom:4px;">任务</label>
+        <textarea class="form-control" id="edit-action-task-${index}" rows="3" style="width:100%;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:8px;font-size:14px;">${escapeHtml(item.task || item.action || "")}</textarea>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:140px;">
+          <label style="display:block;font-size:12px;color:var(--color-muted);margin-bottom:4px;">负责人</label>
+          <input type="text" class="form-control" id="edit-action-owner-${index}" value="${escapeAttr(item.owner || item.assignee || "")}" style="border:2px solid #FF9900;width:100%;box-sizing:border-box;">
+        </div>
+        <div style="flex:1;min-width:140px;">
+          <label style="display:block;font-size:12px;color:var(--color-muted);margin-bottom:4px;">截止</label>
+          <input type="text" class="form-control" id="edit-action-deadline-${index}" value="${escapeAttr(item.deadline || item.dueDate || "")}" style="border:2px solid #FF9900;width:100%;box-sizing:border-box;">
+        </div>
+        <div style="flex:1;min-width:120px;">
+          <label style="display:block;font-size:12px;color:var(--color-muted);margin-bottom:4px;">优先级</label>
+          <input type="text" class="form-control" id="edit-action-priority-${index}" value="${escapeAttr(item.priority || "")}" style="border:2px solid #FF9900;width:100%;box-sizing:border-box;">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn btn-outline btn-sm" data-action="cancel-action-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+        <button class="btn action-primary-btn btn-sm" data-action="save-action-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+      </div>
     </td>`;
   row.style.border = "2px solid #FF9900";
 }
@@ -2056,14 +2072,14 @@ function editDecisionItem(index, meetingId) {
   if (!li) return;
   var text = renderListItem(item);
   li.innerHTML = `
-    <div style="display:flex;align-items:flex-start;gap:8px;">
-      <textarea class="form-control" id="edit-decision-text-${index}" rows="3" style="flex:1;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:6px;">${escapeHtml(text)}</textarea>
-      <button class="btn action-primary-btn btn-sm" data-action="save-decision-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+    <textarea class="form-control" id="edit-decision-text-${index}" rows="4" style="width:100%;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:8px;font-size:14px;">${escapeHtml(text)}</textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
       <button class="btn btn-outline btn-sm" data-action="cancel-decision-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      <button class="btn action-primary-btn btn-sm" data-action="save-decision-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
     </div>`;
   li.style.border = "2px solid #FF9900";
   li.style.borderRadius = "4px";
-  li.style.padding = "6px";
+  li.style.padding = "10px";
 }
 
 async function saveDecisionItem(index, meetingId) {
@@ -2176,14 +2192,14 @@ function editHighlight(index, meetingId) {
   var li = document.getElementById("highlight-row-" + index);
   if (!li) return;
   li.innerHTML = `
-    <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
-      <textarea class="form-control" id="edit-highlight-text-${index}" rows="3" style="flex:1;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:6px;">${escapeHtml(text)}</textarea>
-      <button class="btn action-primary-btn btn-sm" data-action="save-highlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+    <textarea class="form-control" id="edit-highlight-text-${index}" rows="4" style="width:100%;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:8px;font-size:14px;">${escapeHtml(text)}</textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
       <button class="btn btn-outline btn-sm" data-action="cancel-highlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      <button class="btn action-primary-btn btn-sm" data-action="save-highlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
     </div>`;
   li.style.border = "2px solid #FF9900";
   li.style.borderRadius = "4px";
-  li.style.padding = "6px";
+  li.style.padding = "10px";
 }
 
 async function saveHighlight(index, meetingId) {
@@ -2249,14 +2265,14 @@ function editLowlight(index, meetingId) {
   var li = document.getElementById("lowlight-row-" + index);
   if (!li) return;
   li.innerHTML = `
-    <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
-      <textarea class="form-control" id="edit-lowlight-text-${index}" rows="3" style="flex:1;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:6px;">${escapeHtml(text)}</textarea>
-      <button class="btn action-primary-btn btn-sm" data-action="save-lowlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+    <textarea class="form-control" id="edit-lowlight-text-${index}" rows="4" style="width:100%;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:8px;font-size:14px;">${escapeHtml(text)}</textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
       <button class="btn btn-outline btn-sm" data-action="cancel-lowlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+      <button class="btn action-primary-btn btn-sm" data-action="save-lowlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
     </div>`;
   li.style.border = "2px solid #FF9900";
   li.style.borderRadius = "4px";
-  li.style.padding = "6px";
+  li.style.padding = "10px";
 }
 
 async function saveLowlight(index, meetingId) {
@@ -2707,13 +2723,24 @@ function editPrFollowUp(prIndex, fuIndex, meetingId) {
   var tr = document.getElementById("pr-followup-row-" + prIndex + "-" + fuIndex);
   if (!tr) return;
   tr.innerHTML = `
-    <td><input type="text" class="form-control" id="edit-prfu-task-${prIndex}-${fuIndex}" value="${escapeAttr(item.task || '')}" style="border:2px solid #FF9900;"></td>
-    <td><input type="text" class="form-control" id="edit-prfu-owner-${prIndex}-${fuIndex}" value="${escapeAttr(item.owner || '')}" style="border:2px solid #FF9900;width:80px;"></td>
-    <td><input type="text" class="form-control" id="edit-prfu-deadline-${prIndex}-${fuIndex}" value="${escapeAttr(item.deadline || '')}" style="border:2px solid #FF9900;width:100px;"></td>
-    <td>
-      <div style="display:flex;gap:4px;">
-        <button class="btn action-primary-btn btn-sm" data-action="save-pr-followup" data-pr-index="${prIndex}" data-index="${fuIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
+    <td colspan="4" style="padding:12px;background:rgba(255,153,0,0.05);">
+      <div style="margin-bottom:8px;">
+        <label style="display:block;font-size:12px;color:var(--color-muted);margin-bottom:4px;">跟进事项</label>
+        <textarea class="form-control" id="edit-prfu-task-${prIndex}-${fuIndex}" rows="3" style="width:100%;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:8px;font-size:14px;">${escapeHtml(item.task || '')}</textarea>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:160px;">
+          <label style="display:block;font-size:12px;color:var(--color-muted);margin-bottom:4px;">负责人</label>
+          <input type="text" class="form-control" id="edit-prfu-owner-${prIndex}-${fuIndex}" value="${escapeAttr(item.owner || '')}" style="border:2px solid #FF9900;width:100%;box-sizing:border-box;">
+        </div>
+        <div style="flex:1;min-width:160px;">
+          <label style="display:block;font-size:12px;color:var(--color-muted);margin-bottom:4px;">截止</label>
+          <input type="text" class="form-control" id="edit-prfu-deadline-${prIndex}-${fuIndex}" value="${escapeAttr(item.deadline || '')}" style="border:2px solid #FF9900;width:100%;box-sizing:border-box;">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
         <button class="btn btn-outline btn-sm" data-action="cancel-prfu-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
+        <button class="btn action-primary-btn btn-sm" data-action="save-pr-followup" data-pr-index="${prIndex}" data-index="${fuIndex}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
       </div>
     </td>`;
   tr.style.border = "2px solid #FF9900";
