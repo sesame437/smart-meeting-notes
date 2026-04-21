@@ -9,6 +9,7 @@ const glossaryStore = require("../../services/glossary-store");
 const { normalizeAnonymousSpeakerReport } = require("../../services/report-speaker-normalizer");
 const { applyNamesToReport } = require("../../services/report-post-processor");
 const { generateReportChunked } = require("../../services/report-chunked");
+const { filterGlossaryByMeetingType } = require("../../services/glossary-filter");
 const {
   HAIKU_MODEL_ID,
   getMeetingById,
@@ -85,16 +86,16 @@ function register(router) {
 
       const mergedText = mergedParts.join("\n\n");
 
-      let glossaryTerms = [];
+      let filteredGlossary = [];
       try {
         const glossaryItems = await glossaryStore.listGlossary();
-        glossaryTerms = glossaryItems.map((i) => i.term).filter(Boolean);
+        filteredGlossary = filterGlossaryByMeetingType(glossaryItems, "merged");
       } catch (err) {
         logger.warn("meetings-route", "merge-fetch-glossary-failed", { error: err.message });
       }
 
       const modelId = process.env.BEDROCK_MODEL_ID || undefined;
-      const responseText = await invokeModel(mergedText, "merged", glossaryTerms, modelId, null, customPrompt || null);
+      const responseText = await invokeModel(mergedText, "merged", filteredGlossary, modelId, null, customPrompt || null);
 
       let report = extractJsonFromLLMResponse(responseText);
       report = normalizeAnonymousSpeakerReport(report);
@@ -234,20 +235,20 @@ function register(router) {
       const meetingType = item.meetingType || "general";
 
       let glossaryItems = [];
-      let glossaryTerms = [];
+      let filteredGlossary = [];
       try {
         glossaryItems = await glossaryStore.listGlossary();
-        glossaryTerms = glossaryItems.map((i) => i.term).filter(Boolean);
+        filteredGlossary = filterGlossaryByMeetingType(glossaryItems, meetingType);
       } catch (err) {
         logger.warn("meetings-route", "regenerate-fetch-glossary-failed", { error: err.message });
       }
 
       let report;
       if (meetingType === "weekly") {
-        report = await generateReportChunked(transcriptText, meetingType, glossaryTerms, speakerMap);
+        report = await generateReportChunked(transcriptText, meetingType, filteredGlossary, speakerMap);
       } else {
         const modelId = process.env.BEDROCK_MODEL_ID || undefined;
-        const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, modelId, speakerMap);
+        const responseText = await invokeModel(transcriptText, meetingType, filteredGlossary, modelId, speakerMap);
         report = extractJsonFromLLMResponse(responseText);
       }
       if (!hasSpeakerMap) {
