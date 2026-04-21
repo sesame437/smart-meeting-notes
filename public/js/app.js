@@ -1831,18 +1831,28 @@ async function fetchGlossary() {
   }
 }
 
+const CATEGORY_BADGE_COLORS = { "人员": "#1565c0", "术语": "#e65100", "组织": "#2e7d32" };
+
+function renderCategoryBadge(cat) {
+  if (!cat) return '<span style="color:#999;font-size:11px;">—</span>';
+  const color = CATEGORY_BADGE_COLORS[cat] || "#666";
+  return `<span style="display:inline-block;padding:2px 8px;font-size:11px;color:#fff;background:${color};border-radius:4px;">${escapeHtml(cat)}</span>`;
+}
+
 function renderGlossary(terms) {
   const tbody = document.getElementById("glossary-tbody");
   if (!terms || terms.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fa fa-book"></i>&nbsp;暂无术语</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><i class="fa fa-book"></i>&nbsp;暂无术语</td></tr>';
     return;
   }
   tbody.innerHTML = terms.map(t => {
     const term       = escapeHtml(t.term       || "");
     const aliases    = escapeHtml(t.aliases    || "");
     const definition = escapeHtml(t.definition || "");
+    const badge      = renderCategoryBadge(t.category);
     return `<tr>
       <td><strong>${term}</strong></td>
+      <td>${badge}</td>
       <td>${aliases}</td>
       <td>${definition}</td>
       <td>
@@ -1872,6 +1882,7 @@ async function addTerm(e) {
     term:       form.term.value.trim(),
     aliases:    form.aliases.value.trim(),
     definition: form.definition.value.trim(),
+    category:   form.category.value,
   };
   if (!data.term) { Toast.error("术语名不能为空"); return; }
 
@@ -1908,6 +1919,7 @@ function editTerm(id) {
   document.getElementById("edit-term").value       = term.term       || "";
   document.getElementById("edit-aliases").value    = term.aliases    || "";
   document.getElementById("edit-definition").value = term.definition || "";
+  document.getElementById("edit-category").value   = term.category   || "人员";
   overlay.dataset.termId = id;
   overlay.classList.add("show");
 }
@@ -1922,6 +1934,7 @@ async function saveEditTerm(e) {
     term:       document.getElementById("edit-term").value.trim(),
     aliases:    document.getElementById("edit-aliases").value.trim(),
     definition: document.getElementById("edit-definition").value.trim(),
+    category:   document.getElementById("edit-category").value,
   };
 
   setFormSubmitting(form, true, "保存中…");
