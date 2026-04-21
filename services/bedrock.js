@@ -2,6 +2,7 @@ const {
   BedrockRuntimeClient,
   InvokeModelWithResponseStreamCommand,
 } = require("@aws-sdk/client-bedrock-runtime");
+const { buildStructuredGlossaryNote } = require("./glossary-prompt-builder");
 
 const bedrockClient = new BedrockRuntimeClient({
   region: process.env.BEDROCK_REGION || process.env.AWS_REGION || "us-west-2",
@@ -21,9 +22,7 @@ function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speak
     speakerNote = `转录中没有说话人标签，不要推测说话人身份，专注于讨论内容。owner 字段从转录内容中提取人名，无法确定则填"待定"，禁止留空。participants 输出空数组，speakerKeypoints 输出空对象。\n\n`;
   }
 
-  const glossaryNote = glossaryTerms.length > 0
-    ? `专有名词词库（请确保报告中使用正确拼写）：${glossaryTerms.join("、")}\n\n`
-    : "";
+  const glossaryNote = buildStructuredGlossaryNote(glossaryTerms);
 
   if (meetingType === "merged") {
     const customNote = customPrompt
