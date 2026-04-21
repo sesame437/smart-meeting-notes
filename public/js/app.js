@@ -2004,7 +2004,7 @@ function editActionItem(index, meetingId) {
   var row = document.getElementById("action-row-" + index);
   if (!row) return;
   row.innerHTML = `
-    <td><input type="text" class="form-control" id="edit-action-task-${index}" value="${escapeAttr(item.task || item.action || "")}" style="border:2px solid #FF9900;"></td>
+    <td><textarea class="form-control" id="edit-action-task-${index}" rows="3" style="border:2px solid #FF9900;width:100%;resize:vertical;box-sizing:border-box;padding:6px;">${escapeHtml(item.task || item.action || "")}</textarea></td>
     <td><input type="text" class="form-control" id="edit-action-owner-${index}" value="${escapeAttr(item.owner || item.assignee || "")}" style="border:2px solid #FF9900;"></td>
     <td><input type="text" class="form-control" id="edit-action-deadline-${index}" value="${escapeAttr(item.deadline || item.dueDate || "")}" style="border:2px solid #FF9900;"></td>
     <td><input type="text" class="form-control" id="edit-action-priority-${index}" value="${escapeAttr(item.priority || "")}" style="border:2px solid #FF9900;"></td>
@@ -2056,8 +2056,8 @@ function editDecisionItem(index, meetingId) {
   if (!li) return;
   var text = renderListItem(item);
   li.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;">
-      <input type="text" class="form-control" id="edit-decision-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
+    <div style="display:flex;align-items:flex-start;gap:8px;">
+      <textarea class="form-control" id="edit-decision-text-${index}" rows="3" style="flex:1;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:6px;">${escapeHtml(text)}</textarea>
       <button class="btn action-primary-btn btn-sm" data-action="save-decision-item" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
       <button class="btn btn-outline btn-sm" data-action="cancel-decision-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
     </div>`;
@@ -2176,8 +2176,8 @@ function editHighlight(index, meetingId) {
   var li = document.getElementById("highlight-row-" + index);
   if (!li) return;
   li.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;width:100%;">
-      <input type="text" class="form-control" id="edit-highlight-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
+    <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
+      <textarea class="form-control" id="edit-highlight-text-${index}" rows="3" style="flex:1;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:6px;">${escapeHtml(text)}</textarea>
       <button class="btn action-primary-btn btn-sm" data-action="save-highlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
       <button class="btn btn-outline btn-sm" data-action="cancel-highlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
     </div>`;
@@ -2249,8 +2249,8 @@ function editLowlight(index, meetingId) {
   var li = document.getElementById("lowlight-row-" + index);
   if (!li) return;
   li.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;width:100%;">
-      <input type="text" class="form-control" id="edit-lowlight-text-${index}" value="${escapeAttr(text)}" style="flex:1;border:2px solid #FF9900;">
+    <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
+      <textarea class="form-control" id="edit-lowlight-text-${index}" rows="3" style="flex:1;border:2px solid #FF9900;resize:vertical;box-sizing:border-box;padding:6px;">${escapeHtml(text)}</textarea>
       <button class="btn action-primary-btn btn-sm" data-action="save-lowlight" data-index="${index}" data-meeting-id="${escapeAttr(meetingId)}">保存</button>
       <button class="btn btn-outline btn-sm" data-action="cancel-lowlight-edit" data-meeting-id="${escapeAttr(meetingId)}">取消</button>
     </div>`;
