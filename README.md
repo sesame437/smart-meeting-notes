@@ -17,14 +17,14 @@ Upload a recording of any meeting and Smart Meeting Notes will automatically tra
 ### Features
 
 - **Multi-format audio upload** -- MP4, MP3, M4A, OGG, and WAV with drag-and-drop support
-- **GPU-accelerated transcription** -- FunASR with CAM++ speaker diarization
+- **GPU-accelerated transcription** -- FunASR (Paraformer + VAD) with CAM++ speaker diarization
 - **AI report generation** -- Amazon Bedrock Claude Opus extracts summary, action items, decisions, highlights, and risks
-- **Multiple meeting templates** -- General, Weekly Standup, Tech Review, and Customer Meeting, each with tailored report sections
+- **Multiple meeting templates** -- General, Weekly Standup, Tech Review, Customer Meeting, and Interview, each with tailored report sections (Interview includes LP assessment and hire recommendation)
 - **Chunked weekly generation** -- 3-phase report generation for weekly meetings to avoid token-repetition hallucination
 - **Multi-file upload and merge** -- upload multiple audio segments or combine 2-10 meetings into a consolidated report
 - **Auto-naming** -- Claude Haiku generates semantic meeting titles from transcript content
-- **Speaker mapping and roster** -- rename speaker labels (SPEAKER_0 -> John), manage aliases, and track speaker history across meetings
-- **Glossary management** -- maintain domain terms and contact names to improve transcription accuracy and report quality
+- **Speaker mapping, roster, and pruning** -- rename speaker labels (SPEAKER_0 -> John), manage aliases, track speaker history, and auto-drop diarization noise speakers before Bedrock
+- **Glossary with categories** -- maintain domain terms and contact names with per-meetingType category filtering to improve accuracy without prompt bloat
 - **Inline report editing** -- modify any section directly in the browser, with edit/delete/add for all meeting types
 - **Email delivery** -- HTML-formatted meeting minutes via Amazon SES
 - **GPU auto-hibernate** -- FunASR EC2 instance auto-stops after 30 minutes idle to reduce costs
@@ -73,126 +73,67 @@ Workers (3 independent Node.js processes)
 | Email          | Amazon SES                                                     |
 | Security       | Helmet CSP + CORS + Zod validation + rate limiting             |
 
-### Quick Start
-
-#### Prerequisites
-
-- Node.js >= 18
-- AWS account with CLI credentials configured
-- AWS resources: S3 bucket, DynamoDB tables, SQS queues, SES verified domain
-
-#### Option A: CloudFormation (Recommended)
-
-```bash
-# 1. Deploy AWS resources
-aws cloudformation deploy \
-  --template-file infrastructure/cloudformation.yaml \
-  --stack-name smart-meeting-notes \
-  --capabilities CAPABILITY_IAM
-
-# 2. Get outputs
-aws cloudformation describe-stacks \
-  --stack-name smart-meeting-notes \
-  --query 'Stacks[0].Outputs'
-
-# 3. Configure
-cp .env.example .env
-# Edit .env with values from CloudFormation outputs
-
-# 4. Install and start
-npm install
-npm start
-
-# 5. Start workers (each in a separate terminal)
-npm run worker:transcription
-npm run worker:report
-npm run worker:export
-```
-
-#### Option B: Docker
-
-```bash
-cp .env.example .env
-# Edit .env with your AWS configuration
-
-docker compose up
-```
-
-Then visit **http://localhost:3300**.
-
-### Configuration
-
-Copy `.env.example` to `.env` and set the following variables:
-
-| Variable                   | Description                                 | Example                                   |
-| -------------------------- | ------------------------------------------- | ----------------------------------------- |
-| `PORT`                     | Server port                                 | `3300`                                    |
-| `API_KEY`                  | API key for authentication                  | `your-secret-api-key`                     |
-| `AWS_REGION`               | AWS region for all services                 | `us-west-2`                               |
-| `S3_BUCKET`                | S3 bucket name                              | `smart-meeting-notes-bucket`              |
-| `S3_PREFIX`                | Key prefix inside the bucket                | `meeting-minutes/`                        |
-| `DYNAMODB_TABLE`           | DynamoDB table for meetings                 | `smart-meeting-notes-meetings`            |
-| `GLOSSARY_TABLE`           | DynamoDB table for glossary terms           | `smart-meeting-notes-glossary`            |
-| `SQS_TRANSCRIPTION_QUEUE`  | SQS queue URL for transcription jobs        | `https://sqs.us-west-2.amazonaws.com/...` |
-| `SQS_REPORT_QUEUE`         | SQS queue URL for report generation jobs    | `https://sqs.us-west-2.amazonaws.com/...` |
-| `SQS_EXPORT_QUEUE`         | SQS queue URL for email export jobs         | `https://sqs.us-west-2.amazonaws.com/...` |
-| `BEDROCK_MODEL_ID`         | Bedrock model for report generation         | `global.anthropic.claude-opus-4-6-v1`     |
-| `BEDROCK_HAIKU_MODEL_ID`   | Bedrock model for auto-naming               | `anthropic.claude-3-5-haiku-20241022`     |
-| `FUNASR_URL`               | FunASR server URL                           | `http://172.31.27.101:9002`               |
-| `FUNASR_INSTANCE_ID`       | EC2 instance ID for GPU auto-hibernate      | `i-0abcdef1234567890`                     |
-| `SES_FROM_EMAIL`           | Verified SES sender email address           | `meetings@example.com`                    |
-| `SES_REGION`               | SES region (must match verified identity)   | `us-west-2`                               |
-| `NODE_ENV`                 | Environment                                 | `production`                              |
-
 ### Project Structure
 
 ```
-smart-meeting-notes/
-├── server.js                     # Express entry point
+meeting-minutes/
+├── server.js                     # Express entry point (port 3300)
+├── funasr-server.py              # Flask ASR server (deploy to GPU EC2)
 ├── middleware/
-│   └── auth.js                   # API key authentication
+│   └── auth.js                   # Optional x-api-key / Bearer auth
 ├── routes/
-│   ├── meetings/                 # Meeting endpoints
-│   │   ├── index.js              #   Router aggregator
-│   │   ├── core.js               #   CRUD, upload, retry, auto-name
-│   │   ├── report.js             #   Report generation, PATCH, speaker mapping, merge
-│   │   ├── email.js              #   Email sending
-│   │   └── helpers.js            #   Shared route utilities
-│   └── glossary.js               # Glossary management
+│   ├── meetings/
+│   │   ├── index.js              #   Router aggregator + param validation
+│   │   ├── core.js               #   CRUD, upload, upload-multiple, retry
+│   │   ├── report.js             #   Regenerate, PATCH sections, speaker names, merge, auto-name
+│   │   ├── email.js              #   Trigger email export
+│   │   └── helpers.js            #   Multer setup, shared helpers
+│   └── glossary.js               # Glossary CRUD + category filter
 ├── services/
-│   ├── meeting-store.js          # DynamoDB meeting operations
-│   ├── glossary-store.js         # DynamoDB glossary operations
+│   ├── meeting-store.js          # DynamoDB meetings (Query via GSI, no Scan)
+│   ├── glossary-store.js         # DynamoDB glossary
+│   ├── glossary-filter.js        # Filter glossary by meetingType category
+│   ├── glossary-prompt-builder.js # Structured Markdown glossary prompt
 │   ├── bedrock.js                # Bedrock Claude invocation + prompt templates
-│   ├── report-builder.js         # Report construction logic
+│   ├── report-builder.js         # Single-shot report construction
 │   ├── report-chunked.js         # 3-phase chunked generation for weekly meetings
-│   ├── report-speaker-normalizer.js  # Speaker name normalization
+│   ├── report-speaker-normalizer.js  # Normalize speaker names in report
 │   ├── report-post-processor.js  # Glossary + speaker post-processing
-│   ├── speaker-roster.js         # Speaker name/alias history tracking
-│   ├── s3.js                     # S3 file operations (auto Buffer encoding)
+│   ├── speaker-roster.js         # Speaker name/alias history + category inference
+│   ├── speaker-pruner.js         # Drop diarization noise speakers before Bedrock
+│   ├── s3.js                     # S3 get/put (auto Buffer encoding, auto-prefix)
 │   ├── sqs.js                    # SQS send / receive / delete
 │   ├── ses.js                    # SES email sending
-│   ├── gpu-autoscale.js          # FunASR EC2 auto-hibernate
-│   ├── ffmpeg.js                 # Audio format conversion
+│   ├── gpu-autoscale.js          # FunASR EC2 warm-up + idle hibernate
+│   ├── ffmpeg.js                 # Multi-track merge, format conversion
 │   └── logger.js                 # Centralized logger
 ├── workers/
 │   ├── transcription-worker.js   # SQS -> FunASR -> S3
 │   ├── report-worker.js          # SQS -> Bedrock Claude -> S3 + DynamoDB
-│   └── export-worker.js          # SQS -> HTML render -> SES
-├── public/                       # Frontend (static HTML / CSS / JS)
+│   ├── export-worker.js          # SQS -> HTML render -> SES
+│   └── email-templates/          # HTML templates per meetingType
+│       ├── base.js               #   shared header/footer
+│       ├── general.js
+│       ├── weekly.js
+│       ├── customer.js
+│       └── interview.js
+├── public/                       # Static frontend (served by Express in prod)
 │   ├── index.html                # Meeting list page
 │   ├── meeting.html              # Meeting detail page
 │   ├── glossary.html             # Glossary management page
 │   ├── js/app.js                 # Frontend application logic
 │   └── css/style.css             # Cloudscape-style theme
-├── infrastructure/               # CloudFormation templates
-├── tests/                        # Jest unit tests (550+)
-├── e2e/                          # Playwright E2E tests
-└── scripts/                      # CLI utilities
+├── systemd/                      # systemd user unit templates (3 workers)
+├── db/
+│   └── dynamodb.js               # Shared DynamoDB DocumentClient
+├── scripts/                      # CLI utilities (health-check, upload, backfill)
+├── tests/                        # Jest unit tests (48 suites, 626+ passing)
+└── e2e/                          # Playwright E2E tests
 ```
 
 ### API Reference
 
-All endpoints require the `x-api-key` header unless noted otherwise.
+When `API_KEY` is set in the environment, every `/api/*` endpoint requires either an `x-api-key: <key>` header or `Authorization: Bearer <key>`. `/api/health` is always open.
 
 #### Meetings
 
@@ -216,65 +157,26 @@ All endpoints require the `x-api-key` header unless noted otherwise.
 
 #### Glossary
 
-| Method   | Endpoint                                | Description                        |
-| -------- | --------------------------------------- | ---------------------------------- |
-| `GET`    | `/api/glossary`                         | List glossary terms                |
-| `POST`   | `/api/glossary`                         | Add a glossary term                |
-| `PUT`    | `/api/glossary/:id`                     | Update a glossary term             |
-| `DELETE` | `/api/glossary/:id`                     | Delete a glossary term             |
+Glossary items carry a `category` (auto-inferred on create when omitted) so the report worker can pass only the subset relevant to each `meetingType` to Bedrock.
+
+| Method   | Endpoint                                | Description                                        |
+| -------- | --------------------------------------- | -------------------------------------------------- |
+| `GET`    | `/api/glossary`                         | List glossary terms (supports `?category=<name>`)  |
+| `POST`   | `/api/glossary`                         | Add a glossary term                                |
+| `PUT`    | `/api/glossary/:id`                     | Update a glossary term                             |
+| `DELETE` | `/api/glossary/:id`                     | Delete a glossary term                             |
 
 #### System
 
 | Method   | Endpoint                                | Description                        |
 | -------- | --------------------------------------- | ---------------------------------- |
-| `GET`    | `/health`                               | Health check                       |
+| `GET`    | `/api/health`                           | Health check (unauthenticated)     |
 
 Error responses follow a consistent format:
 
 ```json
 { "error": { "code": "MEETING_NOT_FOUND", "message": "Meeting does not exist" } }
 ```
-
-### Development
-
-```bash
-# Install dependencies
-npm install
-
-# Run unit tests (550+ tests)
-npm test
-
-# Run linter
-npm run lint
-
-# Run E2E tests (requires a running server)
-npm start &
-npx playwright test e2e/
-
-# Run a single test file
-npx jest tests/meeting-store.test.js
-```
-
-Each worker runs as an independent process and polls its SQS queue:
-
-```bash
-npm run worker:transcription   # Terminal 1
-npm run worker:report          # Terminal 2
-npm run worker:export          # Terminal 3
-```
-
-### Contributing
-
-Contributions are welcome. To get started:
-
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/your-feature`.
-3. Make your changes and add tests.
-4. Run the full test suite: `npm test && npm run lint`.
-5. Commit with a clear message: `git commit -m "feat(scope): description"`.
-6. Push and open a pull request against `main`.
-
-Please follow the existing code style: ESLint + Prettier (single quotes, no semicolons, 100-char line width). All API input must be validated with Zod schemas. Use the centralized logger (`services/logger.js`) -- never `console.log` in production code.
 
 ### License
 
@@ -293,14 +195,14 @@ AI 驱动的会议纪要系统：上传录音，自动生成结构化报告，�
 ### 功能特性
 
 - **多格式音频上传** — 支持 MP4、MP3、M4A、OGG、WAV，拖拽上传
-- **GPU 加速转录** — FunASR + CAM++ 说话人分离
+- **GPU 加速转录** — FunASR（Paraformer + VAD）+ CAM++ 说话人分离
 - **AI 报告生成** — Amazon Bedrock Claude Opus 提取摘要、行动项、决策、亮点和风险
-- **多种会议模板** — 通用会议、周会、技术讨论、客户会议，各有专属报告结构
+- **多种会议模板** — 通用会议、周会、技术讨论、客户会议、面试五种类型，各有专属报告结构（面试含 LP 评估和录用建议）
 - **周会分段生成** — 3 阶段分块生成，避免长文本 token 重复幻觉
 - **多文件上传与合并** — 上传多段录音，或将 2-10 场会议合并为综合报告
 - **自动命名** — Claude Haiku 根据转录内容生成语义化会议标题
-- **说话人映射与花名册** — 将原始标签（SPEAKER_0）映射为真实姓名，管理别名，跨会议追踪说话人历史
-- **词库管理** — 维护专有名词和联系人姓名，提升转录准确性和报告质量
+- **说话人映射、花名册与裁剪** — 将原始标签（SPEAKER_0）映射为真实姓名，管理别名，跨会议追踪历史，并在调用 Bedrock 前自动剔除分离噪声发言人
+- **词库分类管理** — 词条带分类字段，按 `meetingType` 过滤后再注入 Prompt，避免 Prompt 膨胀同时提升准确性
 - **行内编辑** — 在浏览器中直接修改任意报告章节，所有会议类型均支持编辑/删除/添加
 - **邮件发送** — 通过 Amazon SES 发送 HTML 格式的会议纪要
 - **GPU 自动休眠** — FunASR EC2 实例空闲 30 分钟后自动停止，降低成本
@@ -349,80 +251,9 @@ Workers (3 个独立 Node.js 进程)
 | 邮件     | Amazon SES                                                     |
 | 安全     | Helmet CSP + CORS + Zod 校验 + 速率限制                         |
 
-### 快速开始
-
-#### 前置条件
-
-- Node.js >= 18
-- 已配置 CLI 凭证的 AWS 账号
-- AWS 资源：S3 存储桶、DynamoDB 表、SQS 队列、SES 已验证域名
-
-#### 方式 A：CloudFormation（推荐）
-
-```bash
-# 1. 部署 AWS 资源
-aws cloudformation deploy \
-  --template-file infrastructure/cloudformation.yaml \
-  --stack-name smart-meeting-notes \
-  --capabilities CAPABILITY_IAM
-
-# 2. 获取输出
-aws cloudformation describe-stacks \
-  --stack-name smart-meeting-notes \
-  --query 'Stacks[0].Outputs'
-
-# 3. 配置
-cp .env.example .env
-# 用 CloudFormation 输出的值编辑 .env
-
-# 4. 安装并启动
-npm install
-npm start
-
-# 5. 启动 Worker（每个在单独终端中）
-npm run worker:transcription
-npm run worker:report
-npm run worker:export
-```
-
-#### 方式 B：Docker
-
-```bash
-cp .env.example .env
-# 用你的 AWS 配置编辑 .env
-
-docker compose up
-```
-
-然后访问 **http://localhost:3300**。
-
-### 配置说明
-
-将 `.env.example` 复制为 `.env` 并设置以下变量：
-
-| 变量                        | 说明                                    | 示例                                      |
-| -------------------------- | --------------------------------------- | ----------------------------------------- |
-| `PORT`                     | 服务端口                                 | `3300`                                    |
-| `API_KEY`                  | API 认证密钥                             | `your-secret-api-key`                     |
-| `AWS_REGION`               | 所有服务的 AWS 区域                       | `us-west-2`                               |
-| `S3_BUCKET`                | S3 存储桶名称                            | `smart-meeting-notes-bucket`              |
-| `S3_PREFIX`                | 桶内 Key 前缀                            | `meeting-minutes/`                        |
-| `DYNAMODB_TABLE`           | 会议 DynamoDB 表                         | `smart-meeting-notes-meetings`            |
-| `GLOSSARY_TABLE`           | 词库 DynamoDB 表                         | `smart-meeting-notes-glossary`            |
-| `SQS_TRANSCRIPTION_QUEUE`  | 转录任务 SQS 队列 URL                    | `https://sqs.us-west-2.amazonaws.com/...` |
-| `SQS_REPORT_QUEUE`         | 报告生成 SQS 队列 URL                    | `https://sqs.us-west-2.amazonaws.com/...` |
-| `SQS_EXPORT_QUEUE`         | 邮件导出 SQS 队列 URL                    | `https://sqs.us-west-2.amazonaws.com/...` |
-| `BEDROCK_MODEL_ID`         | 报告生成 Bedrock 模型                     | `global.anthropic.claude-opus-4-6-v1`     |
-| `BEDROCK_HAIKU_MODEL_ID`   | 自动命名 Bedrock 模型                     | `anthropic.claude-3-5-haiku-20241022`     |
-| `FUNASR_URL`               | FunASR 服务地址                           | `http://172.31.27.101:9002`               |
-| `FUNASR_INSTANCE_ID`       | GPU 自动休眠 EC2 实例 ID                  | `i-0abcdef1234567890`                     |
-| `SES_FROM_EMAIL`           | SES 已验证发件人邮箱                      | `meetings@example.com`                    |
-| `SES_REGION`               | SES 区域（须与已验证身份匹配）              | `us-west-2`                               |
-| `NODE_ENV`                 | 运行环境                                 | `production`                              |
-
 ### API 参考
 
-除特别说明外，所有接口需要 `x-api-key` 请求头。
+当环境变量配置了 `API_KEY` 时，所有 `/api/*` 接口需要 `x-api-key: <key>` 头或 `Authorization: Bearer <key>`。`/api/health` 始终公开。
 
 #### 会议
 
@@ -446,65 +277,26 @@ docker compose up
 
 #### 词库
 
-| 方法      | 路径                                     | 说明                               |
-| -------- | --------------------------------------- | ---------------------------------- |
-| `GET`    | `/api/glossary`                         | 词库列表                            |
-| `POST`   | `/api/glossary`                         | 添加词条                            |
-| `PUT`    | `/api/glossary/:id`                     | 更新词条                            |
-| `DELETE` | `/api/glossary/:id`                     | 删除词条                            |
+词条带 `category` 字段（创建时未填则自动推断），报告 Worker 会按 `meetingType` 过滤后再注入 Bedrock prompt。
+
+| 方法      | 路径                                     | 说明                                               |
+| -------- | --------------------------------------- | -------------------------------------------------- |
+| `GET`    | `/api/glossary`                         | 词库列表（支持 `?category=<name>` 过滤）              |
+| `POST`   | `/api/glossary`                         | 添加词条                                            |
+| `PUT`    | `/api/glossary/:id`                     | 更新词条                                            |
+| `DELETE` | `/api/glossary/:id`                     | 删除词条                                            |
 
 #### 系统
 
 | 方法      | 路径                                     | 说明                               |
 | -------- | --------------------------------------- | ---------------------------------- |
-| `GET`    | `/health`                               | 健康检查                            |
+| `GET`    | `/api/health`                           | 健康检查（无需认证）                   |
 
 错误响应统一格式：
 
 ```json
 { "error": { "code": "MEETING_NOT_FOUND", "message": "会议不存在" } }
 ```
-
-### 开发
-
-```bash
-# 安装依赖
-npm install
-
-# 运行单元测试（550+ 用例）
-npm test
-
-# 运行代码检查
-npm run lint
-
-# 运行 E2E 测试（需要先启动服务）
-npm start &
-npx playwright test e2e/
-
-# 运行单个测试文件
-npx jest tests/meeting-store.test.js
-```
-
-每个 Worker 作为独立进程运行，轮询各自的 SQS 队列：
-
-```bash
-npm run worker:transcription   # 终端 1
-npm run worker:report          # 终端 2
-npm run worker:export          # 终端 3
-```
-
-### 贡献指南
-
-欢迎贡献代码。开始步骤：
-
-1. Fork 本仓库。
-2. 创建功能分支：`git checkout -b feature/your-feature`。
-3. 编写代码并添加测试。
-4. 运行完整测试套件：`npm test && npm run lint`。
-5. 提交清晰的 commit 信息：`git commit -m "feat(scope): description"`。
-6. 推送并向 `main` 分支发起 Pull Request。
-
-请遵循现有代码风格：ESLint + Prettier（单引号、无分号、100 字符行宽）。所有 API 入参必须使用 Zod schema 校验。使用集中式 logger（`services/logger.js`）——生产代码禁止使用 `console.log`。
 
 ### 许可证
 
