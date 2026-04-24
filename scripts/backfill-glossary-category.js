@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-console */
 /**
  * One-time migration: backfill `category` field for all glossary items.
  *

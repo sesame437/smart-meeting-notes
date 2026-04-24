@@ -49,7 +49,7 @@ describe("meetings-core-routes", () => {
     register(router);
     app.use("/api/meetings", router);
     // Add error handling middleware
-    app.use((err, req, res, next) => {
+    app.use((err, req, res, _next) => {
       res.status(500).json({ error: { message: err.message } });
     });
   });

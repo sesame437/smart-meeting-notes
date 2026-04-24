@@ -11,16 +11,15 @@ const bedrockClient = new BedrockRuntimeClient({
 const DEFAULT_MODEL_ID = process.env.BEDROCK_MODEL_ID || "global.anthropic.claude-opus-4-6-v1";
 
 function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speakerMap = null, customPrompt = null) {
-  let speakerNote = "";
-  if (speakerMap && Object.keys(speakerMap).length > 0) {
+  const speakerNote = speakerMap && Object.keys(speakerMap).length > 0
+    ? (() => {
     const mapping = Object.entries(speakerMap).map(([k, v]) => `${k}: ${v}`).join(", ");
     const nameList = [...new Set(Object.values(speakerMap))].join("、");
-    speakerNote = `参会人真实姓名映射：{${mapping}}\n请使用真实姓名，严禁匿名代号。只允许使用：${nameList}。\n\n`;
-  } else if (transcriptText.includes("[SPEAKER_")) {
-    speakerNote = `转录含说话人标签 [SPEAKER_X]。owner/负责人字段规则：优先填写转录中明确提到的真实人名，无法确定时填 SPEAKER_X，禁止留空。participants 以 SPEAKER_X 为标识。speakerKeypoints 以 SPEAKER_X 为 key。\n\n`;
-  } else {
-    speakerNote = `转录中没有说话人标签，不要推测说话人身份，专注于讨论内容。owner 字段从转录内容中提取人名，无法确定则填"待定"，禁止留空。participants 输出空数组，speakerKeypoints 输出空对象。\n\n`;
-  }
+    return `参会人真实姓名映射：{${mapping}}\n请使用真实姓名，严禁匿名代号。只允许使用：${nameList}。\n\n`;
+    })()
+    : transcriptText.includes("[SPEAKER_")
+      ? `转录含说话人标签 [SPEAKER_X]。owner/负责人字段规则：优先填写转录中明确提到的真实人名，无法确定时填 SPEAKER_X，禁止留空。participants 以 SPEAKER_X 为标识。speakerKeypoints 以 SPEAKER_X 为 key。\n\n`
+      : `转录中没有说话人标签，不要推测说话人身份，专注于讨论内容。owner 字段从转录内容中提取人名，无法确定则填"待定"，禁止留空。participants 输出空数组，speakerKeypoints 输出空对象。\n\n`;
 
   const glossaryNote = buildStructuredGlossaryNote(glossaryTerms);
 
