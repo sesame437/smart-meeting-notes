@@ -2,6 +2,8 @@
 
 const { Router } = require("express");
 const { z } = require("zod");
+const { generateLiveSummary } = require("../services/bedrock-live");
+const logger = require("../services/logger");
 
 const router = Router();
 
@@ -36,7 +38,13 @@ function markCalled(sessionId) {
   }
 }
 
-router.post("/", (req, res) => {
+const CODE_TO_STATUS = {
+  BEDROCK_TIMEOUT: 504,
+  BEDROCK_UNAVAILABLE: 503,
+  INTERNAL: 500,
+};
+
+router.post("/", async (req, res) => {
   const parsed = liveSummarySchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -51,22 +59,41 @@ router.post("/", (req, res) => {
     });
   }
 
-  const { sessionId, isFinal } = parsed.data;
+  const { sessionId, transcriptText, elapsedSec, meetingType, isFinal } = parsed.data;
   const gate = checkRateLimit(sessionId, isFinal);
   if (!gate.allowed) {
     return res.status(429).json({
-      error: {
-        code: "RATE_LIMITED",
-        message: `Retry in ${Math.ceil(gate.retryInMs / 1000)}s`,
-      },
+      error: { code: "RATE_LIMITED", message: `Retry in ${Math.ceil(gate.retryInMs / 1000)}s` },
     });
   }
   markCalled(sessionId);
 
-  // TODO in later tasks: call generateLiveSummary
-  return res.status(501).json({
-    error: { code: "NOT_IMPLEMENTED", message: "live summary service not yet implemented" },
-  });
+  const startedAt = Date.now();
+  try {
+    const summary = await generateLiveSummary(transcriptText, { meetingType, elapsedSec });
+    logger.info("live-summary", "complete", {
+      module: "live-summary",
+      sessionId,
+      elapsedSec,
+      tokensInput: summary.tokensInput,
+      tokensOutput: summary.tokensOutput,
+      latencyMs: Date.now() - startedAt,
+      isFinal,
+    });
+    return res.status(200).json(summary);
+  } catch (err) {
+    const code = err.code || "INTERNAL";
+    const status = CODE_TO_STATUS[code] || 500;
+    logger.error("live-summary", "failed", {
+      module: "live-summary",
+      sessionId,
+      code,
+      latencyMs: Date.now() - startedAt,
+    }, err);
+    return res.status(status).json({
+      error: { code, message: err.message || "live summary failed" },
+    });
+  }
 });
 
 module.exports = router;
