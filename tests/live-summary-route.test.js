@@ -90,3 +90,46 @@ describe("POST /api/live-summary validation", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("POST /api/live-summary rate limiting", () => {
+  beforeEach(() => {
+    jest.resetModules();
+    // Route module holds rate-limit state in memory; resetModules gives each test a fresh Map.
+  });
+
+  const validBody = {
+    sessionId: "3f2a0a12-0000-4000-8000-000000000001",
+    transcriptText: "hello",
+    elapsedSec: 10,
+  };
+
+  test("second call within 60s for same sessionId returns 429", async () => {
+    const app = buildApp();
+    const res1 = await request(app).post("/api/live-summary").send(validBody);
+    expect(res1.status).toBe(501); // not implemented yet, but rate limit runs first
+    const res2 = await request(app).post("/api/live-summary").send(validBody);
+    expect(res2.status).toBe(429);
+    expect(res2.body.error.code).toBe("RATE_LIMITED");
+  });
+
+  test("second call with isFinal:true bypasses the limit", async () => {
+    const app = buildApp();
+    const res1 = await request(app).post("/api/live-summary").send(validBody);
+    expect(res1.status).toBe(501);
+    const res2 = await request(app)
+      .post("/api/live-summary")
+      .send({ ...validBody, isFinal: true });
+    expect(res2.status).toBe(501); // bypassed rate limit, reaches handler
+  });
+
+  test("different sessionIds are not coupled", async () => {
+    const app = buildApp();
+    const res1 = await request(app).post("/api/live-summary").send(validBody);
+    expect(res1.status).toBe(501);
+    const res2 = await request(app).post("/api/live-summary").send({
+      ...validBody,
+      sessionId: "3f2a0a12-0000-4000-8000-000000000002",
+    });
+    expect(res2.status).toBe(501);
+  });
+});
