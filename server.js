@@ -20,6 +20,7 @@ if (missingEnv.length > 0) {
 }
 const meetingsRouter = require("./routes/meetings/index");
 const glossaryRouter = require("./routes/glossary");
+const liveSummaryRouter = require("./routes/live-summary");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -77,6 +78,7 @@ app.get("/api/health", (_req, res) => {
 // Apply API Key authentication to all /api routes except /api/health
 app.use("/api/meetings", authenticateAPIKey, meetingsRouter);
 app.use("/api/glossary", authenticateAPIKey, glossaryRouter);
+app.use("/api/live-summary", authenticateAPIKey, liveSummaryRouter);
 
 // SPA fallback — serve index.html for all non-API routes
 app.get('*', (req, res) => {
