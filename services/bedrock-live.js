@@ -109,6 +109,28 @@ async function generateLiveSummary(transcriptText, opts = {}) {
     let tokensInput = 0;
     let tokensOutput = 0;
     for await (const event of resp.body) {
+      if (event.throttlingException || event.serviceUnavailableException) {
+        const e = new Error(
+          event.throttlingException?.message ||
+          event.serviceUnavailableException?.message ||
+          "bedrock unavailable"
+        );
+        e.name = "ThrottlingException";
+        throw e;
+      }
+      if (event.modelTimeoutException) {
+        const e = new Error(event.modelTimeoutException.message || "bedrock model timeout");
+        e.name = "AbortError";
+        throw e;
+      }
+      if (event.internalServerException || event.modelStreamErrorException || event.validationException) {
+        const msg =
+          event.internalServerException?.message ||
+          event.modelStreamErrorException?.message ||
+          event.validationException?.message ||
+          "bedrock stream error";
+        throw new Error(msg);
+      }
       if (!event.chunk?.bytes) continue;
       try {
         const evt = JSON.parse(new TextDecoder().decode(event.chunk.bytes));
@@ -129,9 +151,10 @@ async function generateLiveSummary(transcriptText, opts = {}) {
     try {
       parsed = JSON.parse(rawText);
     } catch (_e) {
-      const err = new Error(`Bedrock returned non-JSON output: ${rawText.slice(0, 200)}`);
-      err.code = "INTERNAL";
-      throw err;
+      const parseErr = new Error(`Bedrock returned non-JSON output: ${rawText.slice(0, 200)}`);
+      parseErr.code = "INTERNAL";
+      parseErr.__liveSummaryClassified = true;
+      throw parseErr;
     }
 
     return {
@@ -145,10 +168,11 @@ async function generateLiveSummary(transcriptText, opts = {}) {
       tokensOutput,
     };
   } catch (err) {
-    if (err.code) throw err; // already classified
+    if (err.__liveSummaryClassified) throw err;
     const classified = classifyBedrockError(err);
     const wrapped = new Error(classified.message);
     wrapped.code = classified.code;
+    wrapped.__liveSummaryClassified = true;
     wrapped.cause = err;
     throw wrapped;
   } finally {

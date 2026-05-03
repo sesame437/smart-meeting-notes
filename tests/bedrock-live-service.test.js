@@ -2,12 +2,22 @@
 
 const mockSend = jest.fn();
 
-function makeStreamBody(jsonText) {
+function makeStreamBody(jsonText, usage = null) {
+  const messageStart = {
+    type: "message_start",
+    message: { id: "msg_test", type: "message", role: "assistant", content: [] },
+  };
+  if (usage?.inputTokens !== undefined) {
+    messageStart.message.usage = { input_tokens: usage.inputTokens };
+  }
   const events = [
-    { type: "message_start", message: { id: "msg_test", type: "message", role: "assistant" } },
+    messageStart,
     { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: jsonText } },
-    { type: "message_stop" },
   ];
+  if (usage?.outputTokens !== undefined) {
+    events.push({ type: "message_delta", delta: {}, usage: { output_tokens: usage.outputTokens } });
+  }
+  events.push({ type: "message_stop" });
   return {
     body: {
       async *[Symbol.asyncIterator]() {
@@ -112,8 +122,9 @@ describe("generateLiveSummary", () => {
     const commandArg = mockSend.mock.calls[0][0].input;
     const body = JSON.parse(commandArg.body);
     expect(Array.isArray(body.system)).toBe(true);
-    const cached = body.system.find((b) => b.cache_control?.type === "ephemeral");
-    expect(cached).toBeDefined();
+    expect(body.system).toHaveLength(2);
+    expect(body.system[0].cache_control).toBeUndefined();
+    expect(body.system[1].cache_control?.type).toBe("ephemeral");
   });
 
   test("throws BEDROCK_TIMEOUT when client aborts", async () => {
@@ -134,6 +145,29 @@ describe("generateLiveSummary", () => {
     mockSend.mockResolvedValueOnce(makeStreamBody("not json at all"));
     await expect(generateLiveSummary("hi", { elapsedSec: 60 })).rejects.toMatchObject({
       code: "INTERNAL",
+    });
+  });
+
+  test("extracts input/output tokens from usage events", async () => {
+    const sample = JSON.stringify({
+      summary: "", highlights: [], lowlights: [], actions: [], decisions: [],
+    });
+    mockSend.mockResolvedValueOnce(makeStreamBody(sample, { inputTokens: 123, outputTokens: 45 }));
+    const result = await generateLiveSummary("x", { elapsedSec: 60 });
+    expect(result.tokensInput).toBe(123);
+    expect(result.tokensOutput).toBe(45);
+  });
+
+  test("maps mid-stream throttlingException to BEDROCK_UNAVAILABLE", async () => {
+    mockSend.mockResolvedValueOnce({
+      body: {
+        async *[Symbol.asyncIterator]() {
+          yield { throttlingException: { message: "too many requests" } };
+        },
+      },
+    });
+    await expect(generateLiveSummary("hi", { elapsedSec: 60 })).rejects.toMatchObject({
+      code: "BEDROCK_UNAVAILABLE",
     });
   });
 });
