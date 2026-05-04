@@ -4,6 +4,7 @@ const {
   BedrockRuntimeClient,
   InvokeModelWithResponseStreamCommand,
 } = require("@aws-sdk/client-bedrock-runtime");
+const { extractJsonFromLLMResponse } = require("./report-builder");
 
 const bedrockClient = new BedrockRuntimeClient({
   region: process.env.BEDROCK_REGION || process.env.AWS_REGION || "us-west-2",
@@ -149,9 +150,9 @@ async function generateLiveSummary(transcriptText, opts = {}) {
 
     let parsed;
     try {
-      parsed = JSON.parse(rawText);
+      parsed = extractJsonFromLLMResponse(rawText);
     } catch (_e) {
-      const parseErr = new Error(`Bedrock returned non-JSON output: ${rawText.slice(0, 200)}`);
+      const parseErr = new Error(`Bedrock returned unparseable output: ${rawText.slice(0, 200)}`);
       parseErr.code = "INTERNAL";
       parseErr.__liveSummaryClassified = true;
       throw parseErr;

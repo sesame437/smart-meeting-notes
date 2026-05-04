@@ -170,4 +170,26 @@ describe("generateLiveSummary", () => {
       code: "BEDROCK_UNAVAILABLE",
     });
   });
+
+  test("parses JSON wrapped in markdown code fence", async () => {
+    const inner = JSON.stringify({
+      summary: "fence test",
+      highlights: [], lowlights: [], actions: [], decisions: [],
+    });
+    const fenced = "```json\n" + inner + "\n```";
+    mockSend.mockResolvedValueOnce(makeStreamBody(fenced));
+    const result = await generateLiveSummary("x", { elapsedSec: 60 });
+    expect(result.summary).toBe("fence test");
+  });
+
+  test("parses JSON with leading prose when code fence present", async () => {
+    const inner = JSON.stringify({
+      summary: "leading prose test",
+      highlights: [], lowlights: [], actions: [], decisions: [],
+    });
+    const noisy = "Sure, here is the summary:\n\n```json\n" + inner + "\n```\nLet me know if you need changes.";
+    mockSend.mockResolvedValueOnce(makeStreamBody(noisy));
+    const result = await generateLiveSummary("x", { elapsedSec: 60 });
+    expect(result.summary).toBe("leading prose test");
+  });
 });
