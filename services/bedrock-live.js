@@ -10,7 +10,7 @@ const bedrockClient = new BedrockRuntimeClient({
 });
 
 const DEFAULT_MODEL_ID =
-  process.env.BEDROCK_LIVE_MODEL_ID || "global.anthropic.claude-sonnet-4-6-v1";
+  process.env.BEDROCK_LIVE_MODEL_ID || "global.anthropic.claude-sonnet-4-6";
 
 const TRUNCATE_MARKER = "\n\n[...transcript truncated...]\n\n";
 const TRANSCRIPT_CHAR_LIMIT = 200_000;
