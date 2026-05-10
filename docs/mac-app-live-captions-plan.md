@@ -11,7 +11,7 @@
 **Tech Stack:** Swift 5.9+, macOS 15+, Xcode 16+, Universal Binary. New deps: WhisperKit (SPM, `argmaxinc/WhisperKit`). Existing infra unchanged.
 
 **Backend contract (already merged, can be smoke-tested with curl):**
-`POST {backendURL}/api/live-summary` behind `x-api-key` auth. Request / response schema:
+`POST {backendURL}/api/live-summary`. **No authentication required** — the backend host is locked down at the network layer, so this route is intentionally open and does NOT run the `authenticateAPIKey` middleware. The Mac app does not need to send any `x-api-key` header. (Other routes like `/api/meetings/*` remain behind `authenticateAPIKey`.)
 - Request: `{ sessionId (UUID), transcriptText (≤200K chars), elapsedSec, meetingType?, isFinal? }`
 - Response 200: `{ summary, highlights[], lowlights[], actions[], decisions[], generatedAt, tokensInput, tokensOutput }`
 - Errors: 400 `VALIDATION_ERROR` / 429 `RATE_LIMITED` (per-session 60s, bypassed by `isFinal:true`) / 500 `INTERNAL` / 503 `BEDROCK_UNAVAILABLE` / 504 `BEDROCK_TIMEOUT`
@@ -1000,7 +1000,7 @@ git commit -m "feat(helper): NotesFileWriter with atomic md rewrite"
 
 ## Task 7: SummaryScheduler — 180 s timer + HTTPS POST
 
-Every 180 s, POST the accumulated transcript to `POST {backendURL}/api/live-summary` with `x-api-key` header. On success, update `SummaryOverlay` + `NotesFileWriter`. On failure, skip this tick; count consecutive failures; after 3 go offline.
+Every 180 s, POST the accumulated transcript to `POST {backendURL}/api/live-summary`. The backend does not require authentication (see preamble), so the `x-api-key` header is optional: the scheduler sends it only if an API key has been configured in Preferences, otherwise the request goes without auth. On success, update `SummaryOverlay` + `NotesFileWriter`. On failure, skip this tick; count consecutive failures; after 3 go offline.
 
 **Files:**
 - Create: `MeetingCaptionsHelper/SummaryScheduler.swift`
@@ -1316,7 +1316,7 @@ git commit -m "feat(helper): SummaryOverlay NSPanel with offline banner"
 
 - `summaryIntervalSec` (Int, default 180, range 120-600)
 - `backendURL` (String, default `http://localhost:3300`)
-- `apiKey` (String, stored in Keychain, not UserDefaults)
+- `apiKey` (String, stored in Keychain, not UserDefaults) — **optional**. The backend's `/api/live-summary` is open; leave blank unless your deployment adds auth later.
 - `asrModel` (String, default `openai_whisper-base.en`)
 - `transcriptMaxChars` (Int, default 200_000)
 - `summaryFailureThreshold` (Int, default 3)
