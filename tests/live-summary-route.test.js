@@ -231,4 +231,46 @@ describe("POST /api/live-summary integration", () => {
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe("INTERNAL");
   });
+
+  test("INTERNAL 500 response does not leak raw err.message", async () => {
+    const { generateLiveSummary } = require("../services/bedrock-live");
+    generateLiveSummary.mockRejectedValueOnce(
+      new Error("ENOENT: /internal/path/secret.key missing")
+    );
+
+    const app = buildApp();
+    const res = await request(app).post("/api/live-summary").send(baseBody);
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe("INTERNAL");
+    expect(res.body.error.message).toBe("live summary failed");
+    expect(res.body.error.message).not.toMatch(/ENOENT|secret|\/internal/);
+  });
+
+  test("503 Bedrock failure does not consume rate-limit window — client retry succeeds", async () => {
+    const { generateLiveSummary } = require("../services/bedrock-live");
+    // First call: Bedrock 503
+    const err = new Error("throttled");
+    err.code = "BEDROCK_UNAVAILABLE";
+    generateLiveSummary.mockRejectedValueOnce(err);
+    // Second call: succeeds
+    generateLiveSummary.mockResolvedValueOnce({
+      summary: "ok",
+      highlights: [],
+      lowlights: [],
+      actions: [],
+      decisions: [],
+      generatedAt: "2026-05-03T00:00:00.000Z",
+      tokensInput: 10,
+      tokensOutput: 5,
+    });
+
+    const app = buildApp();
+    const body = { ...baseBody, sessionId: "3f2a0a12-0000-4000-8000-00000000bcde" };
+    const res1 = await request(app).post("/api/live-summary").send(body);
+    expect(res1.status).toBe(503);
+    // Immediate retry (within 60s) must NOT be rate-limited since the failed call did not stamp the session.
+    const res2 = await request(app).post("/api/live-summary").send(body);
+    expect(res2.status).toBe(200);
+    expect(res2.body.summary).toBe("ok");
+  });
 });

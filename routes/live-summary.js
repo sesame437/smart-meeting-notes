@@ -66,11 +66,13 @@ router.post("/", async (req, res) => {
       error: { code: "RATE_LIMITED", message: `Retry in ${Math.ceil(gate.retryInMs / 1000)}s` },
     });
   }
-  markCalled(sessionId);
 
   const startedAt = Date.now();
   try {
     const summary = await generateLiveSummary(transcriptText, { meetingType, elapsedSec });
+    // Only stamp the rate-limit slot on success; Bedrock failures should not
+    // count against the client, per spec §Degradation: "503 → client backs off 60s then retries".
+    markCalled(sessionId);
     logger.info("live-summary", "complete", {
       module: "live-summary",
       sessionId,
@@ -90,8 +92,11 @@ router.post("/", async (req, res) => {
       code,
       latencyMs: Date.now() - startedAt,
     }, err);
+    // INTERNAL errors may carry stack / path fragments in their message. Sanitize
+    // outbound message for unclassified errors; classified codes (BEDROCK_*) are safe.
+    const outboundMessage = code === "INTERNAL" ? "live summary failed" : (err.message || "live summary failed");
     return res.status(status).json({
-      error: { code, message: err.message || "live summary failed" },
+      error: { code, message: outboundMessage },
     });
   }
 });
