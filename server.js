@@ -75,13 +75,10 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", service: "meeting-minutes" });
 });
 
-// Apply API Key authentication to all /api routes except /api/health and /api/live-summary.
-// /api/live-summary is intentionally open: the backend is only reachable on a locked-down host,
-// access control is done at the network layer, and the Mac client stays simpler without a key.
-// This keeps the route's behavior independent of whether API_KEY happens to be set in the env.
+// Apply API Key authentication to all /api routes except /api/health
 app.use("/api/meetings", authenticateAPIKey, meetingsRouter);
 app.use("/api/glossary", authenticateAPIKey, glossaryRouter);
-app.use("/api/live-summary", liveSummaryRouter);
+app.use("/api/live-summary", authenticateAPIKey, liveSummaryRouter);
 
 // SPA fallback — serve index.html for all non-API routes
 app.get('*', (req, res) => {
