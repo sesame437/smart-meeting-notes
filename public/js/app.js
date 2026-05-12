@@ -26,6 +26,86 @@ const FunMessages = {
   }
 };
 
+/* ===== Interview LP Whitelist + Upload Confirm Helpers ===== */
+const INTERVIEW_LPS = [
+  "Learn and Be Curious",
+  "Ownership",
+  "Customer Obsession",
+  "Dive Deep",
+  "Have Backbone; Disagree and Commit",
+  "Invent and Simplify",
+  "Deliver Results",
+  "Earn Trust",
+  "Think Big",
+];
+
+function renderUploadLpCheckboxes() {
+  const container = document.getElementById("uc-lps-checkboxes");
+  if (!container || container.dataset.rendered === "1") return;
+  container.innerHTML = INTERVIEW_LPS.map((lp) =>
+    `<label><input type="checkbox" class="uc-lp-cb" value="${lp.replace(/"/g, "&quot;")}"> ${lp}</label>`
+  ).join("");
+  container.dataset.rendered = "1";
+}
+
+function countCheckedLps() {
+  return document.querySelectorAll(".uc-lp-cb:checked").length;
+}
+
+function updateUploadConfirmButtonState() {
+  const okBtn = document.getElementById("upload-confirm-ok-btn");
+  if (!okBtn) return;
+  const mt = document.querySelector('input[name="uploadConfirmMeetingType"]:checked')?.value;
+  if (mt !== "interview") { okBtn.disabled = false; return; }
+  const subtype = document.querySelector('input[name="uploadConfirmInterviewSubType"]:checked')?.value;
+  if (!subtype) { okBtn.disabled = true; return; }
+  if (subtype === "lp") {
+    const countEl = document.getElementById("uc-lps-count");
+    if (countEl) countEl.textContent = `(${countCheckedLps()} of 2)`;
+    okBtn.disabled = countCheckedLps() !== 2;
+    return;
+  }
+  okBtn.disabled = false;
+}
+
+function updateUploadSubtypeVisibility() {
+  const mtInterview = document.getElementById("uc-mt-interview");
+  const subtypeWrap = document.getElementById("uc-interview-subtype-wrap");
+  const lpsWrap = document.getElementById("uc-interview-lps-wrap");
+  if (!mtInterview || !subtypeWrap || !lpsWrap) return;
+
+  if (mtInterview.checked) {
+    subtypeWrap.style.display = "";
+    const isLp = document.getElementById("uc-is-lp");
+    if (isLp && isLp.checked) {
+      renderUploadLpCheckboxes();
+      lpsWrap.style.display = "";
+    } else {
+      lpsWrap.style.display = "none";
+    }
+  } else {
+    subtypeWrap.style.display = "none";
+    lpsWrap.style.display = "none";
+  }
+  updateUploadConfirmButtonState();
+}
+
+function wireUploadSubtypeHandlers() {
+  const modal = document.getElementById("upload-confirm-modal");
+  if (!modal || modal.dataset.subtypeWired === "1") return;
+  modal.querySelectorAll('input[name="uploadConfirmMeetingType"]').forEach((r) =>
+    r.addEventListener("change", updateUploadSubtypeVisibility));
+  modal.addEventListener("change", (e) => {
+    if (e.target && e.target.name === "uploadConfirmInterviewSubType") {
+      updateUploadSubtypeVisibility();
+    } else if (e.target && e.target.classList && e.target.classList.contains("uc-lp-cb")) {
+      if (countCheckedLps() > 2) { e.target.checked = false; }
+      updateUploadConfirmButtonState();
+    }
+  });
+  modal.dataset.subtypeWired = "1";
+}
+
 /* ===== API Helpers ===== */
 const API = {
   async request(url, opts = {}) {
@@ -642,7 +722,14 @@ function showUploadConfirmDialog(meetingId, title, meetingType) {
   const typeRadio = document.getElementById(`uc-mt-${meetingType || "general"}`);
   if (typeRadio) typeRadio.checked = true;
 
+  // Reset subtype selections from previous open
+  document.querySelectorAll('input[name="uploadConfirmInterviewSubType"]').forEach((r) => { r.checked = false; });
+  document.querySelectorAll('.uc-lp-cb').forEach((cb) => { cb.checked = false; });
+
   modal.style.display = "flex";
+
+  wireUploadSubtypeHandlers();
+  updateUploadSubtypeVisibility();
 
   // 移除旧的事件监听器（避免重复绑定）
   const newOkBtn = okBtn.cloneNode(true);
@@ -654,12 +741,19 @@ function showUploadConfirmDialog(meetingId, title, meetingType) {
   newOkBtn.addEventListener("click", async () => {
     const newTitle = titleInput.value.trim();
     const newType = document.querySelector('input[name="uploadConfirmMeetingType"]:checked')?.value || "general";
+    const newSubType = document.querySelector('input[name="uploadConfirmInterviewSubType"]:checked')?.value;
+    const newLps = Array.from(document.querySelectorAll(".uc-lp-cb:checked")).map((cb) => cb.value);
 
     modal.style.display = "none";
 
     try {
       // 更新会议信息
-      await API.put(`/api/meetings/${meetingId}`, { title: newTitle, meetingType: newType });
+      const updateBody = { title: newTitle, meetingType: newType };
+      if (newType === "interview" && newSubType) {
+        updateBody.interviewSubType = newSubType;
+        if (newSubType === "lp" && newLps.length === 2) updateBody.interviewLPs = newLps;
+      }
+      await API.put(`/api/meetings/${meetingId}`, updateBody);
 
       // 开始转录
       await API.post(`/api/meetings/${meetingId}/start-transcription`);

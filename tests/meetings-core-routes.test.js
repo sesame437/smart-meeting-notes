@@ -272,6 +272,53 @@ describe("meetings-core-routes", () => {
     });
   });
 
+  describe("PUT /:id - interviewSubType validation", () => {
+    it("accepts interviewSubType on interview meeting PUT", async () => {
+      const mockMeeting = { meetingId: "123", createdAt: "2026-01-01T00:00:00Z", meetingType: "interview" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+      mockStore.updateMeeting.mockResolvedValueOnce({ ...mockMeeting, interviewSubType: "phonescreen" });
+
+      const res = await request(app)
+        .put("/api/meetings/123")
+        .send({ interviewSubType: "phonescreen" });
+
+      expect(res.status).toBe(200);
+    });
+
+    it("accepts interviewSubType lp with exactly 2 LPs on PUT", async () => {
+      const mockMeeting = { meetingId: "123", createdAt: "2026-01-01T00:00:00Z", meetingType: "interview" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+      mockStore.updateMeeting.mockResolvedValueOnce({ ...mockMeeting, interviewSubType: "lp", interviewLPs: ["Ownership", "Dive Deep"] });
+
+      const res = await request(app)
+        .put("/api/meetings/123")
+        .send({ interviewSubType: "lp", interviewLPs: ["Ownership", "Dive Deep"] });
+
+      expect(res.status).toBe(200);
+    });
+
+    it("rejects PUT with lp subtype but only 1 LP", async () => {
+      const res = await request(app)
+        .put("/api/meetings/123")
+        .send({ meetingType: "interview", interviewSubType: "lp", interviewLPs: ["Ownership"] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    });
+
+    it("rejects interviewSubType on non-interview meeting (from DB)", async () => {
+      const mockMeeting = { meetingId: "123", createdAt: "2026-01-01T00:00:00Z", meetingType: "general" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+
+      const res = await request(app)
+        .put("/api/meetings/123")
+        .send({ interviewSubType: "phonescreen" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    });
+  });
+
   describe("POST /upload - interviewSubType validation", () => {
     const audioBuffer = Buffer.alloc(100, 0);
 

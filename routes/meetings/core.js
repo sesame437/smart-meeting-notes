@@ -59,13 +59,33 @@ const uploadSchema = z
     }
   });
 
-const meetingUpdateSchema = z.object({
-  title: z.string().max(200).optional(),
-  meetingType: z.enum(["general", "tech", "weekly", "customer", "interview"]).optional(),
-  speakerMap: z.record(z.string()).optional(),
-  status: z.string().optional(),
-  content: z.any().optional(),
-});
+const meetingUpdateSchema = z
+  .object({
+    title: z.string().max(200).optional(),
+    meetingType: z.enum(["general", "tech", "weekly", "customer", "interview"]).optional(),
+    interviewSubType: interviewSubTypeEnum.optional(),
+    interviewLPs: z.array(z.enum([...INTERVIEW_LPS])).length(2).optional(),
+    speakerMap: z.record(z.string()).optional(),
+    status: z.string().optional(),
+    content: z.any().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.interviewSubType === "lp") {
+      if (!Array.isArray(val.interviewLPs) || val.interviewLPs.length !== 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["interviewLPs"],
+          message: "interviewLPs must be exactly 2 when interviewSubType is 'lp'",
+        });
+      }
+    } else if (val.interviewLPs !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interviewLPs"],
+        message: "interviewLPs is only allowed when interviewSubType is 'lp'",
+      });
+    }
+  });
 
 function register(router) {
   // List meetings - deduplicate by meetingId, prefer item with title, then latest createdAt
@@ -169,7 +189,7 @@ function register(router) {
       const item = await getMeetingById(req.params.id);
       if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
 
-      const { status, content, title, meetingType, speakerMap } = parseResult.data;
+      const { status, content, title, meetingType, interviewSubType, interviewLPs, speakerMap } = parseResult.data;
       const expressions = [];
       const names = {};
       const values = {};
@@ -196,6 +216,24 @@ function register(router) {
       if (speakerMap !== undefined) {
         expressions.push("speakerMap = :sm");
         values[":sm"] = speakerMap;
+      }
+      if (interviewSubType !== undefined) {
+        const effectiveType = meetingType || item.meetingType;
+        if (effectiveType !== "interview") {
+          return res.status(400).json({
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "interviewSubType is only allowed when meetingType is 'interview'",
+              fields: [{ field: "interviewSubType", message: "meetingType must be 'interview'" }],
+            },
+          });
+        }
+        expressions.push("interviewSubType = :ist");
+        values[":ist"] = interviewSubType;
+      }
+      if (interviewLPs !== undefined) {
+        expressions.push("interviewLPs = :ilps");
+        values[":ilps"] = interviewLPs;
       }
 
       expressions.push("updatedAt = :u");
