@@ -252,3 +252,29 @@ describe("bedrock-service", () => {
     })
   })
 })
+
+describe("getMeetingPrompt interview subtype dispatch", () => {
+  const { getMeetingPrompt } = require("../services/bedrock");
+
+  test("interview without extraOpts falls through to legacy all-16-LP prompt", () => {
+    const prompt = getMeetingPrompt("t", "interview");
+    expect(prompt).toContain("lpAssessment");
+    expect(prompt).toContain("Learn and Be Curious");
+  });
+
+  test("interview with extraOpts.interviewSubType='phonescreen' delegates to phonescreen prompt", () => {
+    const prompt = getMeetingPrompt("t", "interview", [], null, null, { interviewSubType: "phonescreen" });
+    expect(prompt).toMatch(/"interviewSubType"\s*:\s*"phonescreen"/);
+    expect(prompt).not.toContain("lpAssessment");
+  });
+
+  test("interview with extraOpts.interviewSubType='lp' delegates to lp prompt with user LPs", () => {
+    const prompt = getMeetingPrompt("t", "interview", [], null, null, {
+      interviewSubType: "lp",
+      interviewLPs: ["Ownership", "Dive Deep"],
+    });
+    expect(prompt).toMatch(/"interviewSubType"\s*:\s*"lp"/);
+    expect(prompt).toContain("Ownership");
+    expect(prompt).toContain("Dive Deep");
+  });
+});

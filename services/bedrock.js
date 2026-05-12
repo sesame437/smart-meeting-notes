@@ -10,7 +10,7 @@ const bedrockClient = new BedrockRuntimeClient({
 
 const DEFAULT_MODEL_ID = process.env.BEDROCK_MODEL_ID || "global.anthropic.claude-opus-4-6-v1";
 
-function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speakerMap = null, customPrompt = null) {
+function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speakerMap = null, customPrompt = null, extraOpts = null) {
   let speakerNote = "";
   if (speakerMap && Object.keys(speakerMap).length > 0) {
     const mapping = Object.entries(speakerMap).map(([k, v]) => `${k}: ${v}`).join(", ");
@@ -192,6 +192,15 @@ ${transcriptText}
   }
 
   if (meetingType === "interview") {
+    if (extraOpts?.interviewSubType === "phonescreen") {
+      const { buildPhonescreenPrompt } = require("./bedrock-interview");
+      return buildPhonescreenPrompt(transcriptText, { speakerNote, glossaryNote });
+    }
+    if (extraOpts?.interviewSubType === "lp") {
+      const { buildLpPrompt } = require("./bedrock-interview");
+      return buildLpPrompt(transcriptText, extraOpts.interviewLPs, { speakerNote, glossaryNote });
+    }
+    // Legacy all-16-LP prompt
     return `${speakerNote}${glossaryNote}你是专业的面试评估助手。请分析以下面试录音转录文本，基于 Amazon Leadership Principles 生成结构化的面试评估报告。
 
 请严格输出以下 JSON 格式，不要包含任何额外文字：
@@ -340,9 +349,9 @@ async function invokeModelRaw(systemPrompt, userPrompt, { maxTokens = 16000, mod
   }
 }
 
-async function invokeModel(transcriptText, meetingType = "general", glossaryTerms = [], modelId = DEFAULT_MODEL_ID, speakerMap = null, customPrompt = null) {
+async function invokeModel(transcriptText, meetingType = "general", glossaryTerms = [], modelId = DEFAULT_MODEL_ID, speakerMap = null, customPrompt = null, extraOpts = null) {
   const truncated = truncateTranscript(transcriptText);
-  const prompt = getMeetingPrompt(truncated, meetingType, glossaryTerms, speakerMap, customPrompt);
+  const prompt = getMeetingPrompt(truncated, meetingType, glossaryTerms, speakerMap, customPrompt, extraOpts);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1_800_000); // 30 min
