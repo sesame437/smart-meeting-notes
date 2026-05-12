@@ -14,12 +14,50 @@ const {
   sanitizeFilename,
   getMeetingById,
 } = require("./helpers");
+const { INTERVIEW_LPS } = require("../../services/interview-lps");
 
-const uploadSchema = z.object({
-  title: z.string().max(200).optional(),
-  meetingType: z.enum(["general", "tech", "weekly", "customer", "interview"]).optional(),
-  recipientEmails: z.string().optional(),
-});
+const interviewSubTypeEnum = z.enum(["phonescreen", "lp"]);
+
+const uploadSchema = z
+  .object({
+    title: z.string().max(200).optional(),
+    meetingType: z.enum(["general", "tech", "weekly", "customer", "interview"]).optional(),
+    interviewSubType: interviewSubTypeEnum.optional(),
+    interviewLPs: z.array(z.enum([...INTERVIEW_LPS])).length(2).optional(),
+    recipientEmails: z.union([z.string(), z.array(z.string())]).optional(),
+  })
+  .superRefine((val, ctx) => {
+    const isInterview = val.meetingType === "interview";
+    if (val.interviewSubType !== undefined && !isInterview) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interviewSubType"],
+        message: "interviewSubType is only allowed when meetingType is 'interview'",
+      });
+    }
+    if (isInterview && val.interviewSubType === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interviewSubType"],
+        message: "meetingType 'interview' requires interviewSubType (phonescreen or lp)",
+      });
+    }
+    if (val.interviewSubType === "lp") {
+      if (!Array.isArray(val.interviewLPs) || val.interviewLPs.length !== 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["interviewLPs"],
+          message: "interviewLPs must be exactly 2 when interviewSubType is 'lp'",
+        });
+      }
+    } else if (val.interviewLPs !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interviewLPs"],
+        message: "interviewLPs is only allowed when interviewSubType is 'lp'",
+      });
+    }
+  });
 
 const meetingUpdateSchema = z.object({
   title: z.string().max(200).optional(),
@@ -212,15 +250,35 @@ function register(router) {
         return res.status(400).json({ error: { code: "NO_FILE", message: "No file provided" } });
       }
 
+      // Normalize interviewLPs (multer gives string for single value, array for repeated field)
+      let interviewLPs;
+      const rawLPs = req.body["interviewLPs[]"] ?? req.body.interviewLPs;
+      if (Array.isArray(rawLPs)) interviewLPs = rawLPs;
+      else if (typeof rawLPs === "string") interviewLPs = [rawLPs];
+      else interviewLPs = undefined;
+
       // Validate request body with zod
-      const parseResult = uploadSchema.safeParse(req.body);
+      const parseResult = uploadSchema.safeParse({ ...req.body, interviewLPs });
       if (!parseResult.success) {
         // Clean up temp file
         if (req.file && fs.existsSync(req.file.path)) {
           fs.unlinkSync(req.file.path);
         }
-        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
+        return res.status(400).json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: parseResult.error.issues
+              .map((i) => `${i.path.join(".")}: ${i.message}`)
+              .join("; "),
+            fields: parseResult.error.issues.map((i) => ({
+              field: i.path.join("."),
+              message: i.message,
+            })),
+          },
+        });
       }
+
+      const { interviewSubType, interviewLPs: validatedLPs } = parseResult.data;
 
       const meetingId = crypto.randomUUID();
       const filename = sanitizeFilename(req.file.originalname);
@@ -250,7 +308,7 @@ function register(router) {
       }
 
       // Create meeting record in DynamoDB
-      const meetingType = req.body.meetingType || "general";
+      const meetingType = parseResult.data.meetingType || "general";
       const item = {
         meetingId,
         title: req.body.title || filename.replace(/\.[^.]+$/, ""),
@@ -260,6 +318,8 @@ function register(router) {
         filename,
         meetingType,
         ...(recipientEmails.length ? { recipientEmails } : {}),
+        ...(interviewSubType !== undefined && { interviewSubType }),
+        ...(validatedLPs !== undefined && { interviewLPs: validatedLPs }),
       };
       await store.createMeetingFromUpload(item);
 
@@ -316,11 +376,31 @@ function register(router) {
       // 收集所有临时文件路径，用于清理
       tempFiles.push(...req.files.map(f => f.path));
 
+      // Normalize interviewLPs (multer gives string for single value, array for repeated field)
+      let interviewLPs;
+      const rawLPs = req.body["interviewLPs[]"] ?? req.body.interviewLPs;
+      if (Array.isArray(rawLPs)) interviewLPs = rawLPs;
+      else if (typeof rawLPs === "string") interviewLPs = [rawLPs];
+      else interviewLPs = undefined;
+
       // Validate request body with zod
-      const parseResult = uploadSchema.safeParse(req.body);
+      const parseResult = uploadSchema.safeParse({ ...req.body, interviewLPs });
       if (!parseResult.success) {
-        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: parseResult.error.message } });
+        return res.status(400).json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: parseResult.error.issues
+              .map((i) => `${i.path.join(".")}: ${i.message}`)
+              .join("; "),
+            fields: parseResult.error.issues.map((i) => ({
+              field: i.path.join("."),
+              message: i.message,
+            })),
+          },
+        });
       }
+
+      const { interviewSubType, interviewLPs: validatedLPs } = parseResult.data;
 
       logger.info("meetings-route", "upload-multiple-start", {
         fileCount: req.files.length,
@@ -371,7 +451,7 @@ function register(router) {
       }
 
       // Create meeting record in DynamoDB
-      const meetingType = req.body.meetingType || "general";
+      const meetingType = parseResult.data.meetingType || "general";
       const item = {
         meetingId,
         title: req.body.title || filename.replace(/\.[^.]+$/, ""),
@@ -381,6 +461,8 @@ function register(router) {
         filename,
         meetingType,
         ...(recipientEmails.length ? { recipientEmails } : {}),
+        ...(interviewSubType !== undefined && { interviewSubType }),
+        ...(validatedLPs !== undefined && { interviewLPs: validatedLPs }),
       };
       await store.createMeetingFromUpload(item);
 
