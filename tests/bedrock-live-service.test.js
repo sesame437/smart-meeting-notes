@@ -192,4 +192,46 @@ describe("generateLiveSummary", () => {
     const result = await generateLiveSummary("x", { elapsedSec: 60 });
     expect(result.summary).toBe("leading prose test");
   });
+
+  test("rejects malformed Bedrock output when highlights is not an array", async () => {
+    const malformed = JSON.stringify({
+      summary: "ok",
+      highlights: "not-an-array",
+      lowlights: [],
+      actions: [],
+      decisions: [],
+    });
+    mockSend.mockResolvedValueOnce(makeStreamBody(malformed));
+    await expect(generateLiveSummary("x", { elapsedSec: 60 })).rejects.toMatchObject({
+      code: "INTERNAL",
+    });
+  });
+
+  test("rejects malformed Bedrock output when summary is not a string", async () => {
+    const malformed = JSON.stringify({
+      summary: { nested: "object" },
+      highlights: [],
+      lowlights: [],
+      actions: [],
+      decisions: [],
+    });
+    mockSend.mockResolvedValueOnce(makeStreamBody(malformed));
+    await expect(generateLiveSummary("x", { elapsedSec: 60 })).rejects.toMatchObject({
+      code: "INTERNAL",
+    });
+  });
+
+  test("rejects malformed Bedrock output when action item is missing required task field", async () => {
+    const malformed = JSON.stringify({
+      summary: "ok",
+      highlights: [],
+      lowlights: [],
+      actions: [{ owner: "Alice", priority: "high" }],
+      decisions: [],
+    });
+    mockSend.mockResolvedValueOnce(makeStreamBody(malformed));
+    await expect(generateLiveSummary("x", { elapsedSec: 60 })).rejects.toMatchObject({
+      code: "INTERNAL",
+    });
+  });
 });
