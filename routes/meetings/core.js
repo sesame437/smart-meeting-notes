@@ -35,13 +35,6 @@ const uploadSchema = z
         message: "interviewSubType is only allowed when meetingType is 'interview'",
       });
     }
-    if (isInterview && val.interviewSubType === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["interviewSubType"],
-        message: "meetingType 'interview' requires interviewSubType (phonescreen or lp)",
-      });
-    }
     if (val.interviewSubType === "lp") {
       if (!Array.isArray(val.interviewLPs) || val.interviewLPs.length !== 2) {
         ctx.addIssue({
@@ -216,6 +209,15 @@ function register(router) {
       if (speakerMap !== undefined) {
         expressions.push("speakerMap = :sm");
         values[":sm"] = speakerMap;
+      }
+      if (meetingType === "interview" && item.meetingType !== "interview" && interviewSubType === undefined) {
+        return res.status(400).json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "meetingType 'interview' requires interviewSubType (phonescreen or lp)",
+            fields: [{ field: "interviewSubType", message: "required when changing meetingType to 'interview'" }],
+          },
+        });
       }
       if (interviewSubType !== undefined) {
         const effectiveType = meetingType || item.meetingType;
@@ -534,6 +536,24 @@ function register(router) {
       if (!item) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Not found" } });
       if (item.status !== "uploaded") {
         return res.status(400).json({ error: { code: "INVALID_STATUS", message: "会议状态不是 uploaded，无法开始转录" } });
+      }
+      if (item.meetingType === "interview") {
+        if (!item.interviewSubType) {
+          return res.status(400).json({
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "meetingType 'interview' requires interviewSubType (phonescreen or lp) before transcription",
+            },
+          });
+        }
+        if (item.interviewSubType === "lp" && (!Array.isArray(item.interviewLPs) || item.interviewLPs.length !== 2)) {
+          return res.status(400).json({
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "interviewLPs must be exactly 2 when interviewSubType is 'lp'",
+            },
+          });
+        }
       }
 
       // Update status to pending

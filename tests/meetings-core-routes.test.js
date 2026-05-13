@@ -256,6 +256,17 @@ describe("meetings-core-routes", () => {
       expect(res.body.success).toBe(true);
       expect(mockSQS.sendMessage).toHaveBeenCalled();
     });
+
+    it("rejects interview transcription before subtype is confirmed", async () => {
+      const mockMeeting = { meetingId: "123", status: "uploaded", createdAt: "2026-01-01T00:00:00Z", meetingType: "interview", s3Key: "inbox/file.mp3", filename: "file.mp3" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+
+      const res = await request(app).post("/api/meetings/123/start-transcription");
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+      expect(mockSQS.sendMessage).not.toHaveBeenCalled();
+    });
   });
 
   describe("POST /:id/retry", () => {
@@ -295,6 +306,18 @@ describe("meetings-core-routes", () => {
         .send({ interviewSubType: "lp", interviewLPs: ["Ownership", "Dive Deep"] });
 
       expect(res.status).toBe(200);
+    });
+
+    it("rejects changing a non-interview meeting to interview without subtype", async () => {
+      const mockMeeting = { meetingId: "123", createdAt: "2026-01-01T00:00:00Z", meetingType: "general" };
+      mockStore.queryMeetingById.mockResolvedValueOnce(mockMeeting);
+
+      const res = await request(app)
+        .put("/api/meetings/123")
+        .send({ meetingType: "interview" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
     });
 
     it("rejects PUT with lp subtype but only 1 LP", async () => {
@@ -400,14 +423,13 @@ describe("meetings-core-routes", () => {
       expect(res.body.error.code).toBe("VALIDATION_ERROR");
     });
 
-    it("rejects interview without any subtype", async () => {
+    it("accepts interview upload without subtype so confirmation modal can collect it before transcription", async () => {
       const res = await request(app)
         .post("/api/meetings/upload")
         .attach("file", audioBuffer, { filename: "test.mp3", contentType: "audio/mpeg" })
         .field("meetingType", "interview");
 
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+      expect(res.status).toBe(201);
     });
   });
 });
