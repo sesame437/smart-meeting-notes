@@ -234,6 +234,15 @@ function register(router) {
       const transcriptText = transcriptParts.join("\n\n");
       const meetingType = item.meetingType || "general";
 
+      // Branch on PRESENCE of interviewSubType — never infer. Legacy interview records stay legacy.
+      let extraOpts = null;
+      if (meetingType === "interview" && item.interviewSubType) {
+        extraOpts = {
+          interviewSubType: item.interviewSubType,
+          interviewLPs: item.interviewLPs,
+        };
+      }
+
       let glossaryItems = [];
       let filteredGlossary = [];
       try {
@@ -248,7 +257,7 @@ function register(router) {
         report = await generateReportChunked(transcriptText, meetingType, filteredGlossary, speakerMap);
       } else {
         const modelId = process.env.BEDROCK_MODEL_ID || undefined;
-        const responseText = await invokeModel(transcriptText, meetingType, filteredGlossary, modelId, speakerMap);
+        const responseText = await invokeModel(transcriptText, meetingType, filteredGlossary, modelId, speakerMap, null, extraOpts);
         report = extractJsonFromLLMResponse(responseText);
       }
       if (!hasSpeakerMap) {

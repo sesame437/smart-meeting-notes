@@ -88,6 +88,8 @@ async function recoverStaleMeetings() {
         funasrKey: item.funasrKey || null,
         meetingType: item.meetingType || 'general',
         createdAt: item.createdAt,
+        ...(item.interviewSubType && { interviewSubType: item.interviewSubType }),
+        ...(item.interviewLPs && { interviewLPs: item.interviewLPs }),
       })
     }
   } catch (err) {
@@ -165,11 +167,11 @@ async function getMeetingType(meetingId, createdAt, messageType) {
   }
 }
 
-async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, maxRetries = 3) {
+async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, extraOpts = null, maxRetries = 3) {
   let lastError;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms);
+      const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, undefined, undefined, undefined, extraOpts);
       // Parse JSON response immediately (retry if parsing fails)
       const report = extractJsonFromLLMResponse(responseText);
       return report;
@@ -242,6 +244,23 @@ async function processMessage(message) {
     const meetingType = await getMeetingType(meetingId, createdAt, body.meetingType);
     logger.info("report-worker", "meeting-type-resolved", { meetingId, meetingType });
 
+    // Read interview subtype fields from DynamoDB (only for interview meetings)
+    let extraOpts = null;
+    if (meetingType === "interview") {
+      const { Item: subItem } = await docClient.send(new GetCommand({
+        TableName: TABLE,
+        Key: { meetingId, createdAt },
+        ProjectionExpression: "interviewSubType, interviewLPs",
+      }));
+      if (subItem?.interviewSubType) {
+        extraOpts = {
+          interviewSubType: subItem.interviewSubType,
+          interviewLPs: subItem.interviewLPs || undefined,
+        };
+        logger.info("report-worker", "interview-subtype-resolved", { meetingId, ...extraOpts });
+      }
+    }
+
     // Read FunASR transcript (with speaker labels)
     const funasrText = await readFunASRResult(body.funasrKey);
 
@@ -266,7 +285,7 @@ async function processMessage(message) {
     if (meetingType === "weekly") {
       report = await generateReportChunked(finalTranscript, meetingType, filteredItems);
     } else {
-      report = await invokeModelWithRetry(finalTranscript, meetingType, filteredItems);
+      report = await invokeModelWithRetry(finalTranscript, meetingType, filteredItems, extraOpts);
     }
     report = normalizeAnonymousSpeakerReport(report);
     report = applyGlossaryToReport(report, glossaryItems);
@@ -388,3 +407,5 @@ process.on("uncaughtException", (err) => {
   logger.error("worker", "uncaught-exception", {}, err);
   process.exit(1);
 });
+
+module.exports.getMeetingType = getMeetingType;

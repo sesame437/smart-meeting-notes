@@ -102,6 +102,17 @@
           <input type="radio" name="uploadConfirmMeetingType" id="uc-mt-interview" value="interview">
           <label for="uc-mt-interview">面试</label>
         </div>
+
+        <div id="uc-interview-subtype-wrap" class="upload-subtype-wrap" style="display:none; margin-top:12px;">
+          <div style="font-weight:600; margin-bottom:6px;">Interview subtype</div>
+          <label><input type="radio" name="uploadConfirmInterviewSubType" id="uc-is-phonescreen" value="phonescreen"> Phone screen</label>
+          <label style="margin-left:16px;"><input type="radio" name="uploadConfirmInterviewSubType" id="uc-is-lp" value="lp"> LP</label>
+        </div>
+
+        <div id="uc-interview-lps-wrap" class="upload-lps-wrap" style="display:none; margin-top:12px;">
+          <div style="font-weight:600; margin-bottom:6px;">Select exactly 2 LPs <span id="uc-lps-count" style="color:var(--color-muted); font-weight:normal;">(0 of 2)</span></div>
+          <div id="uc-lps-checkboxes" style="display:flex; flex-direction:column; gap:4px;"></div>
+        </div>
       </div>
     </div>
     <div class="confirm-actions">

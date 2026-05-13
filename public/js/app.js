@@ -26,6 +26,86 @@ const FunMessages = {
   }
 };
 
+/* ===== Interview LP Whitelist + Upload Confirm Helpers ===== */
+const INTERVIEW_LPS = [
+  "Learn and Be Curious",
+  "Ownership",
+  "Customer Obsession",
+  "Dive Deep",
+  "Have Backbone; Disagree and Commit",
+  "Invent and Simplify",
+  "Deliver Results",
+  "Earn Trust",
+  "Think Big",
+];
+
+function renderUploadLpCheckboxes() {
+  const container = document.getElementById("uc-lps-checkboxes");
+  if (!container || container.dataset.rendered === "1") return;
+  container.innerHTML = INTERVIEW_LPS.map((lp) =>
+    `<label><input type="checkbox" class="uc-lp-cb" value="${lp.replace(/"/g, "&quot;")}"> ${lp}</label>`
+  ).join("");
+  container.dataset.rendered = "1";
+}
+
+function countCheckedLps() {
+  return document.querySelectorAll(".uc-lp-cb:checked").length;
+}
+
+function updateUploadConfirmButtonState() {
+  const okBtn = document.getElementById("upload-confirm-ok-btn");
+  if (!okBtn) return;
+  const mt = document.querySelector('input[name="uploadConfirmMeetingType"]:checked')?.value;
+  if (mt !== "interview") { okBtn.disabled = false; return; }
+  const subtype = document.querySelector('input[name="uploadConfirmInterviewSubType"]:checked')?.value;
+  if (!subtype) { okBtn.disabled = true; return; }
+  if (subtype === "lp") {
+    const countEl = document.getElementById("uc-lps-count");
+    if (countEl) countEl.textContent = `(${countCheckedLps()} of 2)`;
+    okBtn.disabled = countCheckedLps() !== 2;
+    return;
+  }
+  okBtn.disabled = false;
+}
+
+function updateUploadSubtypeVisibility() {
+  const mtInterview = document.getElementById("uc-mt-interview");
+  const subtypeWrap = document.getElementById("uc-interview-subtype-wrap");
+  const lpsWrap = document.getElementById("uc-interview-lps-wrap");
+  if (!mtInterview || !subtypeWrap || !lpsWrap) return;
+
+  if (mtInterview.checked) {
+    subtypeWrap.style.display = "";
+    const isLp = document.getElementById("uc-is-lp");
+    if (isLp && isLp.checked) {
+      renderUploadLpCheckboxes();
+      lpsWrap.style.display = "";
+    } else {
+      lpsWrap.style.display = "none";
+    }
+  } else {
+    subtypeWrap.style.display = "none";
+    lpsWrap.style.display = "none";
+  }
+  updateUploadConfirmButtonState();
+}
+
+function wireUploadSubtypeHandlers() {
+  const modal = document.getElementById("upload-confirm-modal");
+  if (!modal || modal.dataset.subtypeWired === "1") return;
+  modal.querySelectorAll('input[name="uploadConfirmMeetingType"]').forEach((r) =>
+    r.addEventListener("change", updateUploadSubtypeVisibility));
+  modal.addEventListener("change", (e) => {
+    if (e.target && e.target.name === "uploadConfirmInterviewSubType") {
+      updateUploadSubtypeVisibility();
+    } else if (e.target && e.target.classList && e.target.classList.contains("uc-lp-cb")) {
+      if (countCheckedLps() > 2) { e.target.checked = false; }
+      updateUploadConfirmButtonState();
+    }
+  });
+  modal.dataset.subtypeWired = "1";
+}
+
 /* ===== API Helpers ===== */
 const API = {
   async request(url, opts = {}) {
@@ -642,7 +722,14 @@ function showUploadConfirmDialog(meetingId, title, meetingType) {
   const typeRadio = document.getElementById(`uc-mt-${meetingType || "general"}`);
   if (typeRadio) typeRadio.checked = true;
 
+  // Reset subtype selections from previous open
+  document.querySelectorAll('input[name="uploadConfirmInterviewSubType"]').forEach((r) => { r.checked = false; });
+  document.querySelectorAll('.uc-lp-cb').forEach((cb) => { cb.checked = false; });
+
   modal.style.display = "flex";
+
+  wireUploadSubtypeHandlers();
+  updateUploadSubtypeVisibility();
 
   // 移除旧的事件监听器（避免重复绑定）
   const newOkBtn = okBtn.cloneNode(true);
@@ -654,12 +741,19 @@ function showUploadConfirmDialog(meetingId, title, meetingType) {
   newOkBtn.addEventListener("click", async () => {
     const newTitle = titleInput.value.trim();
     const newType = document.querySelector('input[name="uploadConfirmMeetingType"]:checked')?.value || "general";
+    const newSubType = document.querySelector('input[name="uploadConfirmInterviewSubType"]:checked')?.value;
+    const newLps = Array.from(document.querySelectorAll(".uc-lp-cb:checked")).map((cb) => cb.value);
 
     modal.style.display = "none";
 
     try {
       // 更新会议信息
-      await API.put(`/api/meetings/${meetingId}`, { title: newTitle, meetingType: newType });
+      const updateBody = { title: newTitle, meetingType: newType };
+      if (newType === "interview" && newSubType) {
+        updateBody.interviewSubType = newSubType;
+        if (newSubType === "lp" && newLps.length === 2) updateBody.interviewLPs = newLps;
+      }
+      await API.put(`/api/meetings/${meetingId}`, updateBody);
 
       // 开始转录
       await API.post(`/api/meetings/${meetingId}/start-transcription`);
@@ -744,6 +838,67 @@ function renderListItem(item) {
       || item.item || item.name || JSON.stringify(item);
   }
   return String(item);
+}
+
+function renderInterviewQaFlat(report, m) {
+  var esc = escapeHtml;
+  var qaList = Array.isArray(report.qaList) ? report.qaList : [];
+  if (!qaList.length) return "";
+  var items = "";
+  for (var i = 0; i < qaList.length; i++) {
+    var qa = qaList[i];
+    items += '<div id="qaList-row-' + i + '" style="border-left:3px solid var(--color-orange);padding:10px 14px;margin-bottom:10px;background:rgba(255,153,0,0.06);border-radius:0 6px 6px 0;">'
+      + '<div style="font-weight:600;margin-bottom:6px;">Q: ' + esc(qa.question || "") + '</div>'
+      + '<div style="margin-bottom:6px;">A: ' + esc(qa.answer || "") + '</div>'
+      + (qa.assessment ? '<div style="color:var(--color-muted);font-size:13px;">评估: ' + esc(qa.assessment) + '</div>' : '')
+      + '</div>';
+  }
+  return '<div class="card" id="section-qaList">'
+    + '<div class="card-title"><i class="fa fa-comments"></i> 问答记录</div>'
+    + items
+    + '</div>';
+}
+
+function renderInterviewLpBlocks(report, m) {
+  var esc = escapeHtml;
+  var blocks = Array.isArray(report.lpBlocks) ? report.lpBlocks : [];
+  if (!blocks.length) return "";
+  var html = "";
+  for (var bi = 0; bi < blocks.length; bi++) {
+    var block = blocks[bi];
+    var qaList = Array.isArray(block.qaList) ? block.qaList : [];
+    var qaHtml = "";
+    for (var qi = 0; qi < qaList.length; qi++) {
+      var qa = qaList[qi];
+      qaHtml += '<div style="border-left:3px solid var(--color-orange);padding:10px 14px;margin-bottom:10px;background:rgba(255,153,0,0.06);border-radius:0 6px 6px 0;">'
+        + '<div style="font-weight:600;margin-bottom:6px;">Q: ' + esc(qa.question || "") + '</div>'
+        + '<div style="margin-bottom:6px;">A: ' + esc(qa.answer || "") + '</div>'
+        + (qa.assessment ? '<div style="color:var(--color-muted);font-size:13px;">评估: ' + esc(qa.assessment) + '</div>' : '')
+        + '</div>';
+    }
+    html += '<div class="card">'
+      + '<div class="card-title"><i class="fa fa-star"></i> ' + esc(block.lp || "(未知 LP)") + '</div>'
+      + (qaHtml || '<div style="color:var(--color-muted);">(无问答)</div>')
+      + '</div>';
+  }
+  return html;
+}
+
+function renderInterviewRedFlags(report, m) {
+  var esc = escapeHtml;
+  var flags = Array.isArray(report.redFlags) ? report.redFlags : [];
+  if (!flags.length) return "";
+  var items = "";
+  for (var i = 0; i < flags.length; i++) {
+    var rf = flags[i];
+    items += '<li><strong>' + esc(rf.point || rf.flag || "") + '</strong>'
+      + (rf.detail ? ': ' + esc(rf.detail) : '')
+      + '</li>';
+  }
+  return '<div class="card" id="section-redFlags">'
+    + '<div class="card-title" style="color:#e65100;"><i class="fa fa-flag"></i> 风险提示</div>'
+    + '<ul style="margin:0;padding-left:20px;">' + items + '</ul>'
+    + '</div>';
 }
 
 function renderMeetingDetail(m) {
@@ -1098,118 +1253,131 @@ function renderMeetingDetail(m) {
     </div>`;
   }
 
-  if (report.lpAssessment && report.lpAssessment.length) {
-    var ratingColor = { "strong": "#2e7d32", "satisfactory": "#1565c0", "weak": "#c62828", "not-assessed": "#666" };
-    var ratingLabel = { "strong": "优秀", "satisfactory": "合格", "weak": "较弱", "not-assessed": "未考察" };
-    var lpRows = "";
-    for (var li = 0; li < report.lpAssessment.length; li++) {
-      var lp = report.lpAssessment[li];
-      var rc = ratingColor[lp.rating] || "#666";
-      var rl = ratingLabel[lp.rating] || lp.rating;
-      lpRows += '<tr id="lpAssessment-row-' + li + '">'
-        + '<td><strong>' + esc(lp.principle) + '</strong></td>'
-        + '<td><span style="color:' + rc + ';font-weight:600;">' + esc(rl) + '</span></td>'
-        + '<td>' + esc(lp.evidence || "-") + '</td>'
-        + '<td class="row-actions">'
-        + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="lpAssessment" data-index="' + li + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
-        + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="lpAssessment" data-index="' + li + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
-        + '</td></tr>';
-    }
-    html += `<div class="card" id="section-lpAssessment">
-      <div class="card-title"><i class="fa fa-star"></i> Leadership Principles 评估</div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th style="color:var(--aws-orange)">Leadership Principle</th>
-            <th style="color:var(--aws-orange);width:80px;">评分</th>
-            <th style="color:var(--aws-orange)">行为证据</th>
-            <th style="color:var(--aws-orange);width:80px;">操作</th>
-          </tr></thead>
-          <tbody>${lpRows}</tbody>
-        </table>
-      </div>
-      <div style="text-align:right;margin-top:8px;">
-        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="lpAssessment" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加LP评估</button>
-      </div>
-    </div>`;
+  if (report.interviewSubType === "phonescreen") {
+    html += renderInterviewQaFlat(report, m);
+  }
+  if (report.interviewSubType === "lp") {
+    html += renderInterviewLpBlocks(report, m);
+  }
+  if (report.interviewSubType && Array.isArray(report.redFlags) && report.redFlags.length) {
+    html += renderInterviewRedFlags(report, m);
   }
 
-  if (report.questions && report.questions.length) {
-    var qRows = "";
-    for (var qi = 0; qi < report.questions.length; qi++) {
-      var q = report.questions[qi];
-      qRows += '<tr id="questions-row-' + qi + '">'
-        + '<td>' + esc(q.question) + '</td>'
-        + '<td>' + esc(q.context || "-") + '</td>'
-        + '<td>' + esc(q.answer || "-") + '</td>'
-        + '<td>' + esc(q.assessment || "-") + '</td>'
-        + '<td class="row-actions">'
-        + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="questions" data-index="' + qi + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
-        + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="questions" data-index="' + qi + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
-        + '</td></tr>';
+  // LEGACY: only render when NO interviewSubType
+  if (!report.interviewSubType) {
+    if (report.lpAssessment && report.lpAssessment.length) {
+      var ratingColor = { "strong": "#2e7d32", "satisfactory": "#1565c0", "weak": "#c62828", "not-assessed": "#666" };
+      var ratingLabel = { "strong": "优秀", "satisfactory": "合格", "weak": "较弱", "not-assessed": "未考察" };
+      var lpRows = "";
+      for (var li = 0; li < report.lpAssessment.length; li++) {
+        var lp = report.lpAssessment[li];
+        var rc = ratingColor[lp.rating] || "#666";
+        var rl = ratingLabel[lp.rating] || lp.rating;
+        lpRows += '<tr id="lpAssessment-row-' + li + '">'
+          + '<td><strong>' + esc(lp.principle) + '</strong></td>'
+          + '<td><span style="color:' + rc + ';font-weight:600;">' + esc(rl) + '</span></td>'
+          + '<td>' + esc(lp.evidence || "-") + '</td>'
+          + '<td class="row-actions">'
+          + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="lpAssessment" data-index="' + li + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
+          + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="lpAssessment" data-index="' + li + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
+          + '</td></tr>';
+      }
+      html += `<div class="card" id="section-lpAssessment">
+        <div class="card-title"><i class="fa fa-star"></i> Leadership Principles 评估</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th style="color:var(--aws-orange)">Leadership Principle</th>
+              <th style="color:var(--aws-orange);width:80px;">评分</th>
+              <th style="color:var(--aws-orange)">行为证据</th>
+              <th style="color:var(--aws-orange);width:80px;">操作</th>
+            </tr></thead>
+            <tbody>${lpRows}</tbody>
+          </table>
+        </div>
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="lpAssessment" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加LP评估</button>
+        </div>
+      </div>`;
     }
-    html += `<div class="card" id="section-questions">
-      <div class="card-title"><i class="fa fa-comments"></i> 面试问答</div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th style="color:var(--aws-orange)">问题</th>
-            <th style="color:var(--aws-orange)">考察点</th>
-            <th style="color:var(--aws-orange)">回答要点</th>
-            <th style="color:var(--aws-orange)">评价</th>
-            <th style="color:var(--aws-orange);width:80px;">操作</th>
-          </tr></thead>
-          <tbody>${qRows}</tbody>
-        </table>
-      </div>
-      <div style="text-align:right;margin-top:8px;">
-        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="questions" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加问答</button>
-      </div>
-    </div>`;
-  }
 
-  if (report.strengths && report.strengths.length) {
-    var sCards = "";
-    for (var si = 0; si < report.strengths.length; si++) {
-      var s = report.strengths[si];
-      sCards += '<div id="strengths-row-' + si + '" style="border-left:4px solid #2e7d32;padding:10px 14px;margin-bottom:8px;background:rgba(46,125,50,0.1);border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:space-between;">'
-        + '<div><strong>' + esc(s.point) + '</strong>'
-        + (s.detail ? '<br><span style="color:var(--color-muted);font-size:13px;">' + esc(s.detail) + '</span>' : '')
-        + '</div>'
-        + '<div class="row-actions" style="flex-shrink:0;margin-left:8px;">'
-        + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="strengths" data-index="' + si + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
-        + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="strengths" data-index="' + si + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
-        + '</div></div>';
+    if (report.questions && report.questions.length) {
+      var qRows = "";
+      for (var qi = 0; qi < report.questions.length; qi++) {
+        var q = report.questions[qi];
+        qRows += '<tr id="questions-row-' + qi + '">'
+          + '<td>' + esc(q.question) + '</td>'
+          + '<td>' + esc(q.context || "-") + '</td>'
+          + '<td>' + esc(q.answer || "-") + '</td>'
+          + '<td>' + esc(q.assessment || "-") + '</td>'
+          + '<td class="row-actions">'
+          + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="questions" data-index="' + qi + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
+          + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="questions" data-index="' + qi + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
+          + '</td></tr>';
+      }
+      html += `<div class="card" id="section-questions">
+        <div class="card-title"><i class="fa fa-comments"></i> 面试问答</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th style="color:var(--aws-orange)">问题</th>
+              <th style="color:var(--aws-orange)">考察点</th>
+              <th style="color:var(--aws-orange)">回答要点</th>
+              <th style="color:var(--aws-orange)">评价</th>
+              <th style="color:var(--aws-orange);width:80px;">操作</th>
+            </tr></thead>
+            <tbody>${qRows}</tbody>
+          </table>
+        </div>
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="questions" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加问答</button>
+        </div>
+      </div>`;
     }
-    html += `<div class="card" id="section-strengths">
-      <div class="card-title"><i class="fa fa-thumbs-up"></i> 候选人优势</div>
-      ${sCards}
-      <div style="text-align:right;margin-top:8px;">
-        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="strengths" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加优势</button>
-      </div>
-    </div>`;
-  }
 
-  if (report.improvements && report.improvements.length) {
-    var imCards = "";
-    for (var ii = 0; ii < report.improvements.length; ii++) {
-      var im = report.improvements[ii];
-      imCards += '<div id="improvements-row-' + ii + '" style="border-left:4px solid #e65100;padding:10px 14px;margin-bottom:8px;background:rgba(230,81,0,0.1);border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:space-between;">'
-        + '<div><strong>' + esc(im.point) + '</strong>'
-        + (im.detail ? '<br><span style="color:var(--color-muted);font-size:13px;">' + esc(im.detail) + '</span>' : '')
-        + '</div>'
-        + '<div class="row-actions" style="flex-shrink:0;margin-left:8px;">'
-        + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="improvements" data-index="' + ii + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
-        + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="improvements" data-index="' + ii + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
-        + '</div></div>';
+    if (report.strengths && report.strengths.length) {
+      var sCards = "";
+      for (var si = 0; si < report.strengths.length; si++) {
+        var s = report.strengths[si];
+        sCards += '<div id="strengths-row-' + si + '" style="border-left:4px solid #2e7d32;padding:10px 14px;margin-bottom:8px;background:rgba(46,125,50,0.1);border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:space-between;">'
+          + '<div><strong>' + esc(s.point) + '</strong>'
+          + (s.detail ? '<br><span style="color:var(--color-muted);font-size:13px;">' + esc(s.detail) + '</span>' : '')
+          + '</div>'
+          + '<div class="row-actions" style="flex-shrink:0;margin-left:8px;">'
+          + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="strengths" data-index="' + si + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
+          + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="strengths" data-index="' + si + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
+          + '</div></div>';
+      }
+      html += `<div class="card" id="section-strengths">
+        <div class="card-title"><i class="fa fa-thumbs-up"></i> 候选人优势</div>
+        ${sCards}
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="strengths" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加优势</button>
+        </div>
+      </div>`;
     }
-    html += `<div class="card" id="section-improvements">
-      <div class="card-title"><i class="fa fa-arrow-up"></i> 待改进项</div>
-      ${imCards}
-      <div style="text-align:right;margin-top:8px;">
-        <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="improvements" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加改进项</button>
-      </div>
-    </div>`;
+
+    if (report.improvements && report.improvements.length) {
+      var imCards = "";
+      for (var ii = 0; ii < report.improvements.length; ii++) {
+        var im = report.improvements[ii];
+        imCards += '<div id="improvements-row-' + ii + '" style="border-left:4px solid #e65100;padding:10px 14px;margin-bottom:8px;background:rgba(230,81,0,0.1);border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:space-between;">'
+          + '<div><strong>' + esc(im.point) + '</strong>'
+          + (im.detail ? '<br><span style="color:var(--color-muted);font-size:13px;">' + esc(im.detail) + '</span>' : '')
+          + '</div>'
+          + '<div class="row-actions" style="flex-shrink:0;margin-left:8px;">'
+          + '<button class="btn btn-outline btn-sm" data-action="edit-generic" data-section="improvements" data-index="' + ii + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="编辑"><i class="fa fa-pencil"></i></button>'
+          + '<button class="btn btn-danger btn-sm" data-action="delete-generic" data-section="improvements" data-index="' + ii + '" data-meeting-id="' + escapeAttr(m.meetingId) + '" title="删除"><i class="fa fa-trash"></i></button>'
+          + '</div></div>';
+      }
+      html += `<div class="card" id="section-improvements">
+        <div class="card-title"><i class="fa fa-arrow-up"></i> 待改进项</div>
+        ${imCards}
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-outline btn-sm" data-action="add-generic" data-section="improvements" data-meeting-id="${escapeAttr(m.meetingId)}"><i class="fa fa-plus"></i> 添加改进项</button>
+        </div>
+      </div>`;
+    }
   }
 
   // ---- Weekly 专属字段 ----

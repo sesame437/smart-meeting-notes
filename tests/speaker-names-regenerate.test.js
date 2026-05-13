@@ -202,7 +202,9 @@ describe("POST /api/meetings/:id/regenerate", () => {
       "general",
       [],
       undefined,
-      { "SPEAKER_0": "Alice" }
+      { "SPEAKER_0": "Alice" },
+      null,
+      null
     );
   });
 });
