@@ -840,65 +840,87 @@ function renderListItem(item) {
   return String(item);
 }
 
-function renderInterviewQaFlat(report, m) {
+function renderInterviewQaItem(qa, idPrefix, index) {
   var esc = escapeHtml;
+  var rowId = idPrefix ? ' id="' + esc(idPrefix) + '-row-' + index + '"' : '';
+  return '<div' + rowId + ' style="border-left:3px solid var(--color-orange);padding:10px 14px;margin-bottom:10px;background:rgba(255,153,0,0.06);border-radius:0 6px 6px 0;">'
+    + '<div style="font-weight:600;margin-bottom:6px;">Q: ' + esc(qa.question || "") + '</div>'
+    + '<div style="margin-bottom:6px;">A: ' + esc(qa.answer || "") + '</div>'
+    + (qa.assessment ? '<div style="color:var(--color-muted);font-size:13px;">评估: ' + esc(qa.assessment) + '</div>' : '')
+    + '</div>';
+}
+
+function renderInterviewQaFlat(report) {
   var qaList = Array.isArray(report.qaList) ? report.qaList : [];
   if (!qaList.length) return "";
   var items = "";
   for (var i = 0; i < qaList.length; i++) {
-    var qa = qaList[i];
-    items += '<div id="qaList-row-' + i + '" style="border-left:3px solid var(--color-orange);padding:10px 14px;margin-bottom:10px;background:rgba(255,153,0,0.06);border-radius:0 6px 6px 0;">'
-      + '<div style="font-weight:600;margin-bottom:6px;">Q: ' + esc(qa.question || "") + '</div>'
-      + '<div style="margin-bottom:6px;">A: ' + esc(qa.answer || "") + '</div>'
-      + (qa.assessment ? '<div style="color:var(--color-muted);font-size:13px;">评估: ' + esc(qa.assessment) + '</div>' : '')
-      + '</div>';
+    items += renderInterviewQaItem(qaList[i], "qaList", i);
   }
   return '<div class="card" id="section-qaList">'
-    + '<div class="card-title"><i class="fa fa-comments"></i> 问答记录</div>'
+    + '<div class="card-title"><i class="fa fa-comments"></i> 问答整理</div>'
     + items
     + '</div>';
 }
 
-function renderInterviewLpBlocks(report, m) {
+var LP_RATING_META = {
+  "strong":       { color: "#2e7d32", label: "表现突出" },
+  "satisfactory": { color: "#1565c0", label: "合格" },
+  "weak":         { color: "#c62828", label: "表现不足" },
+  "not-assessed": { color: "#666",    label: "本场未考察" },
+};
+
+function renderLpRatingBadge(rating) {
+  var meta = LP_RATING_META[rating] || { color: "#666", label: rating || "-" };
+  return '<span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;background:' + meta.color + ';color:#fff;margin-left:8px;vertical-align:middle;">' + escapeHtml(meta.label) + '</span>';
+}
+
+function renderInterviewLpBlocks(report) {
   var esc = escapeHtml;
   var blocks = Array.isArray(report.lpBlocks) ? report.lpBlocks : [];
   if (!blocks.length) return "";
   var html = "";
   for (var bi = 0; bi < blocks.length; bi++) {
     var block = blocks[bi];
-    var qaList = Array.isArray(block.qaList) ? block.qaList : [];
-    var qaHtml = "";
-    for (var qi = 0; qi < qaList.length; qi++) {
-      var qa = qaList[qi];
-      qaHtml += '<div style="border-left:3px solid var(--color-orange);padding:10px 14px;margin-bottom:10px;background:rgba(255,153,0,0.06);border-radius:0 6px 6px 0;">'
-        + '<div style="font-weight:600;margin-bottom:6px;">Q: ' + esc(qa.question || "") + '</div>'
-        + '<div style="margin-bottom:6px;">A: ' + esc(qa.answer || "") + '</div>'
-        + (qa.assessment ? '<div style="color:var(--color-muted);font-size:13px;">评估: ' + esc(qa.assessment) + '</div>' : '')
+    var lpName = esc(block.lp || "(未知 LP)");
+    var overviewHtml = block.overview
+      ? '<div style="margin-bottom:12px;color:var(--color-text);">' + esc(block.overview) + '</div>'
+      : '';
+
+    var evidence = Array.isArray(block.evidence) ? block.evidence : [];
+    var evidenceHtml = "";
+    if (evidence.length) {
+      var evItems = "";
+      for (var ei = 0; ei < evidence.length; ei++) {
+        evItems += '<li style="margin-bottom:4px;">' + esc(evidence[ei]) + '</li>';
+      }
+      evidenceHtml = '<div style="margin-bottom:12px;">'
+        + '<div style="font-weight:600;color:var(--color-muted);font-size:13px;margin-bottom:6px;">行为证据</div>'
+        + '<ul style="margin:0;padding-left:20px;">' + evItems + '</ul>'
         + '</div>';
     }
+
+    var qaList = Array.isArray(block.qaList) ? block.qaList : [];
+    var qaHtml = "";
+    if (qaList.length) {
+      var qaItems = "";
+      for (var qi = 0; qi < qaList.length; qi++) {
+        qaItems += renderInterviewQaItem(qaList[qi], null, qi);
+      }
+      qaHtml = '<div>'
+        + '<div style="font-weight:600;color:var(--color-muted);font-size:13px;margin-bottom:6px;">问答整理</div>'
+        + qaItems
+        + '</div>';
+    } else {
+      qaHtml = '<div style="color:var(--color-muted);font-size:13px;">(本 LP 本场未深入考察，无问答记录)</div>';
+    }
+
     html += '<div class="card">'
-      + '<div class="card-title"><i class="fa fa-star"></i> ' + esc(block.lp || "(未知 LP)") + '</div>'
-      + (qaHtml || '<div style="color:var(--color-muted);">(无问答)</div>')
+      + '<div class="card-title"><i class="fa fa-star"></i> ' + lpName + renderLpRatingBadge(block.rating) + '</div>'
+      + overviewHtml + evidenceHtml + qaHtml
       + '</div>';
   }
   return html;
-}
-
-function renderInterviewRedFlags(report, m) {
-  var esc = escapeHtml;
-  var flags = Array.isArray(report.redFlags) ? report.redFlags : [];
-  if (!flags.length) return "";
-  var items = "";
-  for (var i = 0; i < flags.length; i++) {
-    var rf = flags[i];
-    items += '<li><strong>' + esc(rf.point || rf.flag || "") + '</strong>'
-      + (rf.detail ? ': ' + esc(rf.detail) : '')
-      + '</li>';
-  }
-  return '<div class="card" id="section-redFlags">'
-    + '<div class="card-title" style="color:#e65100;"><i class="fa fa-flag"></i> 风险提示</div>'
-    + '<ul style="margin:0;padding-left:20px;">' + items + '</ul>'
-    + '</div>';
 }
 
 function renderMeetingDetail(m) {
@@ -1221,8 +1243,10 @@ function renderMeetingDetail(m) {
   }
 
   // ---- Interview 专属字段 ----
+  // New subtype reports (phonescreen / lp) intentionally carry no candidateInfo or recommendation;
+  // those panels are legacy-only. Guard them behind absence of interviewSubType.
 
-  if (report.candidateInfo) {
+  if (!report.interviewSubType && report.candidateInfo) {
     const ci = report.candidateInfo;
     html += `<div class="card">
       <div class="card-title"><i class="fa fa-user"></i> 候选人信息</div>
@@ -1236,7 +1260,7 @@ function renderMeetingDetail(m) {
     </div>`;
   }
 
-  if (report.recommendation) {
+  if (!report.interviewSubType && report.recommendation) {
     const rec = report.recommendation;
     const decisionColor = { "hire": "#2e7d32", "inclined-hire": "#558b2f", "inclined-no-hire": "#e65100", "no-hire": "#c62828" };
     const decisionLabel = { "hire": "建议录用", "inclined-hire": "倾向录用", "inclined-no-hire": "倾向不录用", "no-hire": "不建议录用" };
@@ -1254,13 +1278,10 @@ function renderMeetingDetail(m) {
   }
 
   if (report.interviewSubType === "phonescreen") {
-    html += renderInterviewQaFlat(report, m);
+    html += renderInterviewQaFlat(report);
   }
   if (report.interviewSubType === "lp") {
-    html += renderInterviewLpBlocks(report, m);
-  }
-  if (report.interviewSubType && Array.isArray(report.redFlags) && report.redFlags.length) {
-    html += renderInterviewRedFlags(report, m);
+    html += renderInterviewLpBlocks(report);
   }
 
   // LEGACY: only render when NO interviewSubType
@@ -1379,6 +1400,10 @@ function renderMeetingDetail(m) {
       </div>`;
     }
   }
+
+  // ---- Generic sections (weekly / topics / highlights / actions / decisions / risks / participants) ----
+  // Interview subtype reports are intentionally scoped to LP or Q&A blocks only; skip everything below.
+  if (!report.interviewSubType) {
 
   // ---- Weekly 专属字段 ----
 
@@ -1700,6 +1725,8 @@ function renderMeetingDetail(m) {
 
     html += `</div>`;
   }
+
+  } // end: if (!report.interviewSubType)
 
   content.innerHTML = html;
 

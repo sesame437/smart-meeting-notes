@@ -8,17 +8,33 @@ describe("buildPhonescreenPrompt", () => {
     expect(prompt).toContain("[00:00:05]");
   });
 
-  test("requests phonescreen JSON shape: summary, candidateInfo, qaList, redFlags, recommendation", () => {
+  test("requests minimal phonescreen shape: summary + qaList only", () => {
     const prompt = buildPhonescreenPrompt("transcript");
     expect(prompt).toMatch(/"interviewSubType"\s*:\s*"phonescreen"/);
-    expect(prompt).toContain("qaList");
-    expect(prompt).toContain("redFlags");
-    expect(prompt).toContain("recommendation");
-    expect(prompt).toContain("candidateInfo");
+    expect(prompt).toMatch(/"summary"\s*:/);
+    expect(prompt).toMatch(/"qaList"\s*:\s*\[/);
+  });
+
+  test("explicitly forbids generic meeting fields", () => {
+    const prompt = buildPhonescreenPrompt("transcript");
+    expect(prompt).not.toMatch(/"candidateInfo"\s*:/);
+    expect(prompt).not.toMatch(/"redFlags"\s*:/);
+    expect(prompt).not.toMatch(/"recommendation"\s*:/);
+    expect(prompt).not.toMatch(/"highlights"\s*:/);
+    expect(prompt).not.toMatch(/"lowlights"\s*:/);
+    expect(prompt).not.toMatch(/"actions"\s*:/);
+    expect(prompt).not.toMatch(/"decisions"\s*:/);
+    expect(prompt).not.toMatch(/"participants"\s*:/);
     expect(prompt).not.toContain("lpBlocks");
     expect(prompt).not.toContain("lpAssessment");
     expect(prompt).not.toContain("strengths");
     expect(prompt).not.toContain("improvements");
+  });
+
+  test("instructs the model to merge follow-up questions into single qa entries", () => {
+    const prompt = buildPhonescreenPrompt("transcript");
+    expect(prompt).toMatch(/追问|follow.?up/i);
+    expect(prompt).toMatch(/合并|merge/i);
   });
 
   test("explicitly instructs JSON-only output", () => {
@@ -36,19 +52,47 @@ describe("buildLpPrompt", () => {
     expect(prompt).toContain("Dive Deep");
   });
 
-  test("requests lp JSON shape: lpBlocks with exactly 2 entries keyed to user LPs", () => {
+  test("requests minimal lp shape: summary + interviewLPs + lpBlocks only", () => {
     const prompt = buildLpPrompt("transcript", validLps);
     expect(prompt).toMatch(/"interviewSubType"\s*:\s*"lp"/);
+    expect(prompt).toMatch(/"interviewLPs"\s*:/);
+    expect(prompt).toMatch(/"summary"\s*:/);
     expect(prompt).toMatch(/"lpBlocks"\s*:\s*\[/);
-    expect(prompt).toContain('"qaList"');  // qaList IS present — nested inside lpBlocks, that's correct
-    expect(prompt).toContain("redFlags");
-    expect(prompt).toContain("recommendation");
-    expect(prompt).not.toContain("lpAssessment");
   });
 
-  test("instructs the model to produce exactly 2 lpBlocks matching the provided LP names", () => {
+  test("each lpBlock has rating, overview, evidence, qaList fields", () => {
     const prompt = buildLpPrompt("transcript", validLps);
-    expect(prompt).toMatch(/exactly 2|恰好 2|必须 2/);
+    expect(prompt).toMatch(/"rating"\s*:/);
+    expect(prompt).toMatch(/"overview"\s*:/);
+    expect(prompt).toMatch(/"evidence"\s*:\s*\[/);
+    expect(prompt).toMatch(/"qaList"\s*:\s*\[/);
+  });
+
+  test("explicitly forbids generic meeting fields and legacy interview fields", () => {
+    const prompt = buildLpPrompt("transcript", validLps);
+    expect(prompt).not.toMatch(/"candidateInfo"\s*:/);
+    expect(prompt).not.toMatch(/"recommendation"\s*:/);
+    expect(prompt).not.toMatch(/"redFlags"\s*:/);
+    expect(prompt).not.toMatch(/"highlights"\s*:/);
+    expect(prompt).not.toMatch(/"lowlights"\s*:/);
+    expect(prompt).not.toMatch(/"actions"\s*:/);
+    expect(prompt).not.toMatch(/"decisions"\s*:/);
+    expect(prompt).not.toMatch(/"participants"\s*:/);
+    expect(prompt).not.toMatch(/"speakerKeypoints"\s*:/);
+    expect(prompt).not.toContain("lpAssessment");
+    expect(prompt).not.toContain("strengths");
+    expect(prompt).not.toContain("improvements");
+  });
+
+  test("instructs the model to produce exactly 2 lpBlocks", () => {
+    const prompt = buildLpPrompt("transcript", validLps);
+    expect(prompt).toMatch(/恰好\s*为?\s*2|exactly 2/);
+  });
+
+  test("instructs the model to merge follow-up questions into single qa entries", () => {
+    const prompt = buildLpPrompt("transcript", validLps);
+    expect(prompt).toMatch(/追问|follow.?up/i);
+    expect(prompt).toMatch(/合并|merge/i);
   });
 
   test("throws when fewer than 2 LPs provided", () => {
