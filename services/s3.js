@@ -1,4 +1,5 @@
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 const s3 = new S3Client({ region: process.env.AWS_REGION });
 const BUCKET = process.env.S3_BUCKET;
@@ -45,7 +46,13 @@ async function uploadStream(key, stream, contentType) {
   return key;
 }
 
-module.exports = { s3, uploadFile, getFile, deleteObject, uploadStream };
+async function getPresignedDownloadUrl(key, { expiresIn = 900 } = {}) {
+  const fullKey = key.startsWith(PREFIX) ? key : `${PREFIX}/${key}`;
+  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: fullKey });
+  return getSignedUrl(s3, cmd, { expiresIn });
+}
+
+module.exports = { s3, uploadFile, getFile, deleteObject, uploadStream, getPresignedDownloadUrl };
 
 /**
  * 使用规范（重要）：
