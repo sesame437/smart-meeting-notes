@@ -1011,6 +1011,9 @@ function renderMeetingDetail(m) {
           <button class="btn action-primary-btn btn-sm" data-action="send-email" data-id="${escapeAttr(m.meetingId)}">
             <i class="fa fa-envelope"></i> 发送邮件
           </button>
+          <button class="btn action-primary-btn btn-sm" data-action="download-transcript" data-id="${escapeAttr(m.meetingId)}" ${m.funasrKey ? "" : "disabled title=\"转录尚未完成\""}>
+            <i class="fa fa-download"></i> 下载转录
+          </button>
         </div>
       </div>
       <div class="detail-title-row" style="display:flex;align-items:center;gap:10px;">
@@ -1956,12 +1959,56 @@ async function sendEmail(id) {
   }
 }
 
+async function downloadTranscript(id) {
+  if (_downloadingTranscriptIds.has(id)) return;
+  _downloadingTranscriptIds.add(id);
+  setDownloadTranscriptButtonsLoading(id, true);
+  try {
+    const data = await API.get(`/api/meetings/${id}/transcript-url`);
+    const url = data && data.url;
+    if (!url) {
+      Toast.error("下载链接生成失败");
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `transcript-${id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    Toast.success("下载已开始");
+  } catch (_) { /* error already shown by API */ }
+  finally {
+    _downloadingTranscriptIds.delete(id);
+    setDownloadTranscriptButtonsLoading(id, false);
+  }
+}
+
+function setDownloadTranscriptButtonsLoading(meetingId, isLoading) {
+  const buttons = Array.from(document.querySelectorAll('[data-action="download-transcript"]'))
+    .filter((btn) => btn.dataset.id === meetingId);
+  buttons.forEach((btn) => {
+    if (isLoading) {
+      btn.disabled = true;
+      btn.dataset.originalText = btn.innerHTML;
+      btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> 生成中...';
+      return;
+    }
+    btn.disabled = false;
+    if (btn.dataset.originalText) {
+      btn.innerHTML = btn.dataset.originalText;
+      delete btn.dataset.originalText;
+    }
+  });
+}
+
 /* ===== Glossary ===== */
 let glossaryData = [];
 let _glossaryCache = null;
 let _glossaryCacheTime = 0;
 const GLOSSARY_CACHE_TTL = 5 * 60 * 1000;
 const _sendingEmailMeetingIds = new Set();
+const _downloadingTranscriptIds = new Set();
 
 function setFormSubmitting(form, isSubmitting, loadingText) {
   if (!form) return;
@@ -3326,6 +3373,7 @@ document.addEventListener("click", function(e) {
     case "apply-speaker-names": applySpokenNames(id); break;
     case "regenerate-report":  regenerateReport(id); break;
     case "send-email":         sendEmail(id); break;
+    case "download-transcript": downloadTranscript(id); break;
     case "edit-term":          editTerm(id); break;
     case "delete-term":        deleteTerm(id); break;
     case "open-merge-modal":   openMergeModal(); break;
