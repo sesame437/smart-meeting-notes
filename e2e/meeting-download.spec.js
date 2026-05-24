@@ -17,37 +17,34 @@ test.describe('Meeting transcript download', () => {
     await page.screenshot({ path: 'e2e/screenshots/meeting-download-button-enabled.png' })
   })
 
-  test('点击按钮触发 HTTP 请求', async ({ page }) => {
-    const apiResp = await page.request.get('/api/meetings')
-    const list = await apiResp.json()
+  test('点击按钮触发 transcript-url 接口并返回 url', async ({ page }) => {
+    const listResp = await page.request.get('/api/meetings')
+    const list = await listResp.json()
     const target = list.find((m) => m.funasrKey)
     test.skip(!target, 'no meeting with funasrKey for download test')
 
     await page.goto(`/meeting.html?id=${target.meetingId}`)
     await page.waitForLoadState('networkidle')
 
-    // Monitor network requests
-    let transcriptUrlRequested = false
-    page.on('request', (request) => {
-      if (request.url().includes('/transcript-url')) {
-        transcriptUrlRequested = true
-      }
-    })
+    // Stub the actual S3 download so the browser doesn't pull a real file
+    await page.route(/\.s3[.\-]/, (route) => route.fulfill({ status: 200, body: 'stub' }))
 
-    // Route to intercept and respond immediately (to avoid timeout)
-    await page.route('**/transcript-url', (route) => {
-      route.abort('blockedbyclient')
-    })
+    // Call the transcript-url API directly to verify response shape
+    const apiResp = await page.request.get(`/api/meetings/${target.meetingId}/transcript-url`)
+    expect(apiResp.status()).toBe(200)
 
-    // Click the download button
-    const btn = page.locator('[data-action="download-transcript"]')
-    await btn.click()
+    const body = await apiResp.json()
+    expect(body).toHaveProperty('url')
+    expect(body).toHaveProperty('expiresIn', 900)
+    expect(typeof body.url).toBe('string')
+    expect(body.url).toMatch(/^https?:\/\//)
 
-    // Wait a bit for the request to be triggered
-    await page.waitForTimeout(500)
-
-    // Verify the request was made
-    expect(transcriptUrlRequested).toBe(true)
+    // Now test the button interaction
+    const clickResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/transcript-url') && r.status() === 200
+    )
+    await page.click('[data-action="download-transcript"]')
+    await clickResponsePromise
 
     await page.screenshot({ path: 'e2e/screenshots/meeting-download-clicked.png' })
   })
