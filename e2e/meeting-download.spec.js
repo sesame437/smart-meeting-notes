@@ -23,21 +23,26 @@ test.describe('Meeting transcript download', () => {
     const target = list.find((m) => m.funasrKey)
     test.skip(!target, 'no meeting with funasrKey for download test')
 
-    await page.goto(`/meeting.html?id=${target.meetingId}`)
-    await page.waitForLoadState('networkidle')
-
-    // Catch any download triggered by the <a download> click so it doesn't fail the test
-    page.on('download', (download) => download.cancel())
-
-    const [resp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/transcript-url') && r.status() === 200),
-      page.click('[data-action="download-transcript"]'),
-    ])
-    const body = await resp.json()
+    // Assert response shape directly (CDP body access in-page is unreliable when click triggers a download)
+    const directResp = await page.request.get(`/api/meetings/${target.meetingId}/transcript-url`)
+    expect(directResp.status()).toBe(200)
+    const body = await directResp.json()
     expect(body).toHaveProperty('url')
     expect(body).toHaveProperty('expiresIn', 900)
     expect(typeof body.url).toBe('string')
     expect(body.url).toMatch(/^https?:\/\//)
+
+    // Then verify the UI button actually triggers the endpoint
+    await page.goto(`/meeting.html?id=${target.meetingId}`)
+    await page.waitForLoadState('networkidle')
+
+    page.on('download', (download) => download.cancel())
+
+    const [clickResp] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/transcript-url') && r.status() === 200),
+      page.click('[data-action="download-transcript"]'),
+    ])
+    expect(clickResp.status()).toBe(200)
 
     await page.screenshot({ path: 'e2e/screenshots/meeting-download-clicked.png' })
   })
