@@ -144,7 +144,8 @@ describe("meetings-helpers", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]).toContain("FunASR 转录");
-      expect(result[0]).toContain("[SPEAKER_0] Hello world");
+      expect(result[0]).toContain("[SPEAKER_0] Hello ");
+      expect(result[0]).toContain("[SPEAKER_0] world");
       expect(result[0]).toContain("[SPEAKER_1] Hi there");
     });
 

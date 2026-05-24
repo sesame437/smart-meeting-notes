@@ -3,6 +3,7 @@ const multer = require("multer");
 const { getFile } = require("../../services/s3");
 const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
+const { buildPlainTranscript } = require("../../services/funasr-transcript");
 
 const TABLE = process.env.DYNAMODB_TABLE;
 const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || "meeting-minutes-glossary";
@@ -87,25 +88,9 @@ async function readTranscriptParts(item) {
       }
       const raw = Buffer.concat(chunks).toString("utf-8");
       const data = JSON.parse(raw);
-      if (data.segments && data.segments.length > 0) {
-        const lines = [];
-        let currentSpeaker = null;
-        let currentText = "";
-        for (const seg of data.segments) {
-          const spk = typeof seg.speaker === "number" ? `SPEAKER_${seg.speaker}` : (seg.speaker || "SPEAKER_0");
-          if (spk !== currentSpeaker) {
-            if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
-            currentSpeaker = spk;
-            currentText = seg.text || "";
-          } else {
-            currentText += seg.text || "";
-          }
-        }
-        if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
-        const funasrText = lines.join("\n").slice(0, 350000);
-        transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${funasrText}`);
-      } else if (data.text) {
-        transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${data.text}`);
+      const text = buildPlainTranscript(data).slice(0, 350000);
+      if (text) {
+        transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${text}`);
       }
     } catch (err) {
       logger.warn("meetings-route", "read-funasrKey-failed", { error: err.message });
