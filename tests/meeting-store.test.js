@@ -54,6 +54,39 @@ describe("meeting-store", () => {
 
       await expect(listMeetings()).rejects.toThrow("DynamoDB error")
     })
+
+    it("should follow pagination when LastEvaluatedKey is present", async () => {
+      // For status=completed: first page has LastEvaluatedKey, second page has the newest item.
+      // Without pagination handling, the second-page item is dropped entirely.
+      const page1Item = { meetingId: "page1-old", createdAt: "2026-05-01T00:00:00.000Z", status: "completed" }
+      const page2Item = { meetingId: "page2-new", createdAt: "2026-05-29T00:00:00.000Z", status: "completed" }
+      docClient.send.mockImplementation((cmd) => {
+        const status = cmd.input.ExpressionAttributeValues[":s"]
+        const hasStartKey = !!cmd.input.ExclusiveStartKey
+        if (status !== "completed") return Promise.resolve({ Items: [] })
+        if (!hasStartKey) {
+          return Promise.resolve({ Items: [page1Item], LastEvaluatedKey: { meetingId: "page1-old" } })
+        }
+        return Promise.resolve({ Items: [page2Item] })
+      })
+
+      const result = await listMeetings()
+
+      const ids = result.map(i => i.meetingId)
+      expect(ids).toContain("page1-old")
+      expect(ids).toContain("page2-new")
+    })
+
+    it("should include 'uploaded' status in queried statuses", async () => {
+      docClient.send.mockResolvedValue({ Items: [] })
+
+      await listMeetings()
+
+      const queriedStatuses = docClient.send.mock.calls.map(
+        ([cmd]) => cmd.input.ExpressionAttributeValues[":s"],
+      )
+      expect(queriedStatuses).toContain("uploaded")
+    })
   })
 
   describe("createMeeting", () => {

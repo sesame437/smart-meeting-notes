@@ -11,18 +11,26 @@ const TABLE = process.env.DYNAMODB_TABLE;
 const GLOSSARY_TABLE = process.env.GLOSSARY_TABLE || process.env.DYNAMODB_TABLE;
 
 async function listMeetings() {
-  const statuses = ["pending", "processing", "transcribed", "reported", "completed", "failed", "created"];
-  const queries = statuses.map(status =>
-    docClient.send(new QueryCommand({
-      TableName: TABLE,
-      IndexName: "status-createdAt-index",
-      KeyConditionExpression: "#s = :s",
-      ExpressionAttributeNames: { "#s": "status" },
-      ExpressionAttributeValues: { ":s": status },
-    }))
-  );
-  const results = await Promise.all(queries);
-  const items = results.flatMap(r => r.Items || []);
+  const statuses = ["uploaded", "pending", "processing", "transcribed", "reported", "completed", "failed", "created"];
+  async function queryAllPages(status) {
+    const items = [];
+    let exclusiveStartKey;
+    do {
+      const resp = await docClient.send(new QueryCommand({
+        TableName: TABLE,
+        IndexName: "status-createdAt-index",
+        KeyConditionExpression: "#s = :s",
+        ExpressionAttributeNames: { "#s": "status" },
+        ExpressionAttributeValues: { ":s": status },
+        ...(exclusiveStartKey ? { ExclusiveStartKey: exclusiveStartKey } : {}),
+      }));
+      if (resp.Items) items.push(...resp.Items);
+      exclusiveStartKey = resp.LastEvaluatedKey;
+    } while (exclusiveStartKey);
+    return items;
+  }
+  const results = await Promise.all(statuses.map(queryAllPages));
+  const items = results.flat();
   const seen = new Set();
   const unique = items.filter(item => {
     const key = `${item.meetingId}#${item.createdAt}`;
