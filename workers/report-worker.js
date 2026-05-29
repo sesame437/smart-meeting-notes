@@ -167,11 +167,11 @@ async function getMeetingType(meetingId, createdAt, messageType) {
   }
 }
 
-async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, extraOpts = null, maxRetries = 3) {
+async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, extraOpts = null, speakerMap = null, maxRetries = 3) {
   let lastError;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, undefined, undefined, undefined, extraOpts);
+      const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, undefined, speakerMap, undefined, extraOpts);
       // Parse JSON response immediately (retry if parsing fails)
       const report = extractJsonFromLLMResponse(responseText);
       return report;
@@ -240,25 +240,28 @@ async function processMessage(message) {
   }
 
   try {
-    // Determine meeting type
+    // Determine meeting type and read speakerMap
     const meetingType = await getMeetingType(meetingId, createdAt, body.meetingType);
     logger.info("report-worker", "meeting-type-resolved", { meetingId, meetingType });
 
-    // Read interview subtype fields from DynamoDB (only for interview meetings)
+    // Read speakerMap + interview subtype fields from DynamoDB
     let extraOpts = null;
-    if (meetingType === "interview") {
-      const { Item: subItem } = await docClient.send(new GetCommand({
-        TableName: TABLE,
-        Key: { meetingId, createdAt },
-        ProjectionExpression: "interviewSubType, interviewLPs",
-      }));
-      if (subItem?.interviewSubType) {
-        extraOpts = {
-          interviewSubType: subItem.interviewSubType,
-          interviewLPs: subItem.interviewLPs || undefined,
-        };
-        logger.info("report-worker", "interview-subtype-resolved", { meetingId, ...extraOpts });
-      }
+    let speakerMap = null;
+    const { Item: metaItem } = await docClient.send(new GetCommand({
+      TableName: TABLE,
+      Key: { meetingId, createdAt },
+      ProjectionExpression: "speakerMap, interviewSubType, interviewLPs",
+    }));
+    if (metaItem?.speakerMap && Object.keys(metaItem.speakerMap).length > 0) {
+      speakerMap = metaItem.speakerMap;
+      logger.info("report-worker", "speaker-map-loaded", { meetingId, speakers: Object.keys(speakerMap).length });
+    }
+    if (meetingType === "interview" && metaItem?.interviewSubType) {
+      extraOpts = {
+        interviewSubType: metaItem.interviewSubType,
+        interviewLPs: metaItem.interviewLPs || undefined,
+      };
+      logger.info("report-worker", "interview-subtype-resolved", { meetingId, ...extraOpts });
     }
 
     // Read FunASR transcript (with speaker labels)
@@ -283,9 +286,9 @@ async function processMessage(message) {
     // Weekly meetings use chunked generation to avoid token-repetition hallucination
     let report;
     if (meetingType === "weekly") {
-      report = await generateReportChunked(finalTranscript, meetingType, filteredItems);
+      report = await generateReportChunked(finalTranscript, meetingType, filteredItems, speakerMap);
     } else {
-      report = await invokeModelWithRetry(finalTranscript, meetingType, filteredItems, extraOpts);
+      report = await invokeModelWithRetry(finalTranscript, meetingType, filteredItems, extraOpts, speakerMap);
     }
     report = normalizeAnonymousSpeakerReport(report);
     report = applyGlossaryToReport(report, glossaryItems);
