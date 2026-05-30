@@ -179,7 +179,7 @@ function fixProjectReviewOwners(projectReviews, transcriptText, speakerMap) {
     const finalOwner = ranked[0][0];
 
     for (const fu of (pr.followUps || [])) {
-      if (fu.owner && speakerNames.includes(fu.owner) && fu.owner !== finalOwner) {
+      if (!fu.owner || (speakerNames.includes(fu.owner) && fu.owner !== finalOwner)) {
         fu.owner = finalOwner;
       }
     }
