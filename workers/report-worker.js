@@ -107,7 +107,7 @@ async function streamToString(stream) {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
-async function readFunASRResult(funasrKey) {
+async function readFunASRResult(funasrKey, speakerMap = null) {
   if (!funasrKey) return null;
   try {
     const stream = await getFile(funasrKey);
@@ -125,12 +125,14 @@ async function readFunASRResult(funasrKey) {
         });
       }
 
-      // Format with speaker labels
+      // Format with speaker labels (use real names if speakerMap available)
+      const nameMap = speakerMap && Object.keys(speakerMap).length > 0 ? speakerMap : {};
       const lines = [];
       let currentSpeaker = null;
       let currentText = "";
       for (const seg of prunedSegments) {
-        const spk = typeof seg.speaker === "number" ? `SPEAKER_${seg.speaker}` : (seg.speaker || "SPEAKER_0");
+        const rawSpk = typeof seg.speaker === "number" ? `SPEAKER_${seg.speaker}` : (seg.speaker || "SPEAKER_0");
+        const spk = nameMap[rawSpk] || rawSpk;
         if (spk !== currentSpeaker) {
           if (currentText) lines.push(`[${currentSpeaker}] ${currentText.trim()}`);
           currentSpeaker = spk;
@@ -264,8 +266,8 @@ async function processMessage(message) {
       logger.info("report-worker", "interview-subtype-resolved", { meetingId, ...extraOpts });
     }
 
-    // Read FunASR transcript (with speaker labels)
-    const funasrText = await readFunASRResult(body.funasrKey);
+    // Read FunASR transcript (with speaker labels replaced by real names)
+    const funasrText = await readFunASRResult(body.funasrKey, speakerMap);
 
     if (!funasrText) {
       throw new Error("FunASR transcription not available");

@@ -269,6 +269,10 @@ function register(router) {
           report, nameMap, item.speakerAliases || {}, (item.content && item.content.speakerRoster) || [], glossaryItems
         );
         report = result.report;
+        if (meetingType === "weekly" && report.projectReviews) {
+          const { fixProjectReviewOwners } = require("../../services/report-chunked");
+          report.projectReviews = fixProjectReviewOwners(report.projectReviews, transcriptText, speakerMap);
+        }
       }
 
       const reportKey = `reports/${req.params.id}/report.json`;

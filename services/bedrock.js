@@ -15,7 +15,7 @@ function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speak
   if (speakerMap && Object.keys(speakerMap).length > 0) {
     const mapping = Object.entries(speakerMap).map(([k, v]) => `${k}: ${v}`).join(", ");
     const nameList = [...new Set(Object.values(speakerMap))].join("、");
-    speakerNote = `参会人真实姓名映射：{${mapping}}\n请使用真实姓名，严禁匿名代号。只允许使用：${nameList}。\n\n`;
+    speakerNote = `参会人真实姓名映射：{${mapping}}\n请使用真实姓名，严禁匿名代号。只允许使用：${nameList}。\n【owner/负责人归属铁律】：每个项目/议题的 owner 必须是转录中实际汇报该项目的说话人（即 [SPEAKER_X] 标签对应的真实姓名）。判断依据是"谁在讲这个项目的内容"，而非"项目讨论中提到了谁的名字"。严禁将主持人/提问者错误归为项目 owner。\n\n`;
   } else if (transcriptText.includes("[SPEAKER_")) {
     speakerNote = `转录含说话人标签 [SPEAKER_X]。owner/负责人字段规则：优先填写转录中明确提到的真实人名，无法确定时填 SPEAKER_X，禁止留空。participants 以 SPEAKER_X 为标识。speakerKeypoints 以 SPEAKER_X 为 key。\n\n`;
   } else {

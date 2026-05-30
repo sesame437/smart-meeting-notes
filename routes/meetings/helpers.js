@@ -88,7 +88,8 @@ async function readTranscriptParts(item) {
       }
       const raw = Buffer.concat(chunks).toString("utf-8");
       const data = JSON.parse(raw);
-      const text = buildPlainTranscript(data).slice(0, 350000);
+      const speakerMap = item.speakerMap || {};
+      const text = buildPlainTranscript(data, speakerMap).slice(0, 350000);
       if (text) {
         transcriptParts.push(`[FunASR 转录（含说话人标签）]\n${text}`);
       }
