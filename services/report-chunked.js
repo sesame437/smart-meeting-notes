@@ -122,17 +122,22 @@ async function invokePhase(phaseName, prompt, maxRetries = 2) {
  */
 function fixProjectReviewOwners(projectReviews, transcriptText, speakerMap) {
   if (!projectReviews || projectReviews.length === 0) return projectReviews;
+  if (!speakerMap || Object.keys(speakerMap).length === 0) return projectReviews;
 
   const lines = transcriptText.split("\n");
-  const speakerNames = speakerMap ? [...new Set(Object.values(speakerMap))] : [];
+  const speakerNames = [...new Set(Object.values(speakerMap).filter(Boolean))];
   const speakerPattern = /^\[([^\]]+)\]\s/;
 
-  // Build speaker index: for each line, who is speaking
+  // Build speaker index: normalize labels to real names via speakerMap
+  // Handles both [SPEAKER_X] and [realName] transcript formats
   const lineSpeakers = [];
   let curSpeaker = null;
   for (const line of lines) {
     const m = line.match(speakerPattern);
-    if (m) curSpeaker = m[1];
+    if (m) {
+      const label = m[1];
+      curSpeaker = speakerMap[label] || (speakerNames.includes(label) ? label : null);
+    }
     lineSpeakers.push(curSpeaker);
   }
 
@@ -142,41 +147,36 @@ function fixProjectReviewOwners(projectReviews, transcriptText, speakerMap) {
     const mainName = projectName.split(/[\s]*[-—][\s]*/)[0].trim();
     if (mainName.length < 2) continue;
 
-    // Build search terms: full name + progressive prefixes (min 2 chars)
-    const searchTerms = [mainName.toLowerCase()];
-    for (let len = Math.max(2, mainName.length - 1); len >= 2; len--) {
-      searchTerms.push(mainName.slice(0, len).toLowerCase());
-    }
+    // Build search terms from main name + any parenthesized alternate names
+    // e.g. "医渡云（易度科技）" → search for prefixes of both "医渡云" and "易度科技"
+    const nameParts = [mainName.replace(/[（(].+[）)]/, "").trim()];
+    const parenMatch = mainName.match(/[（(]([^）)]+)[）)]/);
+    if (parenMatch) nameParts.push(parenMatch[1].trim());
 
-    // Find first line that matches any search term
-    let firstMatchIdx = -1;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].toLowerCase();
-      if (searchTerms.some(term => line.includes(term))) {
-        firstMatchIdx = i;
-        break;
+    const searchTerms = [];
+    for (const part of nameParts) {
+      if (part.length < 2) continue;
+      searchTerms.push(part.toLowerCase());
+      for (let len = Math.max(2, part.length - 1); len >= 2; len--) {
+        searchTerms.push(part.slice(0, len).toLowerCase());
       }
     }
-    if (firstMatchIdx === -1) continue;
 
-    // The speaker at the first mention line is the project presenter
-    const presenter = lineSpeakers[firstMatchIdx];
-    if (!presenter || !speakerNames.includes(presenter)) continue;
-
-    // Verify: count chars in a small window (first mention ± 10 lines) to confirm dominance
-    const windowStart = Math.max(0, firstMatchIdx - 2);
-    const windowEnd = Math.min(lines.length - 1, firstMatchIdx + 15);
-    const speakerChars = {};
-    for (let i = windowStart; i <= windowEnd; i++) {
+    // Find ALL lines mentioning this project and count by speaker.
+    // The speaker who mentions it most is the actual presenter —
+    // handles cases where moderator introduces or another speaker mentions it in passing.
+    const mentionCounts = {};
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].toLowerCase();
+      if (!searchTerms.some(term => line.includes(term))) continue;
       const spk = lineSpeakers[i];
-      if (!spk) continue;
-      const textLen = lines[i].replace(speakerPattern, "").length;
-      speakerChars[spk] = (speakerChars[spk] || 0) + textLen;
+      if (spk && speakerNames.includes(spk)) {
+        mentionCounts[spk] = (mentionCounts[spk] || 0) + 1;
+      }
     }
-    const sorted = Object.entries(speakerChars).sort((a, b) => b[1] - a[1]);
-    // Use dominant speaker if different from first-mention speaker but close in char count
-    const dominantSpeaker = sorted.length > 0 ? sorted[0][0] : presenter;
-    const finalOwner = speakerNames.includes(dominantSpeaker) ? dominantSpeaker : presenter;
+    const ranked = Object.entries(mentionCounts).sort((a, b) => b[1] - a[1]);
+    if (ranked.length === 0) continue;
+    const finalOwner = ranked[0][0];
 
     for (const fu of (pr.followUps || [])) {
       if (fu.owner && speakerNames.includes(fu.owner) && fu.owner !== finalOwner) {
