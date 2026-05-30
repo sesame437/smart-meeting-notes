@@ -112,8 +112,8 @@ function register(router) {
         title: `合并报告 — ${new Date().toLocaleDateString("zh-CN")}`,
         parentIds,
         customPrompt: customPrompt || "",
-        status: "reported",
-        stage: "exporting",
+        status: "completed",
+        stage: "done",
         content: report,
         reportKey: reportKey,
         createdAt: now,
@@ -286,7 +286,7 @@ function register(router) {
         {
           ":c": report,
           ":rk": reportKey,
-          ":s": "reported",
+          ":s": "completed",
           ":stage": "done",
           ":u": new Date().toISOString(),
         }
