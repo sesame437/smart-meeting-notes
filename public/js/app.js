@@ -1014,6 +1014,9 @@ function renderMeetingDetail(m) {
           <button class="btn action-primary-btn btn-sm" data-action="download-transcript" data-id="${escapeAttr(m.meetingId)}" ${m.funasrKey ? "" : "disabled title=\"转录尚未完成\""}>
             <i class="fa fa-download"></i> 下载转录
           </button>
+          <button class="btn action-primary-btn btn-sm" data-action="export-markdown" data-id="${escapeAttr(m.meetingId)}">
+            <i class="fa fa-file-text-o"></i> 导出 MD
+          </button>
         </div>
       </div>
       <div class="detail-title-row" style="display:flex;align-items:center;gap:10px;">
@@ -2254,6 +2257,66 @@ function exportGlossary() {
   URL.revokeObjectURL(url)
 }
 
+function exportMarkdown() {
+  if (!_currentReport) return Toast.error("报告数据未加载")
+  const report = _currentReport
+  const title = (document.getElementById("detail-title-display") || {}).textContent || "会议纪要"
+  const participants = (report.participants || []).join("、")
+  const lines = []
+  lines.push("# " + title)
+  lines.push("")
+  if (participants) lines.push("**参会人：** " + participants)
+  lines.push("")
+  if (report.summary) {
+    lines.push("## 摘要")
+    lines.push("")
+    lines.push(report.summary)
+    lines.push("")
+  }
+  if (report.projectReviews && report.projectReviews.length) {
+    lines.push("## 项目进展")
+    lines.push("")
+    report.projectReviews.forEach(function(pr) {
+      lines.push("### " + (pr.project || "未命名项目"))
+      lines.push("")
+      if (pr.progress) { lines.push("**进展：** " + pr.progress); lines.push("") }
+      if (pr.followUps && pr.followUps.length) {
+        lines.push("**跟进事项：**")
+        pr.followUps.forEach(function(f) {
+          var meta = [f.owner, f.deadline].filter(Boolean).join("，")
+          lines.push("- [ ] " + f.task + (meta ? "（" + meta + "）" : ""))
+        })
+        lines.push("")
+      }
+      if (pr.risks && pr.risks.length) {
+        lines.push("**风险：**")
+        pr.risks.forEach(function(r) {
+          lines.push("- " + r.risk + (r.mitigation ? " — " + r.mitigation : ""))
+        })
+        lines.push("")
+      }
+    })
+  }
+  if (report.actions && report.actions.length) {
+    lines.push("## 行动项")
+    lines.push("")
+    lines.push("| 任务 | 负责人 | 截止 | 优先级 |")
+    lines.push("|------|--------|------|--------|")
+    report.actions.forEach(function(a) {
+      lines.push("| " + (a.task || "") + " | " + (a.owner || "") + " | " + (a.deadline || "") + " | " + (a.priority || "") + " |")
+    })
+    lines.push("")
+  }
+  var md = lines.join("\n")
+  var blob = new Blob([md], { type: "text/markdown;charset=utf-8" })
+  var url = URL.createObjectURL(blob)
+  var a = document.createElement("a")
+  a.href = url
+  a.download = title.replace(/[/\\:*?"<>|]/g, "_") + ".md"
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 /* ===== Inline Report Section Editing ===== */
 let _currentReport = null;
 let _currentMeetingId = null;
@@ -3426,6 +3489,7 @@ document.addEventListener("click", function(e) {
     case "regenerate-report":  regenerateReport(id); break;
     case "send-email":         sendEmail(id); break;
     case "download-transcript": downloadTranscript(id); break;
+    case "export-markdown":    exportMarkdown(); break;
     case "edit-term":          editTerm(id); break;
     case "delete-term":        deleteTerm(id); break;
     case "export-glossary":    exportGlossary(); break;
