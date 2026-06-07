@@ -2204,9 +2204,17 @@ function closeModal() {
 
 function initOwnerAutocomplete() {
   document.querySelectorAll(".owner-input").forEach(function(input) {
+    var sugBox = input.parentElement.querySelector(".name-suggestions")
+    if (!sugBox) return
+    sugBox.addEventListener("mousedown", function(e) {
+      var item = e.target.closest(".suggestion-item")
+      if (!item) return
+      e.preventDefault()
+      input.value = item.dataset.name || ""
+      sugBox.style.display = "none"
+      sugBox.innerHTML = ""
+    })
     input.addEventListener("input", function() {
-      var sugBox = input.parentElement.querySelector(".name-suggestions")
-      if (!sugBox) return
       var val = input.value.trim().toLowerCase()
       if (!val) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return }
       getCachedGlossaryTerms().then(function(terms) {
@@ -2224,21 +2232,8 @@ function initOwnerAutocomplete() {
       }).catch(function() { sugBox.style.display = "none" })
     })
     input.addEventListener("blur", function() {
-      setTimeout(function() {
-        var sugBox = input.parentElement.querySelector(".name-suggestions")
-        if (sugBox) { sugBox.style.display = "none" }
-      }, 200)
+      setTimeout(function() { sugBox.style.display = "none" }, 150)
     })
-  })
-  document.addEventListener("click", function(e) {
-    if (!e.target.classList.contains("suggestion-item")) return
-    var name = e.target.dataset.name || ""
-    var wrap = e.target.closest(".form-group")
-    if (!wrap) return
-    var inp = wrap.querySelector(".owner-input")
-    if (inp) inp.value = name
-    var sugBox = wrap.querySelector(".name-suggestions")
-    if (sugBox) { sugBox.style.display = "none"; sugBox.innerHTML = "" }
   })
 }
 
@@ -3401,14 +3396,14 @@ document.addEventListener("mousedown", function(e) {
 
 // Close all suggestion dropdowns when clicking outside
 document.addEventListener("click", function(e) {
-  if (!e.target.closest(".participant-search-wrap")) {
+  if (!e.target.closest(".participant-search-wrap") && !e.target.closest(".form-group")) {
     document.querySelectorAll(".name-suggestions").forEach(function(el) {
       el.style.display = "none";
       el.innerHTML = "";
     });
   }
-  // Handle suggestion item click via event delegation
-  if (e.target.classList.contains("suggestion-item")) {
+  // Handle suggestion item click via event delegation (participant search only)
+  if (e.target.classList.contains("suggestion-item") && e.target.closest(".participant-search-wrap")) {
     applyParticipantSuggestion(e.target);
     return;
   }
