@@ -2204,16 +2204,11 @@ function closeModal() {
 
 function initOwnerAutocomplete() {
   document.querySelectorAll(".owner-input").forEach(function(input) {
-    var sugBox = input.parentElement.querySelector(".name-suggestions")
+    var wrap = input.parentElement
+    wrap.classList.add("participant-search-wrap")
+    input.classList.add("participant-search-input")
+    var sugBox = wrap.querySelector(".name-suggestions")
     if (!sugBox) return
-    sugBox.addEventListener("mousedown", function(e) {
-      var item = e.target.closest(".suggestion-item")
-      if (!item) return
-      e.preventDefault()
-      input.value = item.dataset.name || ""
-      sugBox.style.display = "none"
-      sugBox.innerHTML = ""
-    })
     input.addEventListener("input", function() {
       var val = input.value.trim().toLowerCase()
       if (!val) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return }
@@ -2230,9 +2225,6 @@ function initOwnerAutocomplete() {
         }).join("")
         sugBox.style.display = "block"
       }).catch(function() { sugBox.style.display = "none" })
-    })
-    input.addEventListener("blur", function() {
-      setTimeout(function() { sugBox.style.display = "none" }, 150)
     })
   })
 }
@@ -3396,16 +3388,11 @@ document.addEventListener("mousedown", function(e) {
 
 // Close all suggestion dropdowns when clicking outside
 document.addEventListener("click", function(e) {
-  if (!e.target.closest(".participant-search-wrap") && !e.target.closest(".form-group")) {
+  if (!e.target.closest(".participant-search-wrap")) {
     document.querySelectorAll(".name-suggestions").forEach(function(el) {
       el.style.display = "none";
       el.innerHTML = "";
     });
-  }
-  // Handle suggestion item click via event delegation (participant search only)
-  if (e.target.classList.contains("suggestion-item") && e.target.closest(".participant-search-wrap")) {
-    applyParticipantSuggestion(e.target);
-    return;
   }
 });
 
