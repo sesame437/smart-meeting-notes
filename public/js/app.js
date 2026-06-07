@@ -2197,6 +2197,27 @@ function closeModal() {
   if (overlay) overlay.classList.remove("show");
 }
 
+function exportGlossary() {
+  if (!glossaryData.length) return Toast.error("词库为空，无法导出")
+  const exported = glossaryData
+    .map(item => ({
+      term: item.term,
+      definition: item.definition || "",
+      category: item.category,
+      aliases: Array.isArray(item.aliases)
+        ? item.aliases
+        : item.aliases ? item.aliases.split(/[,，]/).map(s => s.trim()).filter(Boolean) : [],
+    }))
+    .sort((a, b) => a.category.localeCompare(b.category) || a.term.localeCompare(b.term))
+  const blob = new Blob([JSON.stringify(exported, null, 2)], { type: "application/json" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "glossary-export.json"
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 /* ===== Inline Report Section Editing ===== */
 let _currentReport = null;
 let _currentMeetingId = null;
@@ -3376,6 +3397,7 @@ document.addEventListener("click", function(e) {
     case "download-transcript": downloadTranscript(id); break;
     case "edit-term":          editTerm(id); break;
     case "delete-term":        deleteTerm(id); break;
+    case "export-glossary":    exportGlossary(); break;
     case "open-merge-modal":   openMergeModal(); break;
     case "close-merge-modal":  closeMergeModal(); break;
     case "submit-merge":       submitMerge(); break;
