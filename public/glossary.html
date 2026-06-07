@@ -60,9 +60,15 @@
             <option value="组织">组织（公司/团队）</option>
           </select>
         </div>
-        <div class="form-group">
-          <label for="add-definition">释义</label>
-          <textarea class="form-control" id="add-definition" name="definition" placeholder="背景说明、上下文..."></textarea>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="add-definition">释义</label>
+            <textarea class="form-control" id="add-definition" name="definition" placeholder="背景说明、上下文..."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="add-owner">负责SA</label>
+            <input type="text" class="form-control" id="add-owner" name="owner" placeholder="如：冯源（自动归属 followUp owner）">
+          </div>
         </div>
         <button type="submit" class="btn action-primary-btn"><i class="fa fa-plus"></i> 添加术语</button>
       </form>
@@ -88,11 +94,12 @@
               <th style="width:80px;">分类</th>
               <th>别名</th>
               <th>释义</th>
+              <th style="width:72px;">负责SA</th>
               <th style="width:72px;"></th>
             </tr>
           </thead>
           <tbody id="glossary-tbody">
-            <tr><td colspan="5" class="loading">加载中...</td></tr>
+            <tr><td colspan="6" class="loading">加载中...</td></tr>
           </tbody>
         </table>
       </div>
@@ -124,6 +131,10 @@
         <div class="form-group">
           <label for="edit-definition">释义</label>
           <textarea class="form-control" id="edit-definition"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="edit-owner">负责SA</label>
+          <input type="text" class="form-control" id="edit-owner" placeholder="负责该账号的SA姓名">
         </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-action="close-modal">取消</button>

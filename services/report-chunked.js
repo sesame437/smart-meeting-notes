@@ -116,11 +116,12 @@ async function invokePhase(phaseName, prompt, maxRetries = 2) {
 }
 
 /**
- * Deterministically fix projectReview owners by scanning transcript for who actually spoke about each project.
- * Strategy: find the line where the project/company name is first mentioned, look at who is speaking
- * in that continuous block (same speaker before/after that line).
+ * Deterministically fix projectReview owners using layered strategies:
+ * 1. Glossary lookup: if a glossary entry for the project/company has an `owner` field, use it directly (zero inference).
+ * 2. First non-moderator mention: find the first transcript line where a non-moderator speaker mentions the project name.
+ * 3. Keep Bedrock's original owner if it's a valid non-moderator participant (last resort).
  */
-function fixProjectReviewOwners(projectReviews, transcriptText, speakerMap) {
+function fixProjectReviewOwners(projectReviews, transcriptText, speakerMap, glossaryTerms = []) {
   if (!projectReviews || projectReviews.length === 0) return projectReviews;
   if (!speakerMap || Object.keys(speakerMap).length === 0) return projectReviews;
 
@@ -128,58 +129,98 @@ function fixProjectReviewOwners(projectReviews, transcriptText, speakerMap) {
   const speakerNames = [...new Set(Object.values(speakerMap).filter(Boolean))];
   const speakerPattern = /^\[([^\]]+)\]\s/;
 
-  // Build speaker index: normalize labels to real names via speakerMap
-  // Handles both [SPEAKER_X] and [realName] transcript formats
+  // Build per-line speaker index
   const lineSpeakers = [];
-  let curSpeaker = null;
   for (const line of lines) {
     const m = line.match(speakerPattern);
     if (m) {
       const label = m[1];
-      curSpeaker = speakerMap[label] || (speakerNames.includes(label) ? label : null);
+      lineSpeakers.push(speakerMap[label] || (speakerNames.includes(label) ? label : null));
+    } else {
+      lineSpeakers.push(lineSpeakers.length > 0 ? lineSpeakers[lineSpeakers.length - 1] : null);
     }
-    lineSpeakers.push(curSpeaker);
+  }
+
+  // Detect moderator: speaker with most total lines
+  const totalLineCounts = {};
+  for (const spk of lineSpeakers) {
+    if (spk) totalLineCounts[spk] = (totalLineCounts[spk] || 0) + 1;
+  }
+  const sorted = Object.entries(totalLineCounts).sort((a, b) => b[1] - a[1]);
+  const moderator = sorted.length > 0 ? sorted[0][0] : null;
+
+  // Build glossary owner lookup: project/company name (+ aliases) → owner
+  const glossaryOwnerMap = {};
+  for (const item of glossaryTerms) {
+    if (!item.owner) continue;
+    const allNames = [item.term];
+    if (Array.isArray(item.aliases)) {
+      allNames.push(...item.aliases);
+    } else if (typeof item.aliases === "string" && item.aliases) {
+      allNames.push(...item.aliases.split(/[,，]/).map(s => s.trim()));
+    }
+    for (const name of allNames.filter(Boolean)) {
+      glossaryOwnerMap[name.toLowerCase()] = item.owner;
+    }
   }
 
   for (const pr of projectReviews) {
     const projectName = pr.project || "";
-    // Extract company/product name (first part before dash)
-    const mainName = projectName.split(/[\s]*[-—][\s]*/)[0].trim();
+    const mainName = projectName.split(/[\s]*[-—（(]/)[0].trim();
     if (mainName.length < 2) continue;
 
-    // Build search terms from main name + any parenthesized alternate names
-    // e.g. "医渡云（易度科技）" → search for prefixes of both "医渡云" and "易度科技"
-    const nameParts = [mainName.replace(/[（(].+[）)]/, "").trim()];
-    const parenMatch = mainName.match(/[（(]([^）)]+)[）)]/);
-    if (parenMatch) nameParts.push(parenMatch[1].trim());
-
-    const searchTerms = [];
-    for (const part of nameParts) {
-      if (part.length < 2) continue;
-      searchTerms.push(part.toLowerCase());
-      for (let len = Math.max(2, part.length - 1); len >= 2; len--) {
-        searchTerms.push(part.slice(0, len).toLowerCase());
+    // Build search keys from project name (full + short prefix for fuzzy matching)
+    const searchKeys = [mainName.toLowerCase()];
+    const parenMatch = projectName.match(/[（(]([^）)]+)[）)]/);
+    if (parenMatch) searchKeys.push(parenMatch[1].trim().toLowerCase());
+    // Add short prefixes (2 and 4 chars) to handle verbose project names like "国创气象预测项目"
+    if (mainName.length > 2) {
+      for (const len of [2, 4]) {
+        if (mainName.length <= len) continue;
+        const prefix = mainName.slice(0, len).toLowerCase();
+        if (!searchKeys.includes(prefix)) searchKeys.push(prefix);
       }
     }
 
-    // Find ALL lines mentioning this project and count by speaker.
-    // The speaker who mentions it most is the actual presenter —
-    // handles cases where moderator introduces or another speaker mentions it in passing.
-    const mentionCounts = {};
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].toLowerCase();
-      if (!searchTerms.some(term => line.includes(term))) continue;
-      const spk = lineSpeakers[i];
-      if (spk && speakerNames.includes(spk)) {
-        mentionCounts[spk] = (mentionCounts[spk] || 0) + 1;
+    // Strategy 1: glossary owner lookup (highest confidence)
+    let finalOwner = null;
+    for (const key of searchKeys) {
+      if (glossaryOwnerMap[key]) { finalOwner = glossaryOwnerMap[key]; break; }
+    }
+    // Also try partial match: glossary term contained in project name or vice versa
+    if (!finalOwner) {
+      for (const [gKey, gOwner] of Object.entries(glossaryOwnerMap)) {
+        if (searchKeys.some(sk => sk.includes(gKey) || gKey.includes(sk))) {
+          finalOwner = gOwner;
+          break;
+        }
       }
     }
-    const ranked = Object.entries(mentionCounts).sort((a, b) => b[1] - a[1]);
-    if (ranked.length === 0) continue;
-    const finalOwner = ranked[0][0];
 
+    // Strategy 2: first non-moderator transcript line mentioning project name
+    if (!finalOwner) {
+      for (let i = 0; i < lines.length; i++) {
+        if (lineSpeakers[i] === moderator) continue;
+        const lower = lines[i].toLowerCase();
+        if (searchKeys.some(term => lower.includes(term))) {
+          finalOwner = lineSpeakers[i];
+          break;
+        }
+      }
+    }
+
+    // Strategy 3: keep Bedrock's original if it's a valid non-moderator participant
+    if (!finalOwner) {
+      const existingOwners = (pr.followUps || []).map(f => f.owner).filter(Boolean);
+      const validOwner = existingOwners.find(o => o !== moderator && speakerNames.includes(o));
+      if (validOwner) finalOwner = validOwner;
+    }
+
+    if (!finalOwner) continue;
+
+    // Apply owner to all followUps
     for (const fu of (pr.followUps || [])) {
-      if (!fu.owner || (speakerNames.includes(fu.owner) && fu.owner !== finalOwner)) {
+      if (!fu.owner || fu.owner === moderator || speakerNames.includes(fu.owner)) {
         fu.owner = finalOwner;
       }
     }
@@ -203,7 +244,7 @@ async function generateReportChunked(transcriptText, meetingType, glossaryTerms 
 
   let phase2 = await invokePhase("phase2-projects", buildPhase2Prompt(transcriptText, glossaryTerms, speakerMap));
   if (speakerMap && phase2.projectReviews) {
-    phase2.projectReviews = fixProjectReviewOwners(phase2.projectReviews, transcriptText, speakerMap);
+    phase2.projectReviews = fixProjectReviewOwners(phase2.projectReviews, transcriptText, speakerMap, glossaryTerms);
   }
   logger.info("report-chunked", "phase2-done", {
     projectReviews: phase2.projectReviews?.length || 0,

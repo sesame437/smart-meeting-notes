@@ -12,6 +12,7 @@ const glossarySchema = z.object({
   definition: z.string().max(500).optional().default(""),
   category: z.string().max(50).optional(),
   aliases: z.union([z.array(z.string()), z.string()]).optional(),
+  owner: z.string().max(100).optional(),
 });
 
 const glossaryUpdateSchema = z.object({
@@ -19,6 +20,7 @@ const glossaryUpdateSchema = z.object({
   definition: z.string().max(500).optional(),
   category: z.string().max(50).optional(),
   aliases: z.union([z.array(z.string()), z.string()]).optional(),
+  owner: z.string().max(100).optional(),
 });
 
 // Param validation middleware: id must be non-empty, max 100 chars
@@ -60,7 +62,7 @@ router.post("/", async (req, res, next) => {
       });
     }
 
-    const { term, definition, category, aliases } = parseResult.data;
+    const { term, definition, category, aliases, owner } = parseResult.data;
     const item = {
       termId: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
@@ -69,6 +71,7 @@ router.post("/", async (req, res, next) => {
     };
     item.category = category || inferGlossaryCategory(term);
     if (aliases !== undefined) item.aliases = aliases;
+    if (owner !== undefined) item.owner = owner;
     await glossaryStore.createGlossaryItem(item);
     res.status(201).json(item);
   } catch (err) {
@@ -91,7 +94,7 @@ router.put("/:id", async (req, res, next) => {
       });
     }
 
-    const { term, definition, category, aliases } = parseResult.data;
+    const { term, definition, category, aliases, owner } = parseResult.data;
     const expressions = [];
     const names = {};
     const values = {};
@@ -120,6 +123,11 @@ router.put("/:id", async (req, res, next) => {
       expressions.push("#a = :a");
       names["#a"] = "aliases";
       values[":a"] = aliases;
+    }
+    if (owner !== undefined) {
+      expressions.push("#o = :o");
+      names["#o"] = "owner";
+      values[":o"] = owner;
     }
 
     expressions.push("updatedAt = :u");

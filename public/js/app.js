@@ -2084,19 +2084,21 @@ function renderCategoryBadge(cat) {
 function renderGlossary(terms) {
   const tbody = document.getElementById("glossary-tbody");
   if (!terms || terms.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><i class="fa fa-book"></i>&nbsp;暂无术语</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><i class="fa fa-book"></i>&nbsp;暂无术语</td></tr>';
     return;
   }
   tbody.innerHTML = terms.map(t => {
     const term       = escapeHtml(t.term       || "");
     const aliases    = escapeHtml(t.aliases    || "");
     const definition = escapeHtml(t.definition || "");
+    const owner      = escapeHtml(t.owner      || "");
     const badge      = renderCategoryBadge(t.category);
     return `<tr>
       <td><strong>${term}</strong></td>
       <td>${badge}</td>
       <td>${aliases}</td>
       <td>${definition}</td>
+      <td>${owner}</td>
       <td>
         <div class="btn-group">
           <div class="row-actions"><button class="btn btn-outline btn-sm" data-action="edit-term" data-id="${escapeAttr(t.termId)}"><i class="fa fa-pencil"></i></button>
@@ -2125,6 +2127,7 @@ async function addTerm(e) {
     aliases:    form.aliases.value.trim(),
     definition: form.definition.value.trim(),
     category:   form.category.value,
+    owner:      (form.owner ? form.owner.value.trim() : "") || undefined,
   };
   if (!data.term) { Toast.error("术语名不能为空"); return; }
 
@@ -2162,6 +2165,7 @@ function editTerm(id) {
   document.getElementById("edit-aliases").value    = term.aliases    || "";
   document.getElementById("edit-definition").value = term.definition || "";
   document.getElementById("edit-category").value   = term.category   || "人员";
+  document.getElementById("edit-owner").value      = term.owner      || "";
   overlay.dataset.termId = id;
   overlay.classList.add("show");
 }
@@ -2177,6 +2181,7 @@ async function saveEditTerm(e) {
     aliases:    document.getElementById("edit-aliases").value.trim(),
     definition: document.getElementById("edit-definition").value.trim(),
     category:   document.getElementById("edit-category").value,
+    owner:      document.getElementById("edit-owner").value.trim(),
   };
 
   setFormSubmitting(form, true, "保存中…");
@@ -2200,14 +2205,18 @@ function closeModal() {
 function exportGlossary() {
   if (!glossaryData.length) return Toast.error("词库为空，无法导出")
   const exported = glossaryData
-    .map(item => ({
-      term: item.term,
-      definition: item.definition || "",
-      category: item.category,
-      aliases: Array.isArray(item.aliases)
-        ? item.aliases
-        : item.aliases ? item.aliases.split(/[,，]/).map(s => s.trim()).filter(Boolean) : [],
-    }))
+    .map(item => {
+      const entry = {
+        term: item.term,
+        definition: item.definition || "",
+        category: item.category,
+        aliases: Array.isArray(item.aliases)
+          ? item.aliases
+          : item.aliases ? item.aliases.split(/[,，]/).map(s => s.trim()).filter(Boolean) : [],
+      }
+      if (item.owner) entry.owner = item.owner
+      return entry
+    })
     .sort((a, b) => a.category.localeCompare(b.category) || a.term.localeCompare(b.term))
   const blob = new Blob([JSON.stringify(exported, null, 2)], { type: "application/json" })
   const url = URL.createObjectURL(blob)
