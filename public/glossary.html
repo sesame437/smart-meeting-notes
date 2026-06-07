@@ -65,9 +65,10 @@
             <label for="add-definition">释义</label>
             <textarea class="form-control" id="add-definition" name="definition" placeholder="背景说明、上下文..."></textarea>
           </div>
-          <div class="form-group">
+          <div class="form-group" style="position:relative;">
             <label for="add-owner">负责SA</label>
-            <input type="text" class="form-control" id="add-owner" name="owner" placeholder="如：冯源（自动归属 followUp owner）">
+            <input type="text" class="form-control owner-input" id="add-owner" name="owner" placeholder="如：冯源" autocomplete="off">
+            <div class="name-suggestions" style="display:none;"></div>
           </div>
         </div>
         <button type="submit" class="btn action-primary-btn"><i class="fa fa-plus"></i> 添加术语</button>
@@ -132,9 +133,10 @@
           <label for="edit-definition">释义</label>
           <textarea class="form-control" id="edit-definition"></textarea>
         </div>
-        <div class="form-group">
+        <div class="form-group" style="position:relative;">
           <label for="edit-owner">负责SA</label>
-          <input type="text" class="form-control" id="edit-owner" placeholder="负责该账号的SA姓名">
+          <input type="text" class="form-control owner-input" id="edit-owner" placeholder="负责该账号的SA姓名" autocomplete="off">
+          <div class="name-suggestions" style="display:none;"></div>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-action="close-modal">取消</button>

@@ -2202,6 +2202,46 @@ function closeModal() {
   if (overlay) overlay.classList.remove("show");
 }
 
+function initOwnerAutocomplete() {
+  document.querySelectorAll(".owner-input").forEach(function(input) {
+    input.addEventListener("input", function() {
+      var sugBox = input.parentElement.querySelector(".name-suggestions")
+      if (!sugBox) return
+      var val = input.value.trim().toLowerCase()
+      if (!val) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return }
+      getCachedGlossaryTerms().then(function(terms) {
+        var people = terms.filter(function(t) { return t.category === "人员" })
+        var matches = people.filter(function(t) {
+          var term = (t.term || "").toLowerCase()
+          var aliases = (t.aliases || "").toLowerCase()
+          return term.indexOf(val) !== -1 || aliases.indexOf(val) !== -1
+        }).slice(0, 6)
+        if (!matches.length) { sugBox.style.display = "none"; sugBox.innerHTML = ""; return }
+        sugBox.innerHTML = matches.map(function(t) {
+          return '<div class="suggestion-item" data-name="' + escapeAttr(t.term) + '">' + escapeHtml(t.term) + '</div>'
+        }).join("")
+        sugBox.style.display = "block"
+      }).catch(function() { sugBox.style.display = "none" })
+    })
+    input.addEventListener("blur", function() {
+      setTimeout(function() {
+        var sugBox = input.parentElement.querySelector(".name-suggestions")
+        if (sugBox) { sugBox.style.display = "none" }
+      }, 200)
+    })
+  })
+  document.addEventListener("click", function(e) {
+    if (!e.target.classList.contains("suggestion-item")) return
+    var name = e.target.dataset.name || ""
+    var wrap = e.target.closest(".form-group")
+    if (!wrap) return
+    var inp = wrap.querySelector(".owner-input")
+    if (inp) inp.value = name
+    var sugBox = wrap.querySelector(".name-suggestions")
+    if (sugBox) { sugBox.style.display = "none"; sugBox.innerHTML = "" }
+  })
+}
+
 function exportGlossary() {
   if (!glossaryData.length) return Toast.error("词库为空，无法导出")
   const exported = glossaryData
@@ -3484,6 +3524,7 @@ document.addEventListener("DOMContentLoaded", function() {
   } else if (document.getElementById("glossary-tbody")) {
     // glossary.html
     fetchGlossary();
+    initOwnerAutocomplete();
     var addForm = document.getElementById("add-term-form");
     if (addForm) addForm.addEventListener("submit", addTerm);
     var editForm = document.getElementById("edit-term-form");
