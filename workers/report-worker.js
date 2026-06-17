@@ -2,13 +2,8 @@ require("dotenv").config();
 const { receiveMessages, deleteMessage } = require("../services/sqs");
 const { recordActivity } = require("../services/gpu-autoscale");
 const { getFile, uploadFile } = require("../services/s3");
-const { invokeModel } = require("../services/bedrock");
-const { extractJsonFromLLMResponse } = require("../services/report-builder");
-const { normalizeAnonymousSpeakerReport } = require("../services/report-speaker-normalizer");
-const { applyGlossaryToReport } = require("../services/report-post-processor");
-const { generateReportChunked } = require("../services/report-chunked");
-const { pruneNoiseSpeakers } = require("../services/speaker-pruner");
-const { filterGlossaryByMeetingType } = require("../services/glossary-filter");
+const { generateReport } = require("../services/report-pipeline");
+const { pruneNoiseSpeakers } = require("../services/speaker-resolution");
 const glossaryStore = require("../services/glossary-store");
 const logger = require("../services/logger");
 
@@ -169,54 +164,6 @@ async function getMeetingType(meetingId, createdAt, messageType) {
   }
 }
 
-async function invokeModelWithRetry(transcriptText, meetingType, glossaryTerms, extraOpts = null, speakerMap = null, maxRetries = 3) {
-  let lastError;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const responseText = await invokeModel(transcriptText, meetingType, glossaryTerms, undefined, speakerMap, undefined, extraOpts);
-      // Parse JSON response immediately (retry if parsing fails)
-      const report = extractJsonFromLLMResponse(responseText);
-      return report;
-    } catch (err) {
-      lastError = err;
-      const errorName = err.name || "";
-      const errorCode = err.Code || err.$metadata?.httpStatusCode || 0;
-      const errorMessage = err.message || "";
-
-      // Retryable errors: Throttling, ServiceUnavailable, JSON parse failures
-      const isRetryable =
-        errorName.includes("ThrottlingException") ||
-        errorName.includes("ServiceUnavailableException") ||
-        errorName === "AbortError" ||
-        errorName === "TimeoutError" ||
-        errorCode === 429 ||
-        errorCode === 503 ||
-        errorMessage.includes("Failed to parse Bedrock JSON response");
-
-      if (!isRetryable || attempt === maxRetries) {
-        logger.error("report-worker", "bedrock-invoke-failed", {
-          attempt,
-          errorName,
-          errorCode,
-          message: err.message,
-        }, err);
-        throw err;
-      }
-
-      // Backoff: 5s for all retries (JSON parse issues don't need exponential backoff)
-      const delay = errorMessage.includes("Failed to parse Bedrock JSON response") ? 5000 : Math.min(5000 * Math.pow(3, attempt - 1), 300000);
-      logger.warn("report-worker", "bedrock-retry", {
-        attempt,
-        nextAttempt: attempt + 1,
-        delayMs: delay,
-        errorName,
-        isJsonParseError: errorMessage.includes("Failed to parse Bedrock JSON response"),
-      });
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  throw lastError;
-}
 
 async function processMessage(message) {
   const body = JSON.parse(message.Body);
@@ -276,24 +223,17 @@ async function processMessage(message) {
     const truncated = funasrText.slice(0, 350000);  // Opus 4.6 1M context
     const finalTranscript = `[FunASR 转录（含说话人标签）]\n${truncated}`;
 
-    // 2. Fetch glossary, filter by meetingType category whitelist, call Bedrock
+    // 2. Fetch glossary + generate report via pipeline
     const glossaryItems = await fetchGlossaryItems();
-    const filteredItems = filterGlossaryByMeetingType(glossaryItems, meetingType);
-    logger.info("report-worker", "glossary-filtered", {
-      meetingId,
-      meetingType,
-      total: glossaryItems.length,
-      filtered: filteredItems.length,
+    logger.info("report-worker", "glossary-fetched", { meetingId, meetingType, total: glossaryItems.length });
+
+    const report = await generateReport(finalTranscript, meetingType, {
+      speakerMap,
+      glossaryItems,
+      extraOpts,
+      applyNames: false,
+      retry: true,
     });
-    // Weekly meetings use chunked generation to avoid token-repetition hallucination
-    let report;
-    if (meetingType === "weekly") {
-      report = await generateReportChunked(finalTranscript, meetingType, filteredItems, speakerMap);
-    } else {
-      report = await invokeModelWithRetry(finalTranscript, meetingType, filteredItems, extraOpts, speakerMap);
-    }
-    report = normalizeAnonymousSpeakerReport(report);
-    report = applyGlossaryToReport(report, glossaryItems);
 
     // 4. Upload report to S3
     const reportKey = `reports/${meetingId}/report.json`;

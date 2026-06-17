@@ -1,0 +1,301 @@
+"use strict";
+
+const { buildStructuredGlossaryNote } = require("../glossary-prompt-builder");
+
+function buildSpeakerNote(transcriptText, speakerMap) {
+  if (speakerMap && Object.keys(speakerMap).length > 0) {
+    const mapping = Object.entries(speakerMap).map(([k, v]) => `${k}: ${v}`).join(", ");
+    const nameList = [...new Set(Object.values(speakerMap))].join("、");
+    return `参会人真实姓名映射：{${mapping}}\n请使用真实姓名，严禁匿名代号。只允许使用：${nameList}。\n【owner/负责人归属铁律】：每个项目/议题的 owner 必须是转录中实际汇报该项目的说话人（即 [SPEAKER_X] 标签对应的真实姓名）。判断依据是"谁在讲这个项目的内容"，而非"项目讨论中提到了谁的名字"。严禁将主持人/提问者错误归为项目 owner。\n\n`;
+  }
+  if (transcriptText.includes("[SPEAKER_")) {
+    return `转录含说话人标签 [SPEAKER_X]。owner/负责人字段规则：优先填写转录中明确提到的真实人名，无法确定时填 SPEAKER_X，禁止留空。participants 以 SPEAKER_X 为标识。speakerKeypoints 以 SPEAKER_X 为 key。\n\n`;
+  }
+  return `转录中没有说话人标签，不要推测说话人身份，专注于讨论内容。owner 字段从转录内容中提取人名，无法确定则填"待定"，禁止留空。participants 输出空数组，speakerKeypoints 输出空对象。\n\n`;
+}
+
+function buildMergedPrompt(transcriptText, glossaryNote, customPrompt) {
+  const customNote = customPrompt ? `用户额外要求：${customPrompt}\n\n` : "";
+  return `${customNote}${glossaryNote}你是专业会议纪要助手，请根据以下多份会议纪要内容，生成一份综合汇总报告。
+
+会议纪要内容：
+${transcriptText}
+
+以 JSON 格式输出：
+{
+  "meetingType": "merged",
+  "summary": "跨会议综合总结（3-5句话）",
+  "keyTopics": [{ "topic": "主题", "detail": "分析", "source": "来源会议" }],
+  "highlights": [{ "point": "亮点", "detail": "详情", "source": "来源会议" }],
+  "lowlights": [{ "point": "问题/风险", "detail": "详情", "source": "来源会议" }],
+  "actions": [{ "task": "行动项", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low", "source": "来源会议" }],
+  "decisions": [{ "decision": "决策", "rationale": "原因", "source": "来源会议" }],
+  "risks": [{ "risk": "风险", "impact": "影响", "mitigation": "措施" }],
+  "participants": ["跨会议参与人汇总"],
+  "sourceMeetings": ["会议标题列表"],
+  "speakerKeypoints": {}
+}
+只输出 JSON。`;
+}
+
+function buildWeeklyPrompt(transcriptText, speakerNote, glossaryNote) {
+  return `${speakerNote}${glossaryNote}你是专业会议纪要助手，请分析以下 AWS SA 团队周例会转录文本，生成结构化会议纪要。周例会通常包含三大部分：团队/个人 KPI 汇报、公司公告事项、客户/项目逐个 Review。请注意：若 teamKPI 或 announcements 部分在转录中未明确提及，对应字段输出空数组即可，不要编造内容。每个项目/客户单独作为一个 projectReviews 条目，若会议中多人分别汇报不同项目，请逐项拆分，不要合并为一条。
+
+转录文本：${transcriptText}
+
+以 JSON 格式输出：
+{
+  "meetingType": "weekly",
+  "summary": "本次周会总结（2-3句话，涵盖整体氛围和最重要结论）",
+  "teamKPI": {
+    "overview": "团队整体 KPI 完成情况概述",
+    "individuals": [
+      { "name": "负责人姓名或角色（如主持人、成员A）", "kpi": "个人 KPI 要点", "status": "on-track / at-risk / completed" }
+    ]
+  },
+  "announcements": [
+    { "title": "公告标题", "detail": "公告内容", "owner": "发布人（如提及）" }
+  ],
+  "projectReviews": [
+    {
+      "project": "项目/客户名称",
+      "progress": "本周进展概述",
+      "followUps": [
+        { "task": "待跟进事项", "owner": "负责人姓名或角色（如主持人、成员A）", "deadline": "截止时间（如提及）", "status": "new / in-progress / blocked" }
+      ],
+      "highlights": [{ "point": "亮点", "detail": "详情" }],
+      "lowlights": [{ "point": "问题或未达预期", "detail": "影响" }],
+      "risks": [{ "risk": "风险描述", "impact": "high / medium / low", "mitigation": "缓解措施或应对方向" }],
+      "challenges": [{ "challenge": "挑战", "detail": "背景和当前状态" }]
+    }
+  ],
+  "decisions": [
+    { "decision": "决策内容", "rationale": "决策原因", "owner": "决策人（如提及）" }
+  ],
+  "actions": [
+    { "task": "行动项", "owner": "负责人姓名或角色（如主持人、成员A）", "deadline": "截止日期（如提及）", "priority": "high / medium / low", "project": "关联项目（如有）" }
+  ],
+  "participants": ["发言人角色（如主持人、成员A、客户代表）"],
+  "highlights": [{ "point": "亮点", "detail": "详情" }],
+  "lowlights": [{ "point": "问题/风险", "detail": "详情" }],
+  "nextMeeting": "下次会议时间（如有提及）",
+  "speakerKeypoints": {
+    "SPEAKER_0": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"],
+    "SPEAKER_1": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"]
+  }
+}
+只输出 JSON。`;
+}
+
+function buildTechPrompt(transcriptText, speakerNote, glossaryNote) {
+  return `${speakerNote}${glossaryNote}你是专业技术会议纪要助手，请分析以下技术讨论会转录文本，生成结构化技术会议纪要。
+
+转录文本：${transcriptText}
+
+以 JSON 格式输出：
+{
+  "meetingType": "tech",
+  "summary": "技术讨论总结（2-3句话）",
+  "topics": [{ "topic": "技术议题", "discussion": "讨论要点", "conclusion": "结论" }],
+  "highlights": [{ "point": "技术亮点/分享要点", "detail": "详情" }],
+  "lowlights": [{ "point": "技术风险/Trade-off", "detail": "影响分析" }],
+  "actions": [{ "task": "技术任务", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low", "estimate": "工时估计" }],
+  "knowledgeBase": [{ "title": "知识点标题", "content": "可直接用于文档的技术总结" }],
+  "participants": ["参会人列表"],
+  "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
+  "techStack": ["涉及的技术/工具/框架"],
+  "speakerKeypoints": {
+    "SPEAKER_0": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"],
+    "SPEAKER_1": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"]
+  }
+}
+只输出 JSON。`;
+}
+
+function buildCustomerPrompt(transcriptText, speakerNote, glossaryNote) {
+  return `${speakerNote}${glossaryNote}你是专业的 AWS SA 会议纪要助手，请分析以下客户会议转录文本，生成结构化客户会议纪要。
+
+请严格输出以下 JSON 格式，不要包含任何额外文字：
+
+{
+  "meetingType": "customer",
+  "date": "会议日期（如转录中提及）",
+  "duration": "会议时长（如可推断）",
+  "summary": "2-3句话概括本次会议核心内容和结论",
+  "customerInfo": {
+    "company": "客户公司名称",
+    "attendees": ["客户参会人（姓名/职位）"]
+  },
+  "awsAttendees": ["AWS 参会人（姓名/职位）"],
+  "customerNeeds": [
+    {
+      "need": "客户需求描述",
+      "priority": "high / medium / low",
+      "background": "背景说明（如有）"
+    }
+  ],
+  "painPoints": [
+    {
+      "point": "客户痛点",
+      "detail": "详细说明"
+    }
+  ],
+  "solutionsDiscussed": [
+    {
+      "solution": "讨论的解决方案",
+      "awsServices": ["涉及的 AWS 服务"],
+      "customerFeedback": "客户反馈/态度"
+    }
+  ],
+  "commitments": [
+    {
+      "party": "AWS / 客户",
+      "commitment": "承诺内容",
+      "owner": "负责人",
+      "deadline": "截止时间（如提及）"
+    }
+  ],
+  "nextSteps": [
+    {
+      "task": "下一步行动",
+      "owner": "负责人",
+      "deadline": "截止日期",
+      "priority": "high / medium / low"
+    }
+  ],
+  "participants": ["所有参会人员"],
+  "highlights": [{ "point": "亮点", "detail": "详情" }],
+  "lowlights": [{ "point": "问题/风险", "detail": "详情" }],
+  "actions": [{ "task": "行动项", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low" }],
+  "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
+  "speakerKeypoints": {
+    "SPEAKER_0": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"],
+    "SPEAKER_1": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"]
+  }
+}
+
+转录文本：${transcriptText}
+
+注意：speakerKeypoints 字段仅当转录文本中包含 [SPEAKER_X] 标签时提取，每位说话人最多3条核心发言要点，每条至少50个中文字。若无说话人标签，则输出空对象 {}。只输出 JSON。`;
+}
+
+function buildInterviewPrompt(transcriptText, speakerNote, glossaryNote, extraOpts) {
+  if (extraOpts?.interviewSubType === "phonescreen") {
+    const { buildPhonescreenPrompt } = require("../bedrock-interview");
+    return buildPhonescreenPrompt(transcriptText, { speakerNote, glossaryNote });
+  }
+  if (extraOpts?.interviewSubType === "lp") {
+    const { buildLpPrompt } = require("../bedrock-interview");
+    return buildLpPrompt(transcriptText, extraOpts.interviewLPs, { speakerNote, glossaryNote });
+  }
+  return `${speakerNote}${glossaryNote}你是专业的面试评估助手。请分析以下面试录音转录文本，基于 Amazon Leadership Principles 生成结构化的面试评估报告。
+
+请严格输出以下 JSON 格式，不要包含任何额外文字：
+
+{
+  "meetingType": "interview",
+  "summary": "面试总体评估（2-3句话概括候选人表现和建议）",
+  "candidateInfo": {
+    "name": "候选人姓名（从对话中推断）",
+    "position": "应聘职位（如提及）",
+    "level": "级别（如 L5/L6，如提及）",
+    "interviewer": "面试官姓名（从对话中推断）",
+    "interviewType": "电话面试/现场面试/视频面试（如可推断）"
+  },
+  "lpAssessment": [
+    {
+      "principle": "Leadership Principle 名称（英文）",
+      "rating": "strong / satisfactory / weak / not-assessed",
+      "evidence": "从面试对话中提取的具体行为证据，引用候选人的实际回答"
+    }
+  ],
+  "questions": [
+    {
+      "question": "面试官提出的问题",
+      "context": "该问题考察的能力/LP",
+      "answer": "候选人回答的关键要点（保留具体细节、数据、项目名称）",
+      "assessment": "对该回答质量的评价"
+    }
+  ],
+  "strengths": [{ "point": "优势项", "detail": "具体表现和证据" }],
+  "improvements": [{ "point": "待改进项", "detail": "具体说明和建议" }],
+  "recommendation": {
+    "decision": "hire / no-hire / inclined-hire / inclined-no-hire",
+    "reasoning": "综合决策理由（基于 LP 评估结果）",
+    "suggestedLevel": "建议级别（如适用）",
+    "suggestedRole": "建议角色（如适用）"
+  },
+  "participants": ["面试官", "候选人"],
+  "highlights": [{ "point": "亮点", "detail": "详情" }],
+  "lowlights": [{ "point": "问题/风险", "detail": "详情" }],
+  "actions": [{ "task": "后续行动", "owner": "负责人", "deadline": "截止日期", "priority": "high/medium/low" }],
+  "decisions": [{ "decision": "决策内容", "rationale": "决策原因" }],
+  "speakerKeypoints": {}
+}
+
+重要要求：
+1. lpAssessment 必须覆盖面试中涉及到的所有 Amazon Leadership Principles。常见的 16 条 LP 包括：Customer Obsession, Ownership, Invent and Simplify, Are Right A Lot, Learn and Be Curious, Hire and Develop the Best, Insist on the Highest Standards, Think Big, Bias for Action, Frugality, Earn Trust, Dive Deep, Have Backbone; Disagree and Commit, Deliver Results, Strive to be Earth's Best Employer, Success and Scale Bring Broad Responsibility。仅对面试中明确考察到的 LP 给出评分，其余标记为 not-assessed。
+2. questions 必须完整记录面试中提出的每个问题及候选人回答，保留具体的项目名称、数据指标、时间线等细节。
+3. strengths 和 improvements 要基于 LP 评估结果给出，不要泛泛而谈。
+4. recommendation 的 decision 必须基于 LP 评估的整体表现给出明确建议。
+
+转录文本：${transcriptText}
+
+注意：speakerKeypoints 字段仅当转录文本中包含 [SPEAKER_X] 标签时提取，若无则输出空对象 {}。只输出 JSON。`;
+}
+
+function buildGeneralPrompt(transcriptText, speakerNote, glossaryNote) {
+  return `${speakerNote}${glossaryNote}你是一个专业的会议纪要助手。请分析以下会议转录文本，生成结构化的会议纪要。
+
+重要要求：
+1. topics 的 discussion 字段必须详尽记录讨论细节，每条至少100个中文字。保留具体的工具名称、方案名称、演示步骤、数据指标、技术术语等实操性信息，不要只写一句话概括。
+2. 宁可多拆 topic 也不要合并导致信息丢失。每个可独立成段的讨论主题都应单独作为一个 topic。特别注意：如果会议中有演示（demo）多个功能或方案，每个独立的演示/功能点应作为单独的 topic，不要合并为一个"Demo演示"大 topic。
+3. 如果会议中涉及演示计划、准备脚本或下一步展示安排，应作为独立的 topic 记录，discussion 中列出具体要演示的内容、顺序和关键点。
+4. 不要遗漏转录中被明确讨论的功能、工具、方案或计划。提到的具体事项都应体现在纪要中。
+
+转录文本：
+${transcriptText}
+
+请以 JSON 格式输出，包含以下字段：
+{
+  "meetingType": "general",
+  "summary": "会议总结（2-3句话）",
+  "agenda": ["议程项（如提及）"],
+  "topics": [{ "topic": "议题", "discussion": "详尽的讨论要点（至少100字，保留工具名、方案名、步骤等具体信息）", "conclusion": "结论或待定" }],
+  "highlights": [{ "point": "要点描述", "detail": "详情" }],
+  "lowlights": [{ "point": "风险/问题描述", "detail": "详情" }],
+  "decisions": [{ "decision": "决策内容", "rationale": "决策原因", "owner": "决策人（如提及）" }],
+  "actions": [{ "task": "任务描述", "owner": "负责人", "deadline": "截止日期（如提及）", "priority": "high/medium/low" }],
+  "risks": [{ "risk": "风险描述", "impact": "high/medium/low", "mitigation": "缓解方向" }],
+  "participants": ["发言人角色"],
+  "nextMeeting": "下次会议时间（如有提及）",
+  "speakerKeypoints": {
+    "SPEAKER_0": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"],
+    "SPEAKER_1": ["该说话人提出的完整观点，包括具体数据、方案细节和上下文背景，每条至少50个中文字"]
+  }
+}
+
+只输出 JSON，不要其他文字。`;
+}
+
+function getMeetingPrompt(transcriptText, meetingType, glossaryTerms = [], speakerMap = null, customPrompt = null, extraOpts = null) {
+  const speakerNote = buildSpeakerNote(transcriptText, speakerMap);
+  const glossaryNote = buildStructuredGlossaryNote(glossaryTerms);
+
+  switch (meetingType) {
+    case "merged":
+      return buildMergedPrompt(transcriptText, glossaryNote, customPrompt);
+    case "weekly":
+      return buildWeeklyPrompt(transcriptText, speakerNote, glossaryNote);
+    case "tech":
+      return buildTechPrompt(transcriptText, speakerNote, glossaryNote);
+    case "customer":
+      return buildCustomerPrompt(transcriptText, speakerNote, glossaryNote);
+    case "interview":
+      return buildInterviewPrompt(transcriptText, speakerNote, glossaryNote, extraOpts);
+    default:
+      return buildGeneralPrompt(transcriptText, speakerNote, glossaryNote);
+  }
+}
+
+module.exports = { getMeetingPrompt, buildSpeakerNote };

@@ -116,42 +116,16 @@ async function invokePhase(phaseName, prompt, maxRetries = 2) {
 }
 
 /**
- * Deterministically fix projectReview owners using layered strategies:
- * 1. Glossary lookup: if a glossary entry for the project/company has an `owner` field, use it directly (zero inference).
- * 2. First non-moderator mention: find the first transcript line where a non-moderator speaker mentions the project name.
- * 3. Keep Bedrock's original owner if it's a valid non-moderator participant (last resort).
+ * Fix projectReview owners using 3-tier deterministic strategy:
+ * 1. Glossary lookup: project name matches glossary org term with owner → use it.
+ * 2. speakerKeypoints match: keypoints content mentions this project → use that speaker.
+ * 3. Keep LLM original (no override).
  */
-function fixProjectReviewOwners(projectReviews, transcriptText, speakerMap, glossaryTerms = []) {
+function fixProjectReviewOwners(projectReviews, { speakerKeypoints = {}, speakerMap = {}, glossaryItems = [] } = {}) {
   if (!projectReviews || projectReviews.length === 0) return projectReviews;
-  if (!speakerMap || Object.keys(speakerMap).length === 0) return projectReviews;
 
-  const lines = transcriptText.split("\n");
-  const speakerNames = [...new Set(Object.values(speakerMap).filter(Boolean))];
-  const speakerPattern = /^\[([^\]]+)\]\s/;
-
-  // Build per-line speaker index
-  const lineSpeakers = [];
-  for (const line of lines) {
-    const m = line.match(speakerPattern);
-    if (m) {
-      const label = m[1];
-      lineSpeakers.push(speakerMap[label] || (speakerNames.includes(label) ? label : null));
-    } else {
-      lineSpeakers.push(lineSpeakers.length > 0 ? lineSpeakers[lineSpeakers.length - 1] : null);
-    }
-  }
-
-  // Detect moderator: speaker with most total lines
-  const totalLineCounts = {};
-  for (const spk of lineSpeakers) {
-    if (spk) totalLineCounts[spk] = (totalLineCounts[spk] || 0) + 1;
-  }
-  const sorted = Object.entries(totalLineCounts).sort((a, b) => b[1] - a[1]);
-  const moderator = sorted.length > 0 ? sorted[0][0] : null;
-
-  // Build glossary owner lookup: project/company name (+ aliases) → owner
   const glossaryOwnerMap = {};
-  for (const item of glossaryTerms) {
+  for (const item of glossaryItems) {
     if (!item.owner) continue;
     const allNames = [item.term];
     if (Array.isArray(item.aliases)) {
@@ -164,30 +138,26 @@ function fixProjectReviewOwners(projectReviews, transcriptText, speakerMap, glos
     }
   }
 
+  const speakerTextMap = new Map();
+  for (const [speaker, points] of Object.entries(speakerKeypoints)) {
+    if (Array.isArray(points)) speakerTextMap.set(speaker, points.join(" ").toLowerCase());
+  }
+
   for (const pr of projectReviews) {
     const projectName = pr.project || "";
     const mainName = projectName.split(/[\s]*[-—（(]/)[0].trim();
     if (mainName.length < 2) continue;
 
-    // Build search keys from project name (full + short prefix for fuzzy matching)
     const searchKeys = [mainName.toLowerCase()];
     const parenMatch = projectName.match(/[（(]([^）)]+)[）)]/);
     if (parenMatch) searchKeys.push(parenMatch[1].trim().toLowerCase());
-    // Add short prefixes (2 and 4 chars) to handle verbose project names like "国创气象预测项目"
-    if (mainName.length > 2) {
-      for (const len of [2, 4]) {
-        if (mainName.length <= len) continue;
-        const prefix = mainName.slice(0, len).toLowerCase();
-        if (!searchKeys.includes(prefix)) searchKeys.push(prefix);
-      }
-    }
 
-    // Strategy 1: glossary owner lookup (highest confidence)
     let finalOwner = null;
+
+    // Strategy 1: glossary lookup
     for (const key of searchKeys) {
       if (glossaryOwnerMap[key]) { finalOwner = glossaryOwnerMap[key]; break; }
     }
-    // Also try partial match: glossary term contained in project name or vice versa
     if (!finalOwner) {
       for (const [gKey, gOwner] of Object.entries(glossaryOwnerMap)) {
         if (searchKeys.some(sk => sk.includes(gKey) || gKey.includes(sk))) {
@@ -197,32 +167,20 @@ function fixProjectReviewOwners(projectReviews, transcriptText, speakerMap, glos
       }
     }
 
-    // Strategy 2: first non-moderator transcript line mentioning project name
+    // Strategy 2: speakerKeypoints content matching (only if speaker resolves to a real name)
     if (!finalOwner) {
-      for (let i = 0; i < lines.length; i++) {
-        if (lineSpeakers[i] === moderator) continue;
-        const lower = lines[i].toLowerCase();
-        if (searchKeys.some(term => lower.includes(term))) {
-          finalOwner = lineSpeakers[i];
-          break;
+      for (const [speaker, text] of speakerTextMap.entries()) {
+        if (searchKeys.some(key => text.includes(key))) {
+          const resolved = speakerMap && speakerMap[speaker];
+          if (resolved) { finalOwner = resolved; break; }
         }
       }
     }
 
-    // Strategy 3: keep Bedrock's original if it's a valid non-moderator participant
-    if (!finalOwner) {
-      const existingOwners = (pr.followUps || []).map(f => f.owner).filter(Boolean);
-      const validOwner = existingOwners.find(o => o !== moderator && speakerNames.includes(o));
-      if (validOwner) finalOwner = validOwner;
-    }
-
     if (!finalOwner) continue;
 
-    // Apply owner to all followUps
     for (const fu of (pr.followUps || [])) {
-      if (!fu.owner || fu.owner === moderator || speakerNames.includes(fu.owner)) {
-        fu.owner = finalOwner;
-      }
+      fu.owner = finalOwner;
     }
   }
 
@@ -243,9 +201,7 @@ async function generateReportChunked(transcriptText, meetingType, glossaryTerms 
   });
 
   let phase2 = await invokePhase("phase2-projects", buildPhase2Prompt(transcriptText, glossaryTerms, speakerMap));
-  if (speakerMap && phase2.projectReviews) {
-    phase2.projectReviews = fixProjectReviewOwners(phase2.projectReviews, transcriptText, speakerMap, glossaryTerms);
-  }
+  // Owner fix is now handled by report-pipeline after all phases merge (uses speakerKeypoints from phase1)
   logger.info("report-chunked", "phase2-done", {
     projectReviews: phase2.projectReviews?.length || 0,
   });

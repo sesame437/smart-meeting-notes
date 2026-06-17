@@ -6,10 +6,9 @@ const { extractJsonFromLLMResponse } = require("../../services/report-builder");
 const logger = require("../../services/logger");
 const store = require("../../services/meeting-store");
 const glossaryStore = require("../../services/glossary-store");
-const { normalizeAnonymousSpeakerReport } = require("../../services/report-speaker-normalizer");
-const { applyNamesToReport } = require("../../services/report-post-processor");
-const { generateReportChunked } = require("../../services/report-chunked");
+const { normalizeAnonymousSpeakerReport, applyNamesToReport } = require("../../services/speaker-resolution");
 const { filterGlossaryByMeetingType } = require("../../services/glossary-filter");
+const { generateReport } = require("../../services/report-pipeline");
 const {
   HAIKU_MODEL_ID,
   getMeetingById,
@@ -26,6 +25,49 @@ const speakerNamesSchema = z.object({
   speakerMap: z.record(z.string().min(1), z.string()),
   speakerAliases: z.record(z.string().min(1), z.array(z.string())).optional(),
 });
+
+async function learnOwnerChanges(oldReviews, newReviews) {
+  const glossaryItems = await glossaryStore.listGlossary();
+  const orgItems = glossaryItems.filter(i => i.category === "组织" || i.owner);
+  const orgByTerm = new Map(orgItems.map(i => [i.term.toLowerCase(), i]));
+
+  for (let i = 0; i < newReviews.length; i++) {
+    const newPr = newReviews[i];
+    const oldPr = oldReviews[i];
+    if (!newPr || !oldPr) continue;
+
+    const newOwners = [...new Set((newPr.followUps || []).map(f => f.owner).filter(Boolean))];
+    const oldOwners = [...new Set((oldPr.followUps || []).map(f => f.owner).filter(Boolean))];
+    if (newOwners.length !== 1 || newOwners[0] === oldOwners[0]) continue;
+
+    const newOwner = newOwners[0];
+    const projectName = (newPr.project || "").split(/[\s]*[-—（(]/)[0].trim();
+    if (projectName.length < 2) continue;
+
+    const existing = orgByTerm.get(projectName.toLowerCase());
+    if (existing) {
+      if (existing.owner !== newOwner) {
+        await glossaryStore.updateGlossaryItem(
+          existing.termId,
+          ["#o = :o", "updatedAt = :u"],
+          { "#o": "owner" },
+          { ":o": newOwner, ":u": new Date().toISOString() }
+        );
+      }
+    } else {
+      await glossaryStore.createGlossaryItem({
+        termId: crypto.randomUUID(),
+        term: projectName,
+        category: "组织",
+        owner: newOwner,
+        aliases: "",
+        definition: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+}
 
 function register(router) {
   // Merge multiple meetings into a combined report
@@ -244,36 +286,21 @@ function register(router) {
       }
 
       let glossaryItems = [];
-      let filteredGlossary = [];
       try {
         glossaryItems = await glossaryStore.listGlossary();
-        filteredGlossary = filterGlossaryByMeetingType(glossaryItems, meetingType);
       } catch (err) {
         logger.warn("meetings-route", "regenerate-fetch-glossary-failed", { error: err.message });
       }
 
-      let report;
-      if (meetingType === "weekly") {
-        report = await generateReportChunked(transcriptText, meetingType, filteredGlossary, speakerMap);
-      } else {
-        const modelId = process.env.BEDROCK_MODEL_ID || undefined;
-        const responseText = await invokeModel(transcriptText, meetingType, filteredGlossary, modelId, speakerMap, null, extraOpts);
-        report = extractJsonFromLLMResponse(responseText);
-      }
-      if (!hasSpeakerMap) {
-        report = normalizeAnonymousSpeakerReport(report);
-      } else {
-        const nameMap = {};
-        Object.entries(speakerMap).forEach(([k, v]) => { if (v && v.trim()) nameMap[k] = v.trim(); });
-        const result = applyNamesToReport(
-          report, nameMap, item.speakerAliases || {}, (item.content && item.content.speakerRoster) || [], glossaryItems
-        );
-        report = result.report;
-        if (meetingType === "weekly" && report.projectReviews) {
-          const { fixProjectReviewOwners } = require("../../services/report-chunked");
-          report.projectReviews = fixProjectReviewOwners(report.projectReviews, transcriptText, speakerMap);
-        }
-      }
+      const report = await generateReport(transcriptText, meetingType, {
+        speakerMap,
+        speakerAliases: item.speakerAliases || {},
+        existingRoster: (item.content && item.content.speakerRoster) || [],
+        glossaryItems,
+        extraOpts,
+        applyNames: hasSpeakerMap,
+        retry: false,
+      });
 
       const reportKey = `reports/${req.params.id}/report.json`;
       await uploadFile(reportKey, JSON.stringify(report, null, 2), "application/json");
@@ -328,6 +355,8 @@ function register(router) {
       }
       const report = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
 
+      const oldProjectReviews = (section === "projectReviews") ? report[section] : null;
+
       // section is already validated against validSections whitelist
       report[section] = data;
 
@@ -343,6 +372,15 @@ function register(router) {
           ":u": new Date().toISOString(),
         }
       );
+
+      // Auto-learn: when user corrects projectReview owners, upsert glossary
+      if (section === "projectReviews" && Array.isArray(oldProjectReviews) && Array.isArray(data)) {
+        try {
+          await learnOwnerChanges(oldProjectReviews, data);
+        } catch (err) {
+          logger.warn("meetings-route", "auto-learn-owner-failed", { error: err.message });
+        }
+      }
 
       res.json({ success: true });
     } catch (err) {

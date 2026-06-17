@@ -200,10 +200,10 @@ describe("POST /api/meetings/:id/regenerate", () => {
     expect(invokeModel).toHaveBeenCalledWith(
       expect.stringContaining("Hello this is the transcript"),
       "general",
-      [],
+      expect.any(Array),
       undefined,
       { "SPEAKER_0": "Alice" },
-      null,
+      undefined,
       null
     );
   });

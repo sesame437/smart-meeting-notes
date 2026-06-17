@@ -2,7 +2,7 @@ const { Router } = require("express");
 const crypto = require("crypto");
 const { z } = require("zod");
 const glossaryStore = require("../services/glossary-store");
-const { inferGlossaryCategory } = require("../services/speaker-roster");
+const { inferGlossaryCategory } = require("../services/speaker-resolution");
 
 const router = Router();
 
