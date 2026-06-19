@@ -273,4 +273,34 @@ describe("POST /api/live-summary integration", () => {
     expect(res2.status).toBe(200);
     expect(res2.body.summary).toBe("ok");
   });
+
+  test("concurrent same-session requests: one 200, other 429 (race condition guard)", async () => {
+    const { generateLiveSummary } = require("../services/bedrock-live");
+    // Slow the mock so both requests overlap during the await
+    generateLiveSummary.mockImplementation(() =>
+      new Promise((resolve) => {
+        setTimeout(() => resolve({
+          summary: "ok",
+          highlights: [],
+          lowlights: [],
+          actions: [],
+          decisions: [],
+          generatedAt: "2026-05-03T00:00:00.000Z",
+          tokensInput: 10,
+          tokensOutput: 5,
+        }), 50);
+      })
+    );
+
+    const app = buildApp();
+    const body = { ...baseBody, sessionId: "3f2a0a12-0000-4000-8000-00000000cdef" };
+    const [res1, res2] = await Promise.all([
+      request(app).post("/api/live-summary").send(body),
+      request(app).post("/api/live-summary").send(body),
+    ]);
+    const statuses = [res1.status, res2.status].sort();
+    expect(statuses).toEqual([200, 429]);
+    const blocked = [res1, res2].find((r) => r.status === 429);
+    expect(blocked.body.error.code).toBe("RATE_LIMITED");
+  });
 });

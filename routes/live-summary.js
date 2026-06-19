@@ -15,12 +15,20 @@ const liveSummarySchema = z.object({
   isFinal: z.boolean().default(false),
 });
 
-// In-memory per-session last-call timestamp. Single-node server; no persistence required.
+// In-memory per-session state. Single-node server; no persistence required.
+// - lastCallBySession: timestamp of the last SUCCESSFUL call, enforces the 60s cooldown
+// - inFlightBySession: sessions currently awaiting Bedrock; reserved synchronously to close
+//   the check-then-await race where two concurrent calls with the same sessionId could both
+//   pass checkRateLimit before either had a chance to stamp lastCallBySession.
 const MIN_INTERVAL_MS = 60_000;
 const lastCallBySession = new Map();
+const inFlightBySession = new Set();
 
 function checkRateLimit(sessionId, isFinal) {
   if (isFinal) return { allowed: true };
+  if (inFlightBySession.has(sessionId)) {
+    return { allowed: false, retryInMs: MIN_INTERVAL_MS };
+  }
   const last = lastCallBySession.get(sessionId);
   const now = Date.now();
   if (last && now - last < MIN_INTERVAL_MS) {
@@ -67,6 +75,12 @@ router.post("/", async (req, res) => {
     });
   }
 
+  // Reserve the slot synchronously BEFORE any await so a concurrent same-session
+  // request immediately sees inFlight and gets 429. isFinal bypasses reservation
+  // because the client explicitly marks it as a fire-and-forget closing call.
+  const reserved = !isFinal;
+  if (reserved) inFlightBySession.add(sessionId);
+
   const startedAt = Date.now();
   try {
     const summary = await generateLiveSummary(transcriptText, { meetingType, elapsedSec });
@@ -98,6 +112,8 @@ router.post("/", async (req, res) => {
     return res.status(status).json({
       error: { code, message: outboundMessage },
     });
+  } finally {
+    if (reserved) inFlightBySession.delete(sessionId);
   }
 });
 

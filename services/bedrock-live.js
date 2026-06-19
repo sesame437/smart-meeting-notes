@@ -4,7 +4,34 @@ const {
   BedrockRuntimeClient,
   InvokeModelWithResponseStreamCommand,
 } = require("@aws-sdk/client-bedrock-runtime");
+const { z } = require("zod");
 const { extractJsonFromLLMResponse } = require("./report-builder");
+
+// Shape contract we promise to HTTP clients. Bedrock's free-text JSON output is validated
+// against this before being forwarded — a model that returns the wrong types (e.g. `highlights`
+// as a string, or an action item without a `task`) must fail loud as INTERNAL rather than
+// silently forwarding garbage that violates the endpoint's documented response schema.
+const pointSchema = z.object({
+  point: z.string(),
+  detail: z.string(),
+});
+const actionSchema = z.object({
+  task: z.string(),
+  owner: z.string().nullable().optional(),
+  deadline: z.string().nullable().optional(),
+  priority: z.string().nullable().optional(),
+});
+const decisionSchema = z.object({
+  decision: z.string(),
+  rationale: z.string().nullable().optional(),
+});
+const liveSummaryResponseSchema = z.object({
+  summary: z.string().default(""),
+  highlights: z.array(pointSchema).default([]),
+  lowlights: z.array(pointSchema).default([]),
+  actions: z.array(actionSchema).default([]),
+  decisions: z.array(decisionSchema).default([]),
+});
 
 const bedrockClient = new BedrockRuntimeClient({
   region: process.env.BEDROCK_REGION || process.env.AWS_REGION || "us-west-2",
@@ -158,12 +185,22 @@ async function generateLiveSummary(transcriptText, opts = {}) {
       throw parseErr;
     }
 
+    const shaped = liveSummaryResponseSchema.safeParse(parsed);
+    if (!shaped.success) {
+      const shapeErr = new Error(
+        `Bedrock response did not match expected schema: ${shaped.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ").slice(0, 300)}`
+      );
+      shapeErr.code = "INTERNAL";
+      shapeErr.__liveSummaryClassified = true;
+      throw shapeErr;
+    }
+
     return {
-      summary: parsed.summary || "",
-      highlights: parsed.highlights || [],
-      lowlights: parsed.lowlights || [],
-      actions: parsed.actions || [],
-      decisions: parsed.decisions || [],
+      summary: shaped.data.summary,
+      highlights: shaped.data.highlights,
+      lowlights: shaped.data.lowlights,
+      actions: shaped.data.actions,
+      decisions: shaped.data.decisions,
       generatedAt: new Date().toISOString(),
       tokensInput,
       tokensOutput,
