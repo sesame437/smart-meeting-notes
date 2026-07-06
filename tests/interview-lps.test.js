@@ -3,7 +3,7 @@
 const { INTERVIEW_LPS, isValidLP } = require("../services/interview-lps");
 
 describe("INTERVIEW_LPS whitelist", () => {
-  test("contains exactly the 9 expected LPs in order", () => {
+  test("contains exactly the 10 expected LPs in order", () => {
     expect(INTERVIEW_LPS).toEqual([
       "Learn and Be Curious",
       "Ownership",
@@ -14,6 +14,7 @@ describe("INTERVIEW_LPS whitelist", () => {
       "Deliver Results",
       "Earn Trust",
       "Think Big",
+      "Bias for Action",
     ]);
   });
 
@@ -27,10 +28,11 @@ describe("INTERVIEW_LPS whitelist", () => {
   test("isValidLP returns true for whitelisted names", () => {
     expect(isValidLP("Ownership")).toBe(true);
     expect(isValidLP("Have Backbone; Disagree and Commit")).toBe(true);
+    expect(isValidLP("Bias for Action")).toBe(true);
   });
 
   test("isValidLP returns false for non-whitelisted names", () => {
-    expect(isValidLP("Bias for Action")).toBe(false);
+    expect(isValidLP("Frugality")).toBe(false);
     expect(isValidLP("ownership")).toBe(false);
     expect(isValidLP("")).toBe(false);
     expect(isValidLP(null)).toBe(false);

@@ -105,6 +105,6 @@ describe("buildLpPrompt", () => {
   });
 
   test("throws when an LP is not on the whitelist", () => {
-    expect(() => buildLpPrompt("t", ["Ownership", "Bias for Action"])).toThrow(/whitelist|允许/);
+    expect(() => buildLpPrompt("t", ["Ownership", "Frugality"])).toThrow(/whitelist|允许/);
   });
 });

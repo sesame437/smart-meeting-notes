@@ -405,7 +405,7 @@ describe("meetings-core-routes", () => {
         .attach("file", audioBuffer, { filename: "test.mp3", contentType: "audio/mpeg" })
         .field("meetingType", "interview")
         .field("interviewSubType", "lp")
-        .field("interviewLPs[]", "Bias for Action")
+        .field("interviewLPs[]", "Frugality")
         .field("interviewLPs[]", "Dive Deep");
 
       expect(res.status).toBe(400);

@@ -1,8 +1,9 @@
 "use strict";
 
-// Single source of truth for the 9 LPs relevant to interview reports.
+// Single source of truth for the 10 LPs relevant to interview reports.
 // Excludes: Are Right A Lot, Hire and Develop the Best, Insist on the Highest Standards,
-// Bias for Action, Frugality, Strive to be Earth's Best Employer, Success and Scale Bring Broad Responsibility.
+// Frugality, Strive to be Earth's Best Employer, Success and Scale Bring Broad Responsibility.
+// NOTE: keep this list in sync with the frontend copy in public/js/app.js (INTERVIEW_LPS).
 const INTERVIEW_LPS = Object.freeze([
   "Learn and Be Curious",
   "Ownership",
@@ -13,6 +14,7 @@ const INTERVIEW_LPS = Object.freeze([
   "Deliver Results",
   "Earn Trust",
   "Think Big",
+  "Bias for Action",
 ]);
 
 const _LP_SET = new Set(INTERVIEW_LPS);

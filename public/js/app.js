@@ -27,6 +27,7 @@ const FunMessages = {
 };
 
 /* ===== Interview LP Whitelist + Upload Confirm Helpers ===== */
+/* NOTE: keep this list in sync with the backend copy in services/interview-lps.js */
 const INTERVIEW_LPS = [
   "Learn and Be Curious",
   "Ownership",
@@ -37,6 +38,7 @@ const INTERVIEW_LPS = [
   "Deliver Results",
   "Earn Trust",
   "Think Big",
+  "Bias for Action",
 ];
 
 function renderUploadLpCheckboxes() {
